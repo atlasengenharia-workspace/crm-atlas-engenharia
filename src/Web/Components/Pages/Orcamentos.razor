@@ -34,7 +34,12 @@
 
 <MudDrawer @bind-Open="_open" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(560px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-5"><MudText Typo="Typo.h5">@(_model.Id is null ? "Novo orçamento" : "Editar orçamento")</MudText><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _open=false)" aria-label="Fechar" /></div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo orçamento" : "Editar orçamento")</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _open=false)" aria-label="Fechar" />
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Codigo" Label="Código" Required="true" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_model.TipoServico" Label="Tipo" Variant="Variant.Outlined">@foreach(var t in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@t">@t</MudSelectItem>}</MudSelect></MudItem>
@@ -44,7 +49,8 @@
             <MudItem xs="12"><MudNumericField T="decimal?" @bind-Value="_model.ValorTotal" Label="Valor total" Variant="Variant.Outlined" Format="C2" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Descricao" Label="Descrição" Variant="Variant.Outlined" Lines="4" /></MudItem>
         </MudGrid></MudForm>
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6"><MudButton OnClick="@(() => _open=false)">Cancelar</MudButton><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">Salvar</MudButton></MudStack>
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(() => _open=false)">Cancelar</MudButton><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">Salvar</MudButton></MudStack>
     </div>
 </MudDrawer>
 

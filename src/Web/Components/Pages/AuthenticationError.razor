@@ -4,22 +4,28 @@
 <PageTitle>Falha na autenticação</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
-    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
-        <MudText Typo="Typo.h6" GutterBottom="true">
-            Não foi possível concluir a autenticação
-        </MudText>
-        <MudText>
-            Nenhum método de acesso está disponível para esta aplicação no
-            Auth0. Habilite uma conexão para o cliente e tente novamente.
-        </MudText>
-    </MudAlert>
+    <MudPaper Outlined="true" Class="pa-6">
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+                <MudText Typo="Typo.h6" GutterBottom="true">
+                    Não foi possível concluir a autenticação
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    Nenhum método de acesso está disponível para esta aplicação no
+                    Auth0. Habilite uma conexão para o cliente e tente novamente.
+                </MudText>
+            </MudAlert>
 
-    <MudStack Row="true" Class="mt-6">
-        <MudButton Href="/Login"
-                   Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Login">
-            Tentar novamente
-        </MudButton>
-    </MudStack>
+            <MudDivider Class="my-2" />
+
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                <MudButton Href="/Login"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Login">
+                    Tentar novamente
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
 </MudContainer>

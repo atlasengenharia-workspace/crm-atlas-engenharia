@@ -88,27 +88,30 @@
     </MudTable>
     @if (_result.TotalPages > 1)
     {
-        <div class="d-flex justify-space-between align-center flex-wrap gap-2 pa-4">
+        <MudDivider />
+        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-4">
             <MudText Typo="Typo.caption" Color="Color.Secondary">
                 @_result.TotalItems registro(s)
             </MudText>
             <MudPagination Count="_result.TotalPages" Selected="_page"
                            SelectedChanged="PageChangedAsync" Color="Color.Primary" />
-        </div>
+        </MudToolBar>
     }
 </MudPaper>
 
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(560px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex align-center justify-space-between mb-5">
-            <div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
                 <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo cliente" : "Editar cliente")</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Dados cadastrais e de contato</MudText>
-            </div>
+            </MudStack>
+            <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)"
                            aria-label="Fechar formulário" />
-        </div>
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_formValid">
             <MudGrid Spacing="2">
                 <MudItem xs="12">
@@ -138,44 +141,57 @@
                 </MudItem>
                 <MudItem xs="12"><MudDivider Class="my-2" /></MudItem>
                 <MudItem xs="12" sm="8">
-                    <MudTextField @bind-Value="_model.Rua" Label="Logradouro" Variant="Variant.Outlined" />
+                    <MudTextField @bind-Value="_model.Cep" Label="CEP"
+                                  Variant="Variant.Outlined" OnBlur="FormatCep"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@(_lookingUpCep ? Icons.Material.Filled.HourglassEmpty : Icons.Material.Filled.Search)"
+                                  OnAdornmentClick="LookupCepAsync" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Outlined" OnClick="LookupCepAsync"
+                               Disabled="_lookingUpCep" FullWidth="true">
+                        Buscar CEP
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" sm="9">
+                    <MudTextField @bind-Value="_model.Rua" Label="Logradouro"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudTextField @bind-Value="_model.Numero" Label="Número"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Complemento" Label="Complemento"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Bairro" Label="Bairro"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_model.Cidade" Label="Cidade"
+                                  Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="4">
-                    <MudTextField @bind-Value="_model.Numero" Label="Número" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_model.Bairro" Label="Bairro" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_model.Complemento" Label="Complemento" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField @bind-Value="_model.Cidade" Label="Cidade" Variant="Variant.Outlined" />
-                </MudItem>
-                <MudItem xs="6" sm="3">
                     <MudSelect T="string" @bind-Value="_model.Estado" Label="UF"
-                               Variant="Variant.Outlined" Clearable="true">
+                               Variant="Variant.Outlined">
                         @foreach (var uf in Ufs)
                         {
                             <MudSelectItem Value="@uf">@uf</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="6" sm="3">
-                    <div class="d-flex align-start">
-                        <MudTextField @bind-Value="_model.Cep" Label="CEP" Variant="Variant.Outlined"
-                                      OnBlur="FormatCep" HelperText="Digite o CEP e consulte." />
-                        <MudIconButton Icon="@Icons.Material.Filled.Search" Color="Color.Primary"
-                                       Disabled="_lookingUpCep" OnClick="LookupCepAsync"
-                                       aria-label="Consultar CEP" Class="mt-2" />
-                    </div>
-                </MudItem>
             </MudGrid>
         </MudForm>
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
-            <MudButton Variant="Variant.Text" OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving"
-                       StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">
+
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => _editorOpen = false)">
+                Cancelar
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="SaveAsync" Disabled="_saving">
                 @(_saving ? "Salvando..." : "Salvar cliente")
             </MudButton>
         </MudStack>

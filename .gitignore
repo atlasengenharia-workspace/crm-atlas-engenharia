@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.vs/
+.tmp-*/
+output/
+tmp/
+*.user
+*.suo
+appsettings.*.local.json
+.env
+.env.*
+!.env.railway.example

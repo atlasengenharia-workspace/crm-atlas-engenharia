@@ -83,3 +83,4 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\web\obj\Debug\ne
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\web\obj\Debug\net10.0\compressed\vp95xnlkdo-{0}-dm3bp9t9f6-dm3bp9t9f6.gz
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\web\obj\Debug\net10.0\compressed\vho261uytl-{0}-exrxk869f8-exrxk869f8.gz
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\web\obj\Debug\net10.0\compressed\rh3w9q4g6l-{0}-exrxk869f8-exrxk869f8.gz
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Web\obj\Debug\net10.0\Web.sourcelink.json

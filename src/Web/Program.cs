@@ -1,10 +1,16 @@
 using Auth0.AspNetCore.Authentication;
 using CrmAtlas.Infrastructure;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
 using MudBlazor.Services;
 using CrmAtlas.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
 builder.Services.AddMudServices();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -12,6 +18,15 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var auth0Domain = builder.Configuration["Auth0:Domain"] ?? string.Empty;
 var auth0ClientId = builder.Configuration["Auth0:ClientId"] ?? string.Empty;
 var auth0ClientSecret = builder.Configuration["Auth0:ClientSecret"] ?? string.Empty;
+
+if (!builder.Environment.IsDevelopment() &&
+    (string.IsNullOrWhiteSpace(auth0Domain) ||
+     string.IsNullOrWhiteSpace(auth0ClientId) ||
+     string.IsNullOrWhiteSpace(auth0ClientSecret)))
+{
+    throw new InvalidOperationException(
+        "Configure Auth0__Domain, Auth0__ClientId e Auth0__ClientSecret.");
+}
 
 builder.Services.AddAuth0WebAppAuthentication(options =>
 {
@@ -38,8 +53,17 @@ builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CrmAtlas.Web.Api.ApiExceptionHandler>();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -56,6 +80,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorPages();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

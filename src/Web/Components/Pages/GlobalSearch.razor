@@ -8,12 +8,12 @@
 <PageHeader Title="Busca global" Subtitle="Clientes, serviços, orçamentos, prestadores e acompanhamentos em um só lugar." />
 
 <MudPaper Outlined="true" Class="pa-4 mb-5">
-    <div class="d-flex gap-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
         <MudTextField T="string" @bind-Value="_query" Label="O que você procura?" Variant="Variant.Outlined"
                       Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                       OnKeyDown="SearchOnEnter" />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SearchAsync" Disabled="@(_query?.Trim().Length<2)">Buscar</MudButton>
-    </div>
+    </MudStack>
 </MudPaper>
 
 @if(_loading){<MudProgressLinear Indeterminate="true" Color="Color.Primary" />}
@@ -28,10 +28,13 @@ else
                 @foreach(var item in group)
                 {
                     <MudListItem Href="@Href(item)" Icon="@Icon(item.Tipo)">
-                        <div class="d-flex align-center">
-                            <div><MudText Typo="Typo.subtitle2">@item.Titulo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@item.Subtitulo</MudText></div>
-                            <MudSpacer />@if(!string.IsNullOrWhiteSpace(item.Codigo)){<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@item.Codigo</MudChip>}
-                        </div>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle2">@item.Titulo</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">@item.Subtitulo</MudText>
+                            </MudStack>
+                            @if(!string.IsNullOrWhiteSpace(item.Codigo)){<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@item.Codigo</MudChip>}
+                        </MudStack>
                     </MudListItem><MudDivider />
                 }
             </MudList>

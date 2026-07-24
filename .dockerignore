@@ -1,0 +1,12 @@
+.git
+.vs
+.agents
+.claude
+**/bin
+**/obj
+output
+tmp
+.tmp-*
+*.user
+*.suo
+appsettings.*.local.json

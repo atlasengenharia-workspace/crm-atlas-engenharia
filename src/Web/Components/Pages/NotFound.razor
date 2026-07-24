@@ -1,9 +1,19 @@
 @page "/not-found"
 @layout Layout.MainLayout
 
-<PageTitle>Not Found</PageTitle>
+<PageTitle>Página não encontrada | CRM Atlas</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">404 - Page Not Found</MudText>
-<MudText Class="mb-8">Sorry, the content you are looking for does not exist.</MudText>
-
-<MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Go to Home</MudButton>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
+    <MudPaper Outlined="true" Class="pa-8">
+        <MudStack Spacing="3" AlignItems="AlignItems.Center">
+            <MudIcon Icon="@Icons.Material.Filled.FindInPage" Color="Color.Secondary" Size="Size.Large" />
+            <MudText Typo="Typo.h4" Align="Align.Center">Página não encontrada</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">
+                O conteúdo que você está procurando não existe ou foi movido.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" StartIcon="@Icons.Material.Filled.Home" Class="mt-4">
+                Ir para o início
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+</MudContainer>

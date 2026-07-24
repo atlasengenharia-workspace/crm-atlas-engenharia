@@ -1,12 +1,15 @@
 <MudPaper Outlined="true" Class="pa-5 h-100">
-    <MudAvatar Color="@Color" Variant="Variant.Filled" Size="Size.Large" Class="mb-4">
-        <MudIcon Icon="@Icon" />
-    </MudAvatar>
-    <MudText Typo="Typo.h6">@Title</MudText>
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2 mb-4">@Description</MudText>
-    <MudButton Href="@Href" Variant="Variant.Text" Color="@Color" EndIcon="@Icons.Material.Filled.ArrowForward">
-        Acessar
-    </MudButton>
+    <MudStack AlignItems="AlignItems.Start" Spacing="2">
+        <MudAvatar Color="@Color" Variant="Variant.Filled" Size="Size.Large">
+            <MudIcon Icon="@Icon" />
+        </MudAvatar>
+        <MudText Typo="Typo.h6">@Title</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@Description</MudText>
+        <MudSpacer />
+        <MudButton Href="@Href" Variant="Variant.Text" Color="@Color" EndIcon="@Icons.Material.Filled.ArrowForward" Class="px-0">
+            Acessar
+        </MudButton>
+    </MudStack>
 </MudPaper>
 
 @code {

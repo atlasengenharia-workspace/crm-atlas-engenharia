@@ -1,13 +1,18 @@
-<div class="atlas-page-header mb-6">
-    <div class="atlas-page-header-copy">
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="atlas-page-header mb-6 gap-3">
+    <MudStack Spacing="0" Class="atlas-page-header-copy">
         <MudText Typo="Typo.h4">@Title</MudText>
         @if (!string.IsNullOrWhiteSpace(Subtitle))
         {
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@Subtitle</MudText>
         }
-    </div>
-    <div class="atlas-page-header-actions">@Actions</div>
-</div>
+    </MudStack>
+    @if (Actions is not null)
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap" Class="atlas-page-header-actions">
+            @Actions
+        </MudStack>
+    }
+</MudStack>
 
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;

@@ -11,39 +11,42 @@
 
 <MudLayout Class="atlas-shell">
     <MudAppBar Elevation="0" Class="atlas-appbar">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                       OnClick="@ToggleDrawerAsync" aria-label="Abrir ou fechar menu" />
-        <div class="atlas-appbar-title ml-2">
-            <MudText Typo="Typo.h6" Class="atlas-brand">CRM Atlas</MudText>
-            <MudText Typo="Typo.caption" Class="atlas-appbar-context">Gestão e inteligência operacional</MudText>
-        </div>
-        <MudSpacer />
-        <MudHidden Breakpoint="Breakpoint.SmAndDown">
-            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar clientes, serviços e códigos"
-                          Variant="Variant.Outlined" Margin="Margin.Dense"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          OnKeyDown="SearchOnEnter" Class="atlas-search" aria-label="Busca global" />
-        </MudHidden>
-        <MudHidden Breakpoint="Breakpoint.MdAndUp">
-            <MudIconButton Icon="@Icons.Material.Filled.Search" Href="/busca" Color="Color.Inherit" aria-label="Abrir busca global" />
-        </MudHidden>
-        <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                       Color="Color.Inherit" OnClick="@ToggleThemeAsync" aria-label="Alternar tema" />
-        <MudBadge Content="3" Color="Color.Error" Overlap="true">
-            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Href="/notificacoes"
-                           Color="Color.Inherit" aria-label="Abrir notificações" />
-        </MudBadge>
-        <AuthorizeView>
-            <Authorized>
-                <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
-                         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
-                         AriaLabel="Menu da conta">
-                    <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Meu perfil</MudMenuItem>
-                    <MudMenuItem Href="/profile/configuracoes" Icon="@Icons.Material.Filled.Settings">Preferências</MudMenuItem>
-                    <MudMenuItem Href="/Logout" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
-                </MudMenu>
-            </Authorized>
-        </AuthorizeView>
+        <MudToolBar Class="pa-0 w-100">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                           OnClick="@ToggleDrawerAsync" aria-label="Abrir ou fechar menu" />
+            <MudStack Spacing="0" Class="atlas-appbar-title ml-2">
+                <MudText Typo="Typo.h6" Class="atlas-brand">CRM Atlas</MudText>
+                <MudText Typo="Typo.caption" Class="atlas-appbar-context d-none d-sm-inline">Gestão e inteligência operacional</MudText>
+            </MudStack>
+            <MudSpacer />
+            <MudHidden Breakpoint="Breakpoint.SmAndDown">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar clientes, serviços e códigos"
+                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnKeyDown="SearchOnEnter" Class="atlas-search" aria-label="Busca global" />
+            </MudHidden>
+            <MudHidden Breakpoint="Breakpoint.MdAndUp">
+                <MudIconButton Icon="@Icons.Material.Filled.Search" Href="/busca" Color="Color.Inherit" aria-label="Abrir busca global" />
+            </MudHidden>
+            <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="@ToggleThemeAsync" aria-label="Alternar tema" />
+            <MudBadge Content="3" Color="Color.Error" Overlap="true" Class="ml-1">
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Href="/notificacoes"
+                               Color="Color.Inherit" aria-label="Abrir notificações" />
+            </MudBadge>
+            <AuthorizeView>
+                <Authorized>
+                    <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
+                             AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                             AriaLabel="Menu da conta">
+                        <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Meu perfil</MudMenuItem>
+                        <MudMenuItem Href="/profile/configuracoes" Icon="@Icons.Material.Filled.Settings">Preferências</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/Logout" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
+                    </MudMenu>
+                </Authorized>
+            </AuthorizeView>
+        </MudToolBar>
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"

@@ -15,3 +15,4 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\o
 c:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Debug\net10.0\ref\CrmAtlas.Infrastructure.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Debug\net10.0\CrmAtlas.Infrastructure.runtimeconfig.json
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Debug\net10.0\Infrastructure.genruntimeconfig.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Debug\net10.0\Infrastructure.sourcelink.json

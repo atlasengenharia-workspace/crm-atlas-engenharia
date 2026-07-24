@@ -75,22 +75,25 @@
     </MudTable>
     @if (_result.TotalPages > 1)
     {
-        <div class="d-flex justify-end pa-4">
-            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" />
-        </div>
+        <MudDivider />
+        <MudToolBar Class="justify-end pa-4">
+            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" Color="Color.Primary" />
+        </MudToolBar>
     }
 </MudPaper>
 
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(820px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-4">
-            <div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
                 <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo serviço" : $"Editar {_model.Codigo}")</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Preencha contrato e plano financeiro.</MudText>
-            </div>
+            </MudStack>
+            <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
-        </div>
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
 
         <MudForm @ref="_form" @bind-IsValid="_valid">
             <MudTabs Elevation="0" Rounded="true" Class="service-tabs">

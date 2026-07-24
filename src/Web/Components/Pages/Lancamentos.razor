@@ -146,10 +146,12 @@ else
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(560px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-5">
+        <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo lançamento" : "Editar lançamento")</MudText>
+            <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
-        </div>
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid">
             <MudGrid Spacing="2">
                 <MudItem xs="12" sm="6">

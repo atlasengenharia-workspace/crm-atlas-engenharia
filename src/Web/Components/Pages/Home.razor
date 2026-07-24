@@ -14,7 +14,7 @@
 </PageHeader>
 
 <MudPaper Outlined="true" Class="atlas-filter-panel pa-4 mb-5 atlas-enter">
-    <div class="d-flex flex-wrap align-center gap-3">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="gap-3">
         <MudToggleGroup T="string" Value="_period" ValueChanged="SetPeriodAsync"
                         Color="Color.Primary" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small">
             <MudToggleItem Value="@("90d")">90 dias</MudToggleItem>
@@ -22,19 +22,20 @@
             <MudToggleItem Value="@("12m")">12 meses</MudToggleItem>
             <MudToggleItem Value="@("ytd")">Este ano</MudToggleItem>
         </MudToggleGroup>
-        <MudSpacer />
-        <MudSelect T="AcompanhamentoServicoTipo?" Label="Linha de serviço"
-                   @bind-Value="_selectedType" Variant="Variant.Outlined" Margin="Margin.Dense"
-                   Class="dashboard-service-filter">
-            <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)null)">Todas as linhas</MudSelectItem>
-            @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
-            {
-                <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)type)">@ServiceLabel(type)</MudSelectItem>
-            }
-        </MudSelect>
-        <MudButton Variant="Variant.Outlined" OnClick="LoadAsync" Disabled="_loading"
-                   StartIcon="@Icons.Material.Filled.FilterAlt">Aplicar filtros</MudButton>
-    </div>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+            <MudSelect T="AcompanhamentoServicoTipo?" Label="Linha de serviço"
+                       @bind-Value="_selectedType" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Class="dashboard-service-filter">
+                <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)null)">Todas as linhas</MudSelectItem>
+                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                {
+                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)type)">@ServiceLabel(type)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Outlined" OnClick="LoadAsync" Disabled="_loading"
+                       StartIcon="@Icons.Material.Filled.FilterAlt">Aplicar filtros</MudButton>
+        </MudStack>
+    </MudStack>
 </MudPaper>
 
 @if (_loading)
@@ -61,10 +62,13 @@ else if (_data is not null)
         <MudGrid Class="mt-3">
             <MudItem xs="12" lg="8">
                 <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
-                    <div class="atlas-panel-heading">
-                        <div><MudText Typo="Typo.h6">Desempenho financeiro</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Receita recebida, custos e resultado mensal</MudText></div>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="atlas-panel-heading mb-3">
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h6">Desempenho financeiro</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Receita recebida, custos e resultado mensal</MudText>
+                        </MudStack>
                         <MudIcon Icon="@Icons.Material.Filled.Insights" Color="Color.Primary" />
-                    </div>
+                    </MudStack>
                     <MudChart T="double" ChartType="ChartType.Bar" ChartSeries="_financialSeries"
                               ChartLabels="_periodLabels" Width="100%" Height="340px" />
                 </MudPaper>
@@ -108,10 +112,13 @@ else if (_data is not null)
         <MudGrid Class="mt-3">
             <MudItem xs="12" lg="8">
                 <MudPaper Outlined="true" Class="atlas-panel pa-5">
-                    <div class="atlas-panel-heading">
-                        <div><MudText Typo="Typo.h6">Fila de prioridade</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Pendências e tempo na situação atual</MudText></div>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="atlas-panel-heading mb-3">
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.h6">Fila de prioridade</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Pendências e tempo na situação atual</MudText>
+                        </MudStack>
                         <MudButton Href="/acompanhamento" Variant="Variant.Text">Ver operação</MudButton>
-                    </div>
+                    </MudStack>
                     <MudTable Items="_data.Priorities" Dense="true" Hover="true" Elevation="0" Class="atlas-data-table">
                         <HeaderContent><MudTh>Código / cliente</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Tempo</MudTh></HeaderContent>
                         <RowTemplate>
@@ -126,16 +133,22 @@ else if (_data is not null)
             </MudItem>
             <MudItem xs="12" lg="4">
                 <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
-                    <div class="atlas-panel-heading"><MudText Typo="Typo.h6">Movimentações recentes</MudText><MudButton Href="/financeiro/lancamentos" Variant="Variant.Text">Ver todas</MudButton></div>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="atlas-panel-heading mb-3">
+                        <MudText Typo="Typo.h6">Movimentações recentes</MudText>
+                        <MudButton Href="/financeiro/lancamentos" Variant="Variant.Text">Ver todas</MudButton>
+                    </MudStack>
                     <MudList T="string">
                         @foreach (var entry in _data.RecentEntries)
                         {
                             <MudListItem Icon="@(entry.IsIncome ? Icons.Material.Filled.SouthWest : Icons.Material.Filled.NorthEast)"
                                          IconColor="@(entry.IsIncome ? Color.Success : Color.Error)">
-                                <div class="d-flex justify-space-between gap-3 w-100">
-                                    <div><MudText Typo="Typo.body2">@entry.Description</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@entry.Code · @entry.Date.ToString("dd/MM")</MudText></div>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.body2">@entry.Description</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@entry.Code · @entry.Date.ToString("dd/MM")</MudText>
+                                    </MudStack>
                                     <MudText Typo="Typo.body2"><strong>@Money(entry.Value)</strong></MudText>
-                                </div>
+                                </MudStack>
                             </MudListItem>
                         }
                     </MudList>

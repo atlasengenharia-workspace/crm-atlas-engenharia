@@ -102,25 +102,28 @@
     </MudTable>
     @if (_result.TotalPages > 1)
     {
-        <div class="d-flex justify-end pa-4">
-            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" />
-        </div>
+        <MudDivider />
+        <MudToolBar Class="justify-end pa-4">
+            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" Color="Color.Primary" />
+        </MudToolBar>
     }
 </MudPaper>
 
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(480px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-5">
+        <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo custo" : "Editar custo")</MudText>
+            <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
-        </div>
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid">
             <MudStack Spacing="3">
                 <MudDatePicker @bind-Date="_model.Data" Label="Data" Required="true"
                                Variant="Variant.Outlined" />
                 <MudTextField @bind-Value="_model.Descricao" Label="Descrição" Required="true"
-                              RequiredError="Informe a descrição." Variant="Variant.Outlined" />
+                               RequiredError="Informe a descrição." Variant="Variant.Outlined" />
                 <MudSelect T="string" @bind-Value="_model.Categoria" Label="Categoria" Required="true"
                            RequiredError="Informe a categoria." Variant="Variant.Outlined">
                     @foreach (var category in Categories)
@@ -133,7 +136,8 @@
                                  Variant="Variant.Outlined" />
             </MudStack>
         </MudForm>
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
             <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled"
                        Disabled="_saving" OnClick="SaveAsync">Salvar custo</MudButton>
@@ -144,20 +148,25 @@
 <MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(760px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-4">
-            <div><MudText Typo="Typo.h5">Importar custos</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualize e confirme antes de gravar.</MudText></div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h5">Importar custos</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualize e confirme antes de gravar.</MudText>
+            </MudStack>
+            <MudSpacer />
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _importOpen = false)" aria-label="Fechar importação" />
-        </div>
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
             CSV com cabeçalho: <strong>data;descricao;categoria;valor</strong>. Datas em dd/MM/yyyy e valores como 1234,56.
         </MudAlert>
         <InputFile OnChange="ParseImportAsync" accept=".csv,text/csv" />
         @if (_preview.Count > 0)
         {
-            <div class="d-flex justify-space-between align-center my-4">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="my-4">
                 <MudText Typo="Typo.subtitle2">@_preview.Count linha(s) • @_preview.Count(x => x.Valid) válida(s)</MudText>
                 @if (_preview.Any(x => !x.Valid)){<MudChip T="string" Color="Color.Error" Size="Size.Small">Corrija o arquivo antes de importar</MudChip>}
-            </div>
+            </MudStack>
             <MudTable Items="_preview" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0">
                 <HeaderContent><MudTh>Linha</MudTh><MudTh>Data</MudTh><MudTh>Descrição</MudTh><MudTh>Categoria</MudTh><MudTh>Valor</MudTh><MudTh>Validação</MudTh></HeaderContent>
                 <RowTemplate>
@@ -168,7 +177,8 @@
                 </RowTemplate>
             </MudTable>
         }
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
             <MudButton OnClick="@(() => _importOpen = false)">Cancelar</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Check"
                        Disabled="@(_importing || _preview.Count == 0 || _preview.Any(x => !x.Valid))" OnClick="ConfirmImportAsync">

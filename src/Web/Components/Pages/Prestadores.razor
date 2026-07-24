@@ -28,7 +28,15 @@
 
 <MudDrawer @bind-Open="_open" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(600px, 100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-5"><div><MudText Typo="Typo.h5">@(_model.Id is null?"Novo prestador":"Editar prestador")</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Dados cadastrais e bancários</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_open=false)" aria-label="Fechar" /></div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo prestador" : "Editar prestador")</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Dados cadastrais e bancários</MudText>
+            </MudStack>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_open=false)" aria-label="Fechar" />
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Nome" Label="Nome / razão social" Required="true" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.CnpjCpf" Label="CPF ou CNPJ" Variant="Variant.Outlined" /></MudItem>
@@ -41,7 +49,8 @@
             <MudItem xs="6" sm="3"><MudTextField @bind-Value="_model.Agencia" Label="Agência" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="6" sm="3"><MudTextField @bind-Value="_model.Conta" Label="Conta" Variant="Variant.Outlined" /></MudItem>
         </MudGrid></MudForm>
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6"><MudButton OnClick="@(()=>_open=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_saving">Salvar prestador</MudButton></MudStack>
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(()=>_open=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_saving">Salvar prestador</MudButton></MudStack>
     </div>
 </MudDrawer>
 

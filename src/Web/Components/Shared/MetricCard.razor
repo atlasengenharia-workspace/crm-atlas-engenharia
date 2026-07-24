@@ -1,13 +1,13 @@
 <MudPaper Outlined="true" Class="pa-4 h-100 metric-card">
-    <div class="d-flex justify-space-between align-start">
-        <div>
+    <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween">
+        <MudStack Spacing="0">
             <MudText Typo="Typo.caption" Color="Color.Secondary">@Title</MudText>
             <MudText Typo="Typo.h5" Class="mt-1">@Value</MudText>
-        </div>
+        </MudStack>
         <MudAvatar Color="@Color" Variant="Variant.Filled">
             <MudIcon Icon="@Icon" />
         </MudAvatar>
-    </div>
+    </MudStack>
     @if (!string.IsNullOrWhiteSpace(Href))
     {
         <MudButton Href="@Href" Variant="Variant.Text" Size="Size.Small" Class="mt-3 px-0"

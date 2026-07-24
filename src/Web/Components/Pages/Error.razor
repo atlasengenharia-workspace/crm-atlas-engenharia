@@ -1,28 +1,37 @@
-﻿@page "/Error"
+@page "/Error"
 @using System.Diagnostics
 
 <PageTitle>Error</PageTitle>
 
-<h1 class="text-danger">Error.</h1>
-<h2 class="text-danger">An error occurred while processing your request.</h2>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-12">
+    <MudPaper Outlined="true" Class="pa-6">
+        <MudStack Spacing="3" AlignItems="AlignItems.Start">
+            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Color="Color.Error" Size="Size.Large" />
+            <MudText Typo="Typo.h4" Color="Color.Error">Ocorreu um erro</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">
+                Não foi possível processar a requisição atual.
+            </MudText>
 
-@if (ShowRequestId)
-{
-    <p>
-        <strong>Request ID:</strong> <code>@RequestId</code>
-    </p>
-}
+            @if (ShowRequestId)
+            {
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="w-100 mt-2">
+                    <strong>ID da requisição:</strong> <code>@RequestId</code>
+                </MudAlert>
+            }
 
-<h3>Development Mode</h3>
-<p>
-    Swapping to <strong>Development</strong> environment will display more detailed information about the error that occurred.
-</p>
-<p>
-    <strong>The Development environment shouldn't be enabled for deployed applications.</strong>
-    It can result in displaying sensitive information from exceptions to end users.
-    For local debugging, enable the <strong>Development</strong> environment by setting the <strong>ASPNETCORE_ENVIRONMENT</strong> environment variable to <strong>Development</strong>
-    and restarting the app.
-</p>
+            <MudDivider Class="my-3 w-100" />
+
+            <MudText Typo="Typo.subtitle2">Modo de desenvolvimento</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Para depuração local, verifique a variável de ambiente <strong>ASPNETCORE_ENVIRONMENT=Development</strong>.
+            </MudText>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" StartIcon="@Icons.Material.Filled.Home" Class="mt-4">
+                Voltar ao início
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
 
 @code{
     [CascadingParameter]

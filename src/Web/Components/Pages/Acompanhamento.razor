@@ -47,7 +47,15 @@
     @if (_selected is not null)
     {
         <div class="pa-5">
-            <div class="d-flex justify-space-between align-center"><div><MudText Typo="Typo.h5">@_selected.Codigo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.Cliente</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" /></div>
+            <MudToolBar Class="pa-0 mb-3">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5">@_selected.Codigo</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.Cliente</MudText>
+                </MudStack>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" />
+            </MudToolBar>
+            <MudDivider Class="mb-4" />
             <MudPaper Outlined="true" Class="pa-4 mt-4">
                 <MudGrid Spacing="2">
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Endereço</MudText><MudText Typo="Typo.body2">@(_selected.Endereco??"—")</MudText></MudItem>
@@ -89,7 +97,12 @@
 
 <MudDrawer @bind-Open="_settingsOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(620px,100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between align-center mb-4"><MudText Typo="Typo.h5">Configurar situações</MudText><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_settingsOpen=false)" /></div>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudText Typo="Typo.h5">Configurar situações</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_settingsOpen=false)" />
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
         <MudGrid>
             <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_config.Tipo" Label="Tipo" Variant="Variant.Outlined">@foreach(var type in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>}</MudSelect></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_config.Nome" Label="Nome" Variant="Variant.Outlined" /></MudItem>
@@ -99,17 +112,26 @@
             <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
         </MudGrid>
         <MudDivider Class="my-5" />
-        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><div class="d-flex justify-space-between"><span>@TypeLabel(item.Tipo) • @item.Nome</span><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></div></MudListItem>}</MudList>
+        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><MudStack Row="true" Justify="Justify.SpaceBetween" Class="w-100"><MudText Typo="Typo.body2">@TypeLabel(item.Tipo) • @item.Nome</MudText><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></MudStack></MudListItem>}</MudList>
     </div>
 </MudDrawer>
 
 <MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(820px,100vw)" Elevation="8">
     <div class="pa-5">
-        <div class="d-flex justify-space-between"><div><MudText Typo="Typo.h5">Importação em lote</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualização obrigatória antes de persistir.</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" /></div>
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-4">No XLSX, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.</MudAlert>
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h5">Importação em lote</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualização obrigatória antes de persistir.</MudText>
+            </MudStack>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" />
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">No XLSX, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.</MudAlert>
         <InputFile OnChange="ParseImportAsync" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
         @if(_preview.Count>0){<MudTable Items="_preview" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-4"><HeaderContent><MudTh>Linha</MudTh><MudTh>Código</MudTh><MudTh>Tipo</MudTh><MudTh>Cliente</MudTh><MudTh>Validação</MudTh></HeaderContent><RowTemplate><MudTd>@context.Line</MudTd><MudTd>@context.Code</MudTd><MudTd>@context.Type</MudTd><MudTd>@context.Client</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Valid?Color.Success:Color.Error)">@(context.Valid?"Válida":context.Error)</MudChip></MudTd></RowTemplate></MudTable>}
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-5"><MudButton OnClick="@(()=>_importOpen=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
+        <MudDivider Class="mt-5 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(()=>_importOpen=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
     </div>
 </MudDrawer>
 
