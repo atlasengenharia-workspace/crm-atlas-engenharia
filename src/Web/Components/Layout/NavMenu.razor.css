@@ -1,0 +1,16 @@
+.atlas-logo {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+::deep .mud-nav-link {
+    border-radius: 8px;
+    margin-bottom: 3px;
+}
+
+::deep .mud-nav-link.active:not(.mud-nav-link-disabled) {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+

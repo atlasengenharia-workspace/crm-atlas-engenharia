@@ -1,0 +1,33 @@
+.atlas-page-header[b-uqn2doy3wm] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    min-width: 0;
+}
+
+.atlas-page-header-copy[b-uqn2doy3wm] {
+    min-width: 0;
+    flex: 1 1 320px;
+}
+
+.atlas-page-header-actions[b-uqn2doy3wm] {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .5rem;
+    min-width: 0;
+}
+
+@media (max-width: 600px) {
+    .atlas-page-header-actions[b-uqn2doy3wm] {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .atlas-page-header-actions[b-uqn2doy3wm]  .mud-button-root {
+        flex: 1 1 auto;
+    }
+}

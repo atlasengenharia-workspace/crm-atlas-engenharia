@@ -1,0 +1,223 @@
+@page "/"
+@attribute [Authorize]
+@using CrmAtlas.ApplicationCore.Dashboard
+@inject IDashboardQueryService Dashboard
+@inject ISnackbar Snackbar
+
+<PageTitle>Dashboard executivo | CRM Atlas</PageTitle>
+
+<PageHeader Title="Painel executivo" Subtitle="Receita por caixa, resultado e prioridades operacionais em uma única visão.">
+    <Actions>
+        <MudButton Href="/servicos" Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Add">Novo serviço</MudButton>
+    </Actions>
+</PageHeader>
+
+<MudPaper Outlined="true" Class="atlas-filter-panel pa-4 mb-5 atlas-enter">
+    <div class="d-flex flex-wrap align-center gap-3">
+        <MudToggleGroup T="string" Value="_period" ValueChanged="SetPeriodAsync"
+                        Color="Color.Primary" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small">
+            <MudToggleItem Value="@("90d")">90 dias</MudToggleItem>
+            <MudToggleItem Value="@("6m")">6 meses</MudToggleItem>
+            <MudToggleItem Value="@("12m")">12 meses</MudToggleItem>
+            <MudToggleItem Value="@("ytd")">Este ano</MudToggleItem>
+        </MudToggleGroup>
+        <MudSpacer />
+        <MudSelect T="AcompanhamentoServicoTipo?" Label="Linha de serviço"
+                   @bind-Value="_selectedType" Variant="Variant.Outlined" Margin="Margin.Dense"
+                   Class="dashboard-service-filter">
+            <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)null)">Todas as linhas</MudSelectItem>
+            @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+            {
+                <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@((AcompanhamentoServicoTipo?)type)">@ServiceLabel(type)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Outlined" OnClick="LoadAsync" Disabled="_loading"
+                   StartIcon="@Icons.Material.Filled.FilterAlt">Aplicar filtros</MudButton>
+    </div>
+</MudPaper>
+
+@if (_loading)
+{
+    <DashboardSkeleton />
+}
+else if (_data is not null)
+{
+    <section class="atlas-enter">
+        <MudGrid>
+            <MudItem xs="6" lg="3"><MetricCard Title="Receita recebida" Value="@Money(_data.Kpis.Revenue)" Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Href="/financeiro/lancamentos" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Custos totais" Value="@Money(_data.Kpis.DirectCosts + _data.Kpis.IndirectCosts)" Icon="@Icons.Material.Filled.TrendingDown" Color="Color.Error" Href="/financeiro/custos-indiretos" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Resultado" Value="@Money(_data.Kpis.Result)" Icon="@Icons.Material.Filled.AccountBalance" Color="@(_data.Kpis.Result >= 0 ? Color.Primary : Color.Error)" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Margem" Value="@_data.Kpis.Margin.ToString("P1", PtBr)" Icon="@Icons.Material.Filled.Percent" Color="Color.Info" /></MudItem>
+        </MudGrid>
+
+        <MudGrid Class="mt-2">
+            <MudItem xs="6" lg="3"><MetricCard Title="A receber" Value="@Money(_data.Kpis.Receivable)" Icon="@Icons.Material.Filled.Schedule" Color="Color.Warning" Href="/financeiro/lancamentos" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Clientes" Value="@_data.Kpis.Clients.ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Groups" Color="Color.Primary" Href="/clientes" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Serviços" Value="@_data.Kpis.Services.ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Assignment" Color="Color.Info" Href="/servicos" /></MudItem>
+            <MudItem xs="6" lg="3"><MetricCard Title="Pendências abertas" Value="@_data.Kpis.OpenPendencies.ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Href="/acompanhamento" /></MudItem>
+        </MudGrid>
+
+        <MudGrid Class="mt-3">
+            <MudItem xs="12" lg="8">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
+                    <div class="atlas-panel-heading">
+                        <div><MudText Typo="Typo.h6">Desempenho financeiro</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Receita recebida, custos e resultado mensal</MudText></div>
+                        <MudIcon Icon="@Icons.Material.Filled.Insights" Color="Color.Primary" />
+                    </div>
+                    <MudChart T="double" ChartType="ChartType.Bar" ChartSeries="_financialSeries"
+                              ChartLabels="_periodLabels" Width="100%" Height="340px" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" lg="4">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
+                    <MudText Typo="Typo.h6">Receita por serviço</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Participação por linha vinculada</MudText>
+                    @if (_revenueSeries.Count > 0)
+                    {
+                        <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="_revenueSeries"
+                                  ChartLabels="_revenueLabels" Width="100%" Height="315px" />
+                    }
+                    else
+                    {
+                        <EmptyState Title="Sem receita vinculada" Message="Os lançamentos do período ainda não possuem linha de serviço." />
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Class="mt-3">
+            <MudItem xs="12" md="6">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
+                    <MudText Typo="Typo.h6">Contratos fechados por serviço</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Valor contratado no período</MudText>
+                    <MudChart T="double" ChartType="ChartType.Bar" ChartSeries="_contractSeries"
+                              ChartLabels="_contractLabels" Width="100%" Height="290px" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
+                    <MudText Typo="Typo.h6">Custos indiretos por categoria</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Categorias com maior impacto</MudText>
+                    <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="_costSeries"
+                              ChartLabels="_costLabels" Width="100%" Height="290px" />
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudGrid Class="mt-3">
+            <MudItem xs="12" lg="8">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5">
+                    <div class="atlas-panel-heading">
+                        <div><MudText Typo="Typo.h6">Fila de prioridade</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">Pendências e tempo na situação atual</MudText></div>
+                        <MudButton Href="/acompanhamento" Variant="Variant.Text">Ver operação</MudButton>
+                    </div>
+                    <MudTable Items="_data.Priorities" Dense="true" Hover="true" Elevation="0" Class="atlas-data-table">
+                        <HeaderContent><MudTh>Código / cliente</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Tempo</MudTh></HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Código / cliente"><MudText Typo="Typo.body2"><strong>@context.Code</strong></MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@context.Client</MudText></MudTd>
+                            <MudTd DataLabel="Serviço"><span class="@($"atlas-service-tag atlas-service-{context.ServiceType.ToString().ToLowerInvariant()}")">@ServiceLabel(context.ServiceType)</span></MudTd>
+                            <MudTd DataLabel="Situação">@context.Status</MudTd>
+                            <MudTd DataLabel="Pendências"><MudChip T="int" Value="@context.OpenPendencies" Size="Size.Small" Color="@(context.OpenPendencies > 0 ? Color.Error : Color.Success)">@context.OpenPendencies</MudChip></MudTd>
+                            <MudTd DataLabel="Tempo">@context.DaysInStatus dia(s)</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" lg="4">
+                <MudPaper Outlined="true" Class="atlas-panel pa-5 h-100">
+                    <div class="atlas-panel-heading"><MudText Typo="Typo.h6">Movimentações recentes</MudText><MudButton Href="/financeiro/lancamentos" Variant="Variant.Text">Ver todas</MudButton></div>
+                    <MudList T="string">
+                        @foreach (var entry in _data.RecentEntries)
+                        {
+                            <MudListItem Icon="@(entry.IsIncome ? Icons.Material.Filled.SouthWest : Icons.Material.Filled.NorthEast)"
+                                         IconColor="@(entry.IsIncome ? Color.Success : Color.Error)">
+                                <div class="d-flex justify-space-between gap-3 w-100">
+                                    <div><MudText Typo="Typo.body2">@entry.Description</MudText><MudText Typo="Typo.caption" Color="Color.Secondary">@entry.Code · @entry.Date.ToString("dd/MM")</MudText></div>
+                                    <MudText Typo="Typo.body2"><strong>@Money(entry.Value)</strong></MudText>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </section>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private bool _loading = true;
+    private string _period = "12m";
+    private AcompanhamentoServicoTipo? _selectedType;
+    private DashboardSnapshot? _data;
+    private List<ChartSeries<double>> _financialSeries = [], _revenueSeries = [], _contractSeries = [], _costSeries = [];
+    private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task SetPeriodAsync(string value)
+    {
+        _period = value;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var start = _period switch
+            {
+                "90d" => today.AddDays(-90),
+                "6m" => today.AddMonths(-6),
+                "ytd" => new DateOnly(today.Year, 1, 1),
+                _ => today.AddMonths(-12)
+            };
+            var types = _selectedType is null
+                ? Enum.GetValues<AcompanhamentoServicoTipo>()
+                : [_selectedType.Value];
+            _data = await Dashboard.GetAsync(new(start, today, types));
+            BuildCharts(_data);
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add($"Não foi possível carregar o painel: {exception.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildCharts(DashboardSnapshot data)
+    {
+        _periodLabels = data.Periods.Select(x => x.Label).ToArray();
+        _financialSeries =
+        [
+            new() { Name = "Receita", Data = data.Periods.Select(x => (double)x.Revenue).ToArray() },
+            new() { Name = "Custos diretos", Data = data.Periods.Select(x => (double)x.DirectCosts).ToArray() },
+            new() { Name = "Custos indiretos", Data = data.Periods.Select(x => (double)x.IndirectCosts).ToArray() },
+            new() { Name = "Resultado", Data = data.Periods.Select(x => (double)x.Result).ToArray() }
+        ];
+        (_revenueLabels, _revenueSeries) = Donut(data.RevenueByService);
+        (_contractLabels, _contractSeries) = Bars("Contratos", data.ContractsByService);
+        (_costLabels, _costSeries) = Donut(data.IndirectCostsByCategory);
+    }
+
+    private static (string[], List<ChartSeries<double>>) Donut(IReadOnlyList<DashboardBreakdownPoint> data) =>
+        (data.Select(x => x.Label).ToArray(),
+         data.Count == 0 ? [] : [new() { Name = "Valor", Data = data.Select(x => (double)x.Value).ToArray() }]);
+
+    private static (string[], List<ChartSeries<double>>) Bars(string name, IReadOnlyList<DashboardBreakdownPoint> data) =>
+        (data.Select(x => x.Label).ToArray(),
+         data.Count == 0 ? [] : [new() { Name = name, Data = data.Select(x => (double)x.Value).ToArray() }]);
+
+    private static string Money(decimal value) => value.ToString("C0", PtBr);
+    private static string ServiceLabel(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Processos adm.",
+        _ => type.ToString()
+    };
+}

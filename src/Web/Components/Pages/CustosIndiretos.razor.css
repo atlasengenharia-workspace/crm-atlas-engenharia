@@ -1,0 +1,41 @@
+.cost-chart-panel,
+.cost-categories-panel {
+    min-width: 0;
+    min-height: 410px;
+    height: 100%;
+}
+
+.cost-chart-frame {
+    width: 100%;
+    min-width: 0;
+    min-height: 320px;
+    overflow: hidden;
+}
+
+.cost-chart-frame ::deep .mud-chart {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+}
+
+.cost-categories-panel ::deep .mud-chip {
+    max-width: 100%;
+}
+
+@media (max-width: 1279px) {
+    .cost-chart-panel,
+    .cost-categories-panel {
+        min-height: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .cost-chart-panel,
+    .cost-categories-panel {
+        padding: 1rem !important;
+    }
+
+    .cost-chart-frame {
+        min-height: 280px;
+    }
+}

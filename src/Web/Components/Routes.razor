@@ -1,0 +1,20 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+        <Navigating>
+            <div class="atlas-route-loading" role="status" aria-label="Carregando página"><span></span></div>
+        </Navigating>
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    <LayoutView Layout="typeof(Layout.MainLayout)">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    </LayoutView>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,0 +1,62 @@
+@page "/prestadores"
+@attribute [Authorize]
+@inject IPrestadorService Service
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Prestadores | CRM Atlas</PageTitle>
+<PageHeader Title="Prestadores" Subtitle="Equipe técnica, dados bancários e serviços vinculados.">
+    <Actions><MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="New">Novo prestador</MudButton></Actions>
+</PageHeader>
+
+<MudPaper Outlined="true" Class="pa-4">
+    <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar nome, documento ou contato" Immediate="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
+    <MudTable Items="Filtered" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading">
+        <HeaderContent><MudTh>Prestador</MudTh><MudTh>Documento</MudTh><MudTh>Contato</MudTh><MudTh>Pagamento</MudTh><MudTh>Ações</MudTh></HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Prestador"><div class="d-flex align-center gap-2"><MudAvatar Color="Color.Primary" Size="Size.Small">@Initials(context.Nome)</MudAvatar><strong>@context.Nome</strong></div></MudTd>
+            <MudTd DataLabel="Documento">@context.CnpjCpf</MudTd>
+            <MudTd DataLabel="Contato">@context.Telefone<br /><MudText Typo="Typo.caption">@context.Email</MudText></MudTd>
+            <MudTd DataLabel="Pagamento">@context.MetodoPagamento<br /><MudText Typo="Typo.caption">@PaymentDetail(context)</MudText></MudTd>
+            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => Edit(context))" aria-label="@($"Editar {context.Nome}")" />
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" aria-label="@($"Excluir {context.Nome}")" /></MudTd>
+        </RowTemplate>
+        <NoRecordsContent><EmptyState Title="Nenhum prestador" Message="Cadastre a equipe técnica e fornecedores." /></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+<MudDrawer @bind-Open="_open" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(600px, 100vw)" Elevation="8">
+    <div class="pa-5">
+        <div class="d-flex justify-space-between align-center mb-5"><div><MudText Typo="Typo.h5">@(_model.Id is null?"Novo prestador":"Editar prestador")</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Dados cadastrais e bancários</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_open=false)" aria-label="Fechar" /></div>
+        <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Nome" Label="Nome / razão social" Required="true" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.CnpjCpf" Label="CPF ou CNPJ" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_model.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudDivider Class="my-2" /><MudText Typo="Typo.subtitle2">Pagamento</MudText></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_model.MetodoPagamento" Label="Método" Variant="Variant.Outlined"><MudSelectItem Value="@("PIX")">PIX</MudSelectItem><MudSelectItem Value="@("Transferência")">Transferência</MudSelectItem><MudSelectItem Value="@("Boleto")">Boleto</MudSelectItem></MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.ChavePix" Label="Chave PIX" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Banco" Label="Banco" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="6" sm="3"><MudTextField @bind-Value="_model.Agencia" Label="Agência" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="6" sm="3"><MudTextField @bind-Value="_model.Conta" Label="Conta" Variant="Variant.Outlined" /></MudItem>
+        </MudGrid></MudForm>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6"><MudButton OnClick="@(()=>_open=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_saving">Salvar prestador</MudButton></MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    private List<PrestadorDto> _items=[]; private ProviderModel _model=new(); private MudForm? _form;
+    private bool _loading,_open,_saving,_valid; private string? _search;
+    private IEnumerable<PrestadorDto> Filtered=>string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private void New(){_model=new();_open=true;} private void Edit(PrestadorDto x){_model=ProviderModel.From(x);_open=true;}
+    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Prestador salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_saving=false;}}
+    private async Task DeleteAsync(PrestadorDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir prestador",$"Excluir {x.Nome}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
+    private static string Initials(string n)=>string.Join("",n.Split(' ',StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x=>char.ToUpperInvariant(x[0])));
+    private static string PaymentDetail(PrestadorDto x)=>x.MetodoPagamento=="PIX"?x.ChavePix??"":string.Join(" • ",new[]{x.Banco,x.Agencia,x.Conta}.Where(v=>!string.IsNullOrWhiteSpace(v)));
+    private sealed class ProviderModel{public long? Id{get;set;}public string Nome{get;set;}="";public string? CnpjCpf{get;set;}public string? Telefone{get;set;}public string? Email{get;set;}public string? MetodoPagamento{get;set;}public string? ChavePix{get;set;}public string? Banco{get;set;}public string? Agencia{get;set;}public string? Conta{get;set;}
+        public static ProviderModel From(PrestadorDto x)=>new(){Id=x.Id,Nome=x.Nome,CnpjCpf=x.CnpjCpf,Telefone=x.Telefone,Email=x.Email,MetodoPagamento=x.MetodoPagamento,ChavePix=x.ChavePix,Banco=x.Banco,Agencia=x.Agencia,Conta=x.Conta};
+        public PrestadorDto ToDto()=>new(Id,Nome,CnpjCpf,Telefone,Email,MetodoPagamento,ChavePix,Banco,Agencia,Conta);}
+}

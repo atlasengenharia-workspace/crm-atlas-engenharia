@@ -1,0 +1,61 @@
+@page "/profile"
+@attribute [Authorize]
+@using System.Security.Claims
+
+<PageTitle>Minha conta</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <MudText Typo="Typo.h3" GutterBottom="true">Minha conta</MudText>
+
+        <MudPaper Class="pa-6" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                @if (!string.IsNullOrWhiteSpace(Picture(context.User)))
+                {
+                    <MudAvatar Size="Size.Large">
+                        <MudImage Src="@Picture(context.User)" Alt="Foto do perfil" />
+                    </MudAvatar>
+                }
+                else
+                {
+                    <MudAvatar Color="Color.Primary" Size="Size.Large">
+                        @Initial(context.User)
+                    </MudAvatar>
+                }
+
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5">@(context.User.Identity?.Name ?? "Usuário")</MudText>
+                    <MudText Color="Color.Secondary">@Email(context.User)</MudText>
+                </MudStack>
+            </MudStack>
+
+            <MudDivider Class="my-5" />
+
+            <MudText Typo="Typo.subtitle2">Identificador da conta</MudText>
+            <MudText Typo="Typo.body2">@Subject(context.User)</MudText>
+        </MudPaper>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static string? Picture(ClaimsPrincipal user) =>
+        user.FindFirst("picture")?.Value;
+
+    private static string Email(ClaimsPrincipal user) =>
+        user.FindFirst(ClaimTypes.Email)?.Value
+        ?? user.FindFirst("email")?.Value
+        ?? "E-mail não informado";
+
+    private static string Subject(ClaimsPrincipal user) =>
+        user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+        ?? user.FindFirst("sub")?.Value
+        ?? "Não informado";
+
+    private static string Initial(ClaimsPrincipal user)
+    {
+        var name = user.Identity?.Name;
+        return string.IsNullOrWhiteSpace(name)
+            ? "U"
+            : name[..1].ToUpperInvariant();
+    }
+}

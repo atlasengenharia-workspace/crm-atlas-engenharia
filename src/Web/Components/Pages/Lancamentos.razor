@@ -1,0 +1,425 @@
+@page "/financeiro/lancamentos"
+@attribute [Authorize]
+@inject ILancamentoService Service
+@inject ICadastroServicoService CadastroServicoService
+@inject IPrestadorService PrestadorService
+@inject IReceiptStorage ReceiptStorage
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Lançamentos | CRM Atlas</PageTitle>
+
+<PageHeader Title="Lançamentos financeiros"
+            Subtitle="Controle entradas, saídas, previsões e pagamentos realizados.">
+    <Actions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="New">Novo lançamento</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_initialLoading)
+{
+    <TablePageSkeleton MetricCount="3" ColumnCount="6" />
+}
+else
+{
+<MudGrid Class="mb-4">
+    <MudItem xs="12" sm="4">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Entradas nesta página</MudText>
+            <MudText Typo="Typo.h5" Color="Color.Success">@Money(_result.Items.Sum(x => x.Faturamento))</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Saídas nesta página</MudText>
+            <MudText Typo="Typo.h5" Color="Color.Error">@Money(_result.Items.Sum(x => x.CustoDireto))</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo nesta página</MudText>
+            <MudText Typo="Typo.h5" Color="@(_result.Items.Sum(x => x.Lucro) >= 0 ? Color.Success : Color.Error)">
+                @Money(_result.Items.Sum(x => x.Lucro))
+            </MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" md="4">
+            <MudTextField @bind-Value="_search" Label="Descrição ou código do serviço"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="LancamentoTipo?" @bind-Value="_tipo" Label="Tipo"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem T="LancamentoTipo?" Value="LancamentoTipo.ENTRADA">Entrada</MudSelectItem>
+                <MudSelectItem T="LancamentoTipo?" Value="LancamentoTipo.SAIDA">Saída</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudSelect T="LancamentoStatus?" @bind-Value="_status" Label="Status"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var status in Enum.GetValues<LancamentoStatus>())
+                {
+                    <MudSelectItem T="LancamentoStatus?" Value="@status">@StatusLabel(status)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="3" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
+                       OnClick="ApplyFilterAsync" Disabled="_loading">
+                @if (_loading)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                }
+                Aplicar filtros
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Outlined="true" Class="atlas-loading-host">
+    <MudOverlay Visible="@(_loading && !_initialLoading)" Absolute="true"
+                DarkBackground="false" Class="atlas-table-overlay">
+        <div class="atlas-loading-badge">
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+            <MudText Typo="Typo.body2">Atualizando lançamentos...</MudText>
+        </div>
+    </MudOverlay>
+    <MudTable Items="_result.Items" Hover="true" Loading="_loading" Elevation="0"
+              Breakpoint="Breakpoint.Md">
+        <HeaderContent>
+            <MudTh>Data</MudTh><MudTh>Lançamento</MudTh><MudTh>Tipo</MudTh>
+            <MudTh>Status</MudTh><MudTh Class="text-right">Valor</MudTh>
+            <MudTh Class="text-right">Ações</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Data">@context.Data.ToString("dd/MM/yyyy")</MudTd>
+            <MudTd DataLabel="Lançamento">
+                <MudText Typo="Typo.body2"><strong>@context.Descricao</strong></MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @context.Codigo @(!string.IsNullOrWhiteSpace(context.CodigoServico) ? $"• {context.CodigoServico}" : "")
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Tipo">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Tipo == LancamentoTipo.ENTRADA ? Color.Success : Color.Error)">
+                    @(context.Tipo == LancamentoTipo.ENTRADA ? "Entrada" : "Saída")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@StatusLabel(context.Status)</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Valor" Class="text-right"><strong>@Money(context.Valor)</strong></MudTd>
+            <MudTd DataLabel="Ações" Class="text-right">
+                @if (!string.IsNullOrWhiteSpace(context.ComprovanteUrl))
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Href="@context.ComprovanteUrl"
+                                   Target="_blank" Size="Size.Small" aria-label="Abrir comprovante" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => Edit(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <EmptyState Title="Nenhum lançamento encontrado"
+                        Message="Registre uma entrada ou saída para começar o controle financeiro." />
+        </NoRecordsContent>
+    </MudTable>
+    @if (_result.TotalPages > 1)
+    {
+        <div class="d-flex justify-end pa-4">
+            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync"
+                           Disabled="_loading" />
+        </div>
+    }
+</MudPaper>
+
+}
+
+<MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
+           Width="min(560px, 100vw)" Elevation="8">
+    <div class="pa-5">
+        <div class="d-flex justify-space-between align-center mb-5">
+            <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo lançamento" : "Editar lançamento")</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+        </div>
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="LancamentoTipo" @bind-Value="_model.Tipo" Label="Tipo"
+                               Required="true" Variant="Variant.Outlined">
+                        <MudSelectItem Value="LancamentoTipo.ENTRADA">Entrada</MudSelectItem>
+                        <MudSelectItem Value="LancamentoTipo.SAIDA">Saída</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="LancamentoStatus" @bind-Value="_model.Status" Label="Status"
+                               Required="true" Variant="Variant.Outlined">
+                        @foreach (var status in Enum.GetValues<LancamentoStatus>())
+                        {
+                            <MudSelectItem Value="@status">@StatusLabel(status)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Descricao" Label="Descrição"
+                                  Required="true" RequiredError="Informe a descrição."
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_model.Data" Label="Data" Required="true"
+                                   Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" @bind-Value="_model.Valor" Label="Valor"
+                                     Required="true" Min="0.01M" Format="C2" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="long?" Value="_model.CadastroServicoId" ValueChanged="ServiceChanged"
+                               Label="Serviço vinculado" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var item in _services)
+                        {
+                            <MudSelectItem T="long?" Value="@item.Id">@item.Codigo — @item.RazaoSocialEmpresa</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" Value="_model.NumeroParcela" ValueChanged="InstallmentChanged"
+                               Label="Parcela" Variant="Variant.Outlined" Clearable="true" Disabled="_model.CadastroServicoId is null">
+                        @foreach (var item in SelectedService?.Parcelas ?? [])
+                        {
+                            <MudSelectItem T="int?" Value="@item.NumeroParcela">Parcela @item.NumeroParcela — @Money(item.Valor ?? 0)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="long?" Value="_model.PrestadorId" ValueChanged="ProviderChanged"
+                               Label="Prestador" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var item in _providers)
+                        {
+                            <MudSelectItem T="long?" Value="@item.Id">@item.Nome</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" @bind-Value="_model.FormaPagamento" Label="Forma de pagamento" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem Value="@("PIX")">PIX</MudSelectItem><MudSelectItem Value="@("Boleto")">Boleto</MudSelectItem>
+                        <MudSelectItem Value="@("Transferência")">Transferência</MudSelectItem><MudSelectItem Value="@("Cartão")">Cartão</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Plataforma" Label="Banco / plataforma" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Empresa" Label="Empresa pagadora / recebedora" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12">
+                    <MudPaper Outlined="true" Class="pa-4">
+                        <MudText Typo="Typo.subtitle2">Comprovante</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">PDF ou imagem, até 10 MB. Download protegido por autenticação.</MudText>
+                        <div class="d-flex flex-wrap align-center gap-3 mt-3">
+                            <InputFile OnChange="ReceiptSelected" accept=".pdf,.png,.jpg,.jpeg,.webp" />
+                            @if (!string.IsNullOrWhiteSpace(_model.ComprovanteNomeArquivo))
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.AttachFile">@_model.ComprovanteNomeArquivo</MudChip>
+                            }
+                        </div>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Observacao" Label="Observações"
+                                  Lines="3" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
+            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       Disabled="_saving" OnClick="SaveAsync">
+                @if (_saving)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                    <span>Salvando...</span>
+                }
+                else
+                {
+                    <span>Salvar lançamento</span>
+                }
+            </MudButton>
+        </MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
+    private EntryModel _model = new();
+    private IReadOnlyList<CadastroServicoDto> _services = [];
+    private IReadOnlyList<PrestadorDto> _providers = [];
+    private IBrowserFile? _receipt;
+    private MudForm? _form;
+    private bool _valid;
+    private bool _initialLoading = true;
+    private bool _loading;
+    private bool _saving;
+    private bool _editorOpen;
+    private string? _search;
+    private LancamentoTipo? _tipo;
+    private LancamentoStatus? _status;
+    private int _page = 1;
+
+    private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var servicesTask = CadastroServicoService.ListAsync(new(null, null, null, 1, 2000));
+            var providersTask = PrestadorService.ListAsync();
+            var entriesTask = Service.ListAsync(new(null, null, null, null, null, null, 1, 20));
+            await Task.WhenAll(servicesTask, providersTask, entriesTask);
+            _services = servicesTask.Result.Items;
+            _providers = providersTask.Result;
+            _result = entriesTask.Result;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Não foi possível carregar os lançamentos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+    private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _result = await Service.ListAsync(new(_tipo, _status, null, null, _search, _search, _page, 20)); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private void New() { _model = new(); _receipt = null; _editorOpen = true; }
+    private void Edit(LancamentoDto x)
+    {
+        _model = new()
+        {
+            Id = x.Id, Tipo = x.Tipo, Status = x.Status, Origem = x.Origem,
+            Descricao = x.Descricao, Data = x.Data.ToDateTime(TimeOnly.MinValue),
+            Valor = x.Valor, CadastroServicoId = x.CadastroServicoId, PrestadorId = x.PrestadorId,
+            CodigoServico = x.CodigoServico, NomeCliente = x.NomeCliente,
+            NomePrestador = x.NomePrestador, FormaPagamento = x.FormaPagamento,
+            NumeroParcela = x.NumeroParcela, DataPrevistaParcela = x.DataPrevistaParcela?.ToDateTime(TimeOnly.MinValue),
+            MetodoPagamento = x.MetodoPagamento, Plataforma = x.Plataforma, Empresa = x.Empresa,
+            ComprovanteUrl = x.ComprovanteUrl, ComprovanteNomeArquivo = x.ComprovanteNomeArquivo,
+            Observacao = x.Observacao
+        };
+        _receipt = null;
+        _editorOpen = true;
+    }
+
+    private void ServiceChanged(long? id)
+    {
+        _model.CadastroServicoId = id;
+        _model.NumeroParcela = null;
+        _model.CodigoServico = SelectedService?.Codigo;
+        _model.NomeCliente = SelectedService?.RazaoSocialEmpresa;
+    }
+    private void InstallmentChanged(int? number)
+    {
+        _model.NumeroParcela = number;
+        var item = SelectedService?.Parcelas.FirstOrDefault(x => x.NumeroParcela == number);
+        if (item is null) return;
+        _model.Valor = item.Valor ?? _model.Valor;
+        _model.DataPrevistaParcela = item.DataVencimento?.ToDateTime(TimeOnly.MinValue);
+        _model.FormaPagamento = item.FormaPagamento;
+    }
+    private void ProviderChanged(long? id)
+    {
+        _model.PrestadorId = id;
+        var item = _providers.FirstOrDefault(x => x.Id == id);
+        _model.NomePrestador = item?.Nome;
+        _model.MetodoPagamento = item?.MetodoPagamento;
+    }
+    private void ReceiptSelected(InputFileChangeEventArgs args) => _receipt = args.File;
+
+    private async Task SaveAsync()
+    {
+        await (_form?.ValidateAsync() ?? Task.CompletedTask);
+        if (!_valid || _model.Data is null) return;
+        _saving = true;
+        try
+        {
+            if (_receipt is not null)
+            {
+                await using var stream = _receipt.OpenReadStream(10 * 1024 * 1024);
+                var stored = await ReceiptStorage.SaveAsync(stream, _receipt.Name, _receipt.ContentType);
+                _model.ComprovanteUrl = $"/api/comprovantes/{stored.Key}";
+                _model.ComprovanteNomeArquivo = stored.OriginalFileName;
+            }
+            var dto = _model.ToDto();
+            if (_model.Id is null) await Service.CreateAsync(dto);
+            else await Service.UpdateAsync(_model.Id.Value, dto);
+            _editorOpen = false;
+            Snackbar.Add("Lançamento salvo com sucesso.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(LancamentoDto x)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir lançamento", $"Deseja excluir “{x.Descricao}”?", "Excluir", cancelText: "Cancelar");
+        if (confirm != true || x.Id is null) return;
+        try { await Service.DeleteAsync(x.Id.Value); await LoadAsync(); Snackbar.Add("Lançamento excluído.", Severity.Success); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private static string StatusLabel(LancamentoStatus status) => status switch
+    {
+        LancamentoStatus.A_PAGAR => "A pagar",
+        LancamentoStatus.A_CONFIRMAR => "A confirmar",
+        LancamentoStatus.PAGO => "Pago",
+        _ => "Previsto"
+    };
+    private static string Money(decimal value) => value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+
+    private sealed class EntryModel
+    {
+        public long? Id { get; set; }
+        public LancamentoTipo Tipo { get; set; } = LancamentoTipo.ENTRADA;
+        public LancamentoStatus Status { get; set; } = LancamentoStatus.PREVISTO;
+        public LancamentoOrigem Origem { get; set; } = LancamentoOrigem.MANUAL;
+        public long? CadastroServicoId { get; set; }
+        public long? PrestadorId { get; set; }
+        public string? CodigoServico { get; set; }
+        public string? NomeCliente { get; set; }
+        public string? NomePrestador { get; set; }
+        public string Descricao { get; set; } = "";
+        public DateTime? Data { get; set; } = DateTime.Today;
+        public decimal Valor { get; set; }
+        public int? NumeroParcela { get; set; }
+        public DateTime? DataPrevistaParcela { get; set; }
+        public string? FormaPagamento { get; set; }
+        public string? MetodoPagamento { get; set; }
+        public string? Plataforma { get; set; }
+        public string? Empresa { get; set; }
+        public string? ComprovanteUrl { get; set; }
+        public string? ComprovanteNomeArquivo { get; set; }
+        public string? Observacao { get; set; }
+
+        public LancamentoDto ToDto() => new(
+            Id, null, Tipo, Status, Origem, CadastroServicoId, CodigoServico, NomeCliente,
+            PrestadorId, NomePrestador, Descricao, DateOnly.FromDateTime(Data!.Value), Valor,
+            NumeroParcela, DataPrevistaParcela is null ? null : DateOnly.FromDateTime(DataPrevistaParcela.Value),
+            FormaPagamento, MetodoPagamento, Plataforma, Empresa, ComprovanteUrl, ComprovanteNomeArquivo, Observacao,
+            0, 0, 0, null, null);
+    }
+}

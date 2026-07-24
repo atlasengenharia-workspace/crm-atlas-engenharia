@@ -1,0 +1,71 @@
+@page "/notificacoes"
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IIdentityService IdentityService
+@inject INotificationService Service
+@inject ISnackbar Snackbar
+
+<PageTitle>Notificações | CRM Atlas</PageTitle>
+<PageHeader Title="Central de notificações" Subtitle="Prazos, pendências financeiras e eventos da operação.">
+    <Actions><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="RunRulesAsync">Executar regras agora</MudButton></Actions>
+</PageHeader>
+@if(_loading){<MudProgressLinear Indeterminate="true" Class="mb-4" />}
+<MudGrid>
+    <MudItem xs="12" lg="8">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudTabs @bind-ActivePanelIndex="_tab"><MudTabPanel Text="@($"Todas ({_items.Count})")" /><MudTabPanel Text="@($"Não lidas ({_items.Count(x=>!x.Lida)})")" /><MudTabPanel Text="@($"Confirmadas ({_items.Count(x=>x.ConfirmadaEm is not null)})")" /></MudTabs>
+            <MudList T="string">
+                @foreach(var item in Filtered)
+                {
+                    <MudListItem OnClick="@(()=>ReadAsync(item))" Class="@(!item.Lida?"notification-unread":"")">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="@(item.Categoria==NotificationCategory.FINANCEIRA?Color.Warning:Color.Info)"><MudIcon Icon="@(item.Categoria==NotificationCategory.FINANCEIRA?Icons.Material.Filled.Payments:Icons.Material.Filled.Engineering)" /></MudAvatar>
+                            <div><MudText Typo="Typo.subtitle2">@item.Titulo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@item.Mensagem</MudText><MudText Typo="Typo.caption">@item.CriadaEm.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</MudText></div>
+                            <MudSpacer />
+                            @if(item.ConfirmadaEm is null){<MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(()=>ConfirmAsync(item))">Confirmar</MudButton>}
+                            else{<MudChip T="string" Size="Size.Small" Color="Color.Success">Confirmada</MudChip>}
+                        </div>
+                    </MudListItem><MudDivider />
+                }
+            </MudList>
+            @if(!Filtered.Any()){<EmptyState Title="Nenhuma notificação" Message="Não há alertas neste filtro." />}
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" lg="4">
+        <MudPaper Outlined="true" Class="pa-5">
+            <div class="d-flex justify-space-between"><div><MudText Typo="Typo.h6">Regras automáticas</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Alertas gerados sem duplicação.</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Add" OnClick="NewRule" aria-label="Nova regra" /></div>
+            <MudList T="string" Class="mt-3">
+                @foreach(var rule in _rules)
+                {
+                    <MudListItem OnClick="@(()=>EditRule(rule))"><div class="d-flex align-center"><div><MudText Typo="Typo.subtitle2">@rule.Nome</MudText><MudText Typo="Typo.caption">@RuleLabel(rule.Tipo) • @rule.Dias dia(s)</MudText></div><MudSpacer/><MudChip T="string" Size="Size.Small" Color="@(rule.Ativa?Color.Success:Color.Default)">@(rule.Ativa?"Ativa":"Inativa")</MudChip></div></MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudDrawer @bind-Open="_ruleOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(480px,100vw)" Elevation="8">
+    <div class="pa-5"><div class="d-flex justify-space-between mb-4"><MudText Typo="Typo.h5">Regra de notificação</MudText><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_ruleOpen=false)" /></div>
+        <MudStack Spacing="3"><MudTextField @bind-Value="_rule.Name" Label="Nome" Variant="Variant.Outlined" Required="true" />
+            <MudSelect T="NotificationRuleType" @bind-Value="_rule.Type" Label="Tipo" Variant="Variant.Outlined"><MudSelectItem Value="NotificationRuleType.PARCELA_A_VENCER">Parcela a vencer</MudSelectItem><MudSelectItem Value="NotificationRuleType.SERVICO_PARADO">Serviço parado</MudSelectItem></MudSelect>
+            <MudNumericField T="int" @bind-Value="_rule.Days" Label="Limite em dias" Min="1" Variant="Variant.Outlined" />
+            <MudSwitch T="bool" @bind-Value="_rule.Enabled" Label="Regra ativa" Color="Color.Primary" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRuleAsync">Salvar regra</MudButton>
+        </MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    private CurrentUserDto? _user;private List<NotificationDto> _items=[];private List<NotificationRuleDto> _rules=[];private RuleModel _rule=new();
+    private bool _loading,_ruleOpen;private int _tab;
+    private IEnumerable<NotificationDto> Filtered=>_tab switch{1=>_items.Where(x=>!x.Lida),2=>_items.Where(x=>x.ConfirmadaEm is not null),_=>_items};
+    protected override async Task OnInitializedAsync(){_loading=true;try{var auth=await AuthenticationStateProvider.GetAuthenticationStateAsync();var p=auth.User;var sub=p.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value??p.FindFirst("sub")?.Value??"";var email=p.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;_user=await IdentityService.ResolveAsync(sub,email,p.Identity?.Name);await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private async Task LoadAsync(){if(_user is null)return;_items=(await Service.ListAsync(_user.Id)).ToList();_rules=(await Service.ListRulesAsync()).ToList();}
+    private async Task ReadAsync(NotificationDto x){if(_user is null||x.Lida)return;await Service.MarkReadAsync(_user.Id,x.Id);await LoadAsync();}
+    private async Task ConfirmAsync(NotificationDto x){if(_user is null)return;await Service.ConfirmAsync(_user.Id,x.Id);Snackbar.Add("Notificação confirmada.",Severity.Success);await LoadAsync();}
+    private async Task RunRulesAsync(){if(_user is null)return;var count=await Service.RunRulesAsync(_user.Id);Snackbar.Add(count==0?"Nenhum alerta novo.":$"{count} alerta(s) gerado(s).",count==0?Severity.Info:Severity.Success);await LoadAsync();}
+    private void NewRule(){_rule=new(){Days=3,Enabled=true};_ruleOpen=true;}private void EditRule(NotificationRuleDto x){_rule=RuleModel.From(x);_ruleOpen=true;}
+    private async Task SaveRuleAsync(){await Service.SaveRuleAsync(_rule.ToDto());Snackbar.Add("Regra salva.",Severity.Success);_ruleOpen=false;await LoadAsync();}
+    private static string RuleLabel(NotificationRuleType x)=>x==NotificationRuleType.PARCELA_A_VENCER?"Parcela a vencer":"Serviço parado";
+    private sealed class RuleModel{public long? Id{get;set;}public string Name{get;set;}="";public NotificationRuleType Type{get;set;}public int Days{get;set;}public bool Enabled{get;set;}=true;public static RuleModel From(NotificationRuleDto x)=>new(){Id=x.Id,Name=x.Nome,Type=x.Tipo,Days=x.Dias,Enabled=x.Ativa};public NotificationRuleDto ToDto()=>new(Id,Name,Type,Type==NotificationRuleType.PARCELA_A_VENCER?NotificationCategory.FINANCEIRA:NotificationCategory.TECNICA,Days,Enabled);}
+}

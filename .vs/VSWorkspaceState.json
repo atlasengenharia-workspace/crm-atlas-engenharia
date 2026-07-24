@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\ApplicationCore",
+    "\\src\\Infrastructure",
+    "\\src\\Web"
+  ],
+  "SelectedNode": "\\src\\Web\\Web.csproj",
+  "PreviewInSolutionExplorer": false
+}

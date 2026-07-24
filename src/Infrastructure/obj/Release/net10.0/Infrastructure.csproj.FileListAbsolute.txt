@@ -1,0 +1,17 @@
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.Infrastructure.deps.json
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.Infrastructure.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.Infrastructure.pdb
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.ApplicationCore.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.ApplicationCore.pdb
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.csproj.AssemblyReference.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.AssemblyInfoInputs.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.AssemblyInfo.cs
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastr.15EFFBFE.Up2Date
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\CrmAtlas.Infrastructure.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\refint\CrmAtlas.Infrastructure.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\CrmAtlas.Infrastructure.pdb
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\ref\CrmAtlas.Infrastructure.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\bin\Release\net10.0\CrmAtlas.Infrastructure.runtimeconfig.json
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\Infrastructure\obj\Release\net10.0\Infrastructure.genruntimeconfig.cache

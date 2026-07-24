@@ -1,0 +1,43 @@
+.atlas-skeleton-card,
+.atlas-skeleton-panel {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 14px;
+    background: var(--mud-palette-surface);
+}
+
+.atlas-skeleton-card {
+    min-height: 134px;
+    padding: 22px;
+}
+
+.atlas-skeleton-card span,
+.atlas-skeleton-card strong,
+.atlas-skeleton-card i {
+    display: block;
+    border-radius: 999px;
+    background: var(--mud-palette-action-default-hover);
+}
+
+.atlas-skeleton-card span { width: 42%; height: 10px; }
+.atlas-skeleton-card strong { width: 66%; height: 26px; margin-top: 17px; }
+.atlas-skeleton-card i { width: 32px; height: 32px; position: absolute; right: 20px; top: 20px; }
+.atlas-skeleton-large { min-height: 390px; }
+
+.atlas-skeleton-card::after,
+.atlas-skeleton-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .48), transparent);
+    animation: atlas-shimmer 1.25s infinite;
+}
+
+@keyframes atlas-shimmer { to { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .atlas-skeleton-card::after,
+    .atlas-skeleton-panel::after { animation: none; }
+}

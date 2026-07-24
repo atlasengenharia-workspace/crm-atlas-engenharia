@@ -1,0 +1,28 @@
+@page "/relatorios"
+@attribute [Authorize]
+
+<PageTitle>Relatórios | CRM Atlas</PageTitle>
+<PageHeader Title="Relatórios e templates" Subtitle="Gere documentos operacionais e padronize os modelos PDF.">
+    <Actions><MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add">Novo template</MudButton></Actions>
+</PageHeader>
+<MudGrid>
+    @foreach (var r in _reports)
+    {
+        <MudItem xs="12" md="6" lg="4">
+            <MudPaper Outlined="true" Class="pa-5 h-100">
+                <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Large" />
+                <MudText Typo="Typo.h6" Class="mt-3">@r.Title</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="my-2">@r.Description</MudText>
+                <MudChip T="string" Size="Size.Small">@r.Template</MudChip>
+                <div class="mt-4"><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download">Gerar PDF</MudButton><MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="@($"Editar {r.Title}")" /></div>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+@code {
+    private readonly ReportRow[] _reports =
+    [new("Relatório de acompanhamento","Situação, histórico, pendências e dados financeiros.","Operacional padrão"),
+     new("Pedido de compra","Prestador, escopo, valores e condição de pagamento.","Pedido Atlas"),
+     new("Resumo financeiro","Entradas, saídas, custos e resultado por período.","Executivo mensal")];
+    private sealed record ReportRow(string Title,string Description,string Template);
+}

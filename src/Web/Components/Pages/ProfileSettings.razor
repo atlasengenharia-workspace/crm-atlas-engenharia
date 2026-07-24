@@ -1,0 +1,34 @@
+@page "/profile/configuracoes"
+@attribute [Authorize]
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IIdentityService IdentityService
+@inject IUserPreferencesService PreferencesService
+@inject ISnackbar Snackbar
+
+<PageTitle>Preferências | CRM Atlas</PageTitle>
+<PageHeader Title="Preferências" Subtitle="Personalize a experiência e os avisos do CRM." />
+@if(_loading){<MudProgressLinear Indeterminate="true" />}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="7">
+            <MudPaper Outlined="true" Class="pa-5">
+                <MudText Typo="Typo.h6">Interface</MudText>
+                <MudSelect T="string" @bind-Value="_theme" Label="Tema" Variant="Variant.Outlined" Class="mt-4"><MudSelectItem Value="@("Sistema")">Usar preferência do sistema</MudSelectItem><MudSelectItem Value="@("Claro")">Claro</MudSelectItem><MudSelectItem Value="@("Escuro")">Escuro</MudSelectItem></MudSelect>
+                <MudSelect T="string" @bind-Value="_density" Label="Densidade das tabelas" Variant="Variant.Outlined" Class="mt-4"><MudSelectItem Value="@("Confortável")">Confortável</MudSelectItem><MudSelectItem Value="@("Compacta")">Compacta</MudSelectItem></MudSelect>
+                <MudSwitch T="bool" @bind-Value="_sidebar" Label="Manter menu aberto em telas grandes" Color="Color.Primary" Class="mt-3" />
+                <MudDivider Class="my-5" />
+                <MudText Typo="Typo.h6">Notificações</MudText>
+                <MudSwitch T="bool" @bind-Value="_email" Label="Receber resumo por e-mail" Color="Color.Primary" />
+                <MudSwitch T="bool" @bind-Value="_desktop" Label="Alertas no navegador" Color="Color.Primary" />
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">As preferências são vinculadas à sua conta Auth0 e aplicadas em qualquer dispositivo.</MudAlert>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" Disabled="_saving" OnClick="SaveAsync">@(_saving?"Salvando...":"Salvar preferências")</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+@code {
+    private CurrentUserDto? _user;private string _theme="Sistema",_density="Confortável";private bool _sidebar=true,_email=true,_desktop,_loading=true,_saving;
+    protected override async Task OnInitializedAsync(){try{var state=await AuthenticationStateProvider.GetAuthenticationStateAsync();var p=state.User;var sub=p.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value??p.FindFirst("sub")?.Value??"";_user=await IdentityService.ResolveAsync(sub,p.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,p.Identity?.Name);var x=await PreferencesService.GetAsync(_user.Id);_theme=x.Theme;_density=x.TableDensity;_sidebar=x.SidebarOpen;_email=x.EmailSummary;_desktop=x.BrowserAlerts;}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private async Task SaveAsync(){if(_user is null)return;_saving=true;try{await PreferencesService.SaveAsync(_user.Id,new(_theme,_density,_sidebar,_email,_desktop));Snackbar.Add("Preferências salvas. Tema e densidade serão aplicados ao recarregar o layout.",Severity.Success);}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_saving=false;}}
+}

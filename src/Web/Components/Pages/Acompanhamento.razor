@@ -1,0 +1,139 @@
+@page "/acompanhamento"
+@page "/avcb"
+@page "/clcb"
+@page "/obras"
+@page "/processos"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+@inject IAcompanhamentoService Service
+@inject IAcompanhamentoSpreadsheetReader SpreadsheetReader
+@inject IAtlasWorkbookImportService WorkbookImportService
+@inject ISnackbar Snackbar
+
+<PageTitle>Acompanhamento | CRM Atlas</PageTitle>
+<PageHeader Title="@Title" Subtitle="Situações, pendências e histórico em uma visão operacional única.">
+    <Actions>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile" OnClick="@(()=>_importOpen=true)">Importar lote</MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Settings" Class="ml-2" OnClick="OpenSettings">Situações</MudButton>
+    </Actions>
+</PageHeader>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="6" md="3"><MetricCard Title="Serviços" Value="@Filtered.Count().ToString()" Icon="@Icons.Material.Filled.Assignment" Color="Color.Info" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="Com pendências" Value="@Filtered.Count(x=>x.Pendencias>x.Concluidas).ToString()" Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="Pendências abertas" Value="@Filtered.Sum(x=>x.Pendencias-x.Concluidas).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Primary" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="Sem pendências" Value="@Filtered.Count(x=>x.Pendencias==x.Concluidas).ToString()" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
+</MudGrid>
+
+<MudPaper Outlined="true" Class="pa-4">
+    <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou situação" Immediate="true"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
+    <MudTable Items="Filtered" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading">
+        <HeaderContent><MudTh>Serviço</MudTh><MudTh>Cliente</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Atualização</MudTh><MudTh>Ações</MudTh></HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Serviço"><strong>@context.Codigo</strong><br/><MudText Typo="Typo.caption">@TypeLabel(context.Tipo)</MudText></MudTd>
+            <MudTd DataLabel="Cliente">@context.Cliente</MudTd>
+            <MudTd DataLabel="Situação"><MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Situacao</MudChip></MudTd>
+            <MudTd DataLabel="Pendências">@context.Concluidas/@context.Pendencias</MudTd>
+            <MudTd DataLabel="Atualização">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar {context.Codigo}")" />
+                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" /></MudTd>
+        </RowTemplate>
+        <NoRecordsContent><EmptyState Title="Nenhum acompanhamento" Message="Importe serviços ou ajuste os filtros." /></NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+<MudDrawer @bind-Open="_detailOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(720px, 100vw)" Elevation="8">
+    @if (_selected is not null)
+    {
+        <div class="pa-5">
+            <div class="d-flex justify-space-between align-center"><div><MudText Typo="Typo.h5">@_selected.Codigo</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.Cliente</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" /></div>
+            <MudPaper Outlined="true" Class="pa-4 mt-4">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Endereço</MudText><MudText Typo="Typo.body2">@(_selected.Endereco??"—")</MudText></MudItem>
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Telefone</MudText><MudText Typo="Typo.body2">@(_selected.Telefone??"—")</MudText></MudItem>
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Serviço</MudText><MudText Typo="Typo.body2">@(_selected.Servico??"—")</MudText></MudItem>
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Condição de pagamento</MudText><MudText Typo="Typo.body2">@(_selected.CondicaoPagamento??"—")</MudText></MudItem>
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Contrato</MudText><MudText Typo="Typo.body2">@(_selected.ValorContrato?.ToString("C",new System.Globalization.CultureInfo("pt-BR"))??"—")</MudText></MudItem>
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Nota fiscal</MudText><MudText Typo="Typo.body2">@(_selected.NotaFiscal??"—")</MudText></MudItem>
+                </MudGrid>
+            </MudPaper>
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_newStatus" Label="Nova situação" Variant="Variant.Outlined">@foreach(var status in _situations.Where(x=>x.Tipo==_selected.Tipo&&x.Ativo)){<MudSelectItem Value="@status.Nome">@status.Nome</MudSelectItem>}</MudSelect></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_actor" Label="Responsável" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_statusNote" Label="Observação da mudança" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                <MudItem xs="12"><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ChangeStatusAsync">Atualizar situação</MudButton></MudItem>
+            </MudGrid>
+            <MudDivider Class="my-5" />
+            <MudText Typo="Typo.h6">Pendências</MudText>
+            @if (_selected.Itens.Count==0){<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">Nenhuma pendência para a situação atual.</MudAlert>}
+            else
+            {
+                <MudList T="string">@foreach(var item in _selected.Itens){<MudListItem><MudCheckBox T="bool" Value="@item.Concluida" ValueChanged="@((bool value)=>TogglePendingAsync(item.Id,value))" Label="@item.Label" Color="Color.Success" /></MudListItem>}</MudList>
+            }
+            <MudDivider Class="my-5" />
+            <MudText Typo="Typo.h6">Histórico</MudText>
+            <MudTimeline TimelinePosition="TimelinePosition.Start" Class="mt-3">
+                @foreach(var history in _selected.Historicos)
+                {
+                    <MudTimelineItem Color="Color.Primary" Variant="Variant.Outlined">
+                        <MudText Typo="Typo.subtitle2">@history.Nova</MudText>
+                        <MudText Typo="Typo.body2">@history.Descricao</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@history.Em.ToLocalTime().ToString("dd/MM/yyyy HH:mm") • @history.Responsavel</MudText>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        </div>
+    }
+</MudDrawer>
+
+<MudDrawer @bind-Open="_settingsOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(620px,100vw)" Elevation="8">
+    <div class="pa-5">
+        <div class="d-flex justify-space-between align-center mb-4"><MudText Typo="Typo.h5">Configurar situações</MudText><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_settingsOpen=false)" /></div>
+        <MudGrid>
+            <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_config.Tipo" Label="Tipo" Variant="Variant.Outlined">@foreach(var type in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_config.Nome" Label="Nome" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_config.Ordem" Label="Ordem" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Inicial" Label="Inicial" /></MudItem><MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Ativo" Label="Ativa" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_pendingLabels" Label="Pendências automáticas" HelperText="Uma por linha" Lines="5" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
+        </MudGrid>
+        <MudDivider Class="my-5" />
+        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><div class="d-flex justify-space-between"><span>@TypeLabel(item.Tipo) • @item.Nome</span><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></div></MudListItem>}</MudList>
+    </div>
+</MudDrawer>
+
+<MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(820px,100vw)" Elevation="8">
+    <div class="pa-5">
+        <div class="d-flex justify-space-between"><div><MudText Typo="Typo.h5">Importação em lote</MudText><MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualização obrigatória antes de persistir.</MudText></div><MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" /></div>
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-4">No XLSX, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.</MudAlert>
+        <InputFile OnChange="ParseImportAsync" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
+        @if(_preview.Count>0){<MudTable Items="_preview" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-4"><HeaderContent><MudTh>Linha</MudTh><MudTh>Código</MudTh><MudTh>Tipo</MudTh><MudTh>Cliente</MudTh><MudTh>Validação</MudTh></HeaderContent><RowTemplate><MudTd>@context.Line</MudTd><MudTd>@context.Code</MudTd><MudTd>@context.Type</MudTd><MudTd>@context.Client</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Valid?Color.Success:Color.Error)">@(context.Valid?"Válida":context.Error)</MudChip></MudTd></RowTemplate></MudTable>}
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-5"><MudButton OnClick="@(()=>_importOpen=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    private List<AcompanhamentoDto> _items=[]; private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
+    private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing;
+    private string? _search,_newStatus,_statusNote,_actor,_pendingLabels,_uploadedFileName;
+    private byte[]? _uploadedFileBytes;
+    private AcompanhamentoServicoTipo? RouteType=>Navigation.ToBaseRelativePath(Navigation.Uri).ToLowerInvariant() switch{"avcb"=>AcompanhamentoServicoTipo.AVCB,"clcb"=>AcompanhamentoServicoTipo.CLCB,"obras"=>AcompanhamentoServicoTipo.OBRAS,"processos"=>AcompanhamentoServicoTipo.PROCESSOS_ADM,_=>null};
+    private string Title=>RouteType is null?"Acompanhamento de serviços":$"Painel {TypeLabel(RouteType.Value)}";
+    private IEnumerable<AcompanhamentoDto> Filtered=>_items.Where(x=>RouteType is null||x.Tipo==RouteType).Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.Situacao}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
+    private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);_items=(await Service.ListAsync()).ToList();}
+    private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_newStatus))return;await Service.ChangeStatusAsync(_selected.Id,_newStatus,_statusNote,_actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
+    private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
+    private void OpenSettings(){_config=new(){Tipo=RouteType??AcompanhamentoServicoTipo.AVCB,Ativo=true};_pendingLabels="";_settingsOpen=true;}
+    private void EditSituation(SituacaoConfigDto item){_config=SituationModel.From(item);_pendingLabels=string.Join(Environment.NewLine,item.Pendencias);}
+    private async Task SaveSituationAsync(){var dto=_config.ToDto((_pendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}
+    private async Task ParseImportAsync(InputFileChangeEventArgs e){_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;try{await using var upload=e.File.OpenReadStream(15*1024*1024);await using var buffer=new MemoryStream();await upload.CopyToAsync(buffer);_uploadedFileBytes=buffer.ToArray();_uploadedFileName=e.File.Name;await using var readStream=new MemoryStream(_uploadedFileBytes,false);var rows=await SpreadsheetReader.ReadAsync(readStream,e.File.Name,RouteType);_preview=rows.Select(x=>new ImportRow(x.Linha,x.Codigo,x.Tipo,x.Cliente??"",x.Valido,x.Erro,x.Item)).ToList();Snackbar.Add($"{_preview.Count} linha(s) carregada(s) para validação.",Severity.Info);}catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);}}
+    private async Task ConfirmImportAsync(){_importing=true;try{if(_uploadedFileBytes is not null&&string.Equals(Path.GetExtension(_uploadedFileName),".xlsx",StringComparison.OrdinalIgnoreCase)){await using var stream=new MemoryStream(_uploadedFileBytes,false);var result=await WorkbookImportService.ImportAsync(stream,_uploadedFileName!);Snackbar.Add($"Importação concluída: {result.ClientesCriados} clientes, {result.CondicoesPagamentoCriadas} condições, {result.ServicosCriados} serviços, {result.AcompanhamentosCriados} acompanhamentos, {result.LancamentosCriados} lançamentos e {result.CustosIndiretosCriados} custos.",Severity.Success);}else{await Service.ImportAsync(_preview.Select(x=>x.Dto!).ToList());Snackbar.Add($"{_preview.Count} serviço(s) importado(s).",Severity.Success);}_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_importOpen=false;await LoadAsync();}catch(Exception e){Snackbar.Add(ImportErrorMessage(e),Severity.Error);}finally{_importing=false;}}
+    private static string ImportErrorMessage(Exception exception){var root=exception.GetBaseException();return root==exception?exception.Message:$"{exception.Message} Causa: {root.Message}";}
+    private static string TypeLabel(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.PROCESSOS_ADM=>"Processos administrativos",AcompanhamentoServicoTipo.OBRAS=>"Obras",_=>t.ToString()};
+    private sealed record ImportRow(int Line,string Code,string Type,string Client,bool Valid,string? Error,AcompanhamentoImportDto? Dto);
+    private sealed class SituationModel{public long? Id{get;set;}public AcompanhamentoServicoTipo Tipo{get;set;}public string Nome{get;set;}="";public int Ordem{get;set;}public bool Inicial{get;set;}public bool Ativo{get;set;}=true;public static SituationModel From(SituacaoConfigDto x)=>new(){Id=x.Id,Tipo=x.Tipo,Nome=x.Nome,Ordem=x.Ordem,Inicial=x.Inicial,Ativo=x.Ativo};public SituacaoConfigDto ToDto(IEnumerable<string> p)=>new(Id,Tipo,Nome,Ordem,Inicial,Ativo,p.ToList());}
+}

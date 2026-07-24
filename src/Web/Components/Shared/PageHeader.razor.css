@@ -1,0 +1,33 @@
+.atlas-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    min-width: 0;
+}
+
+.atlas-page-header-copy {
+    min-width: 0;
+    flex: 1 1 320px;
+}
+
+.atlas-page-header-actions {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .5rem;
+    min-width: 0;
+}
+
+@media (max-width: 600px) {
+    .atlas-page-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .atlas-page-header-actions ::deep .mud-button-root {
+        flex: 1 1 auto;
+    }
+}

@@ -1,0 +1,134 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IIdentityService IdentityService
+@inject IUserPreferencesService PreferencesService
+
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_darkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="atlas-shell">
+    <MudAppBar Elevation="0" Class="atlas-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawerAsync" aria-label="Abrir ou fechar menu" />
+        <div class="atlas-appbar-title ml-2">
+            <MudText Typo="Typo.h6" Class="atlas-brand">CRM Atlas</MudText>
+            <MudText Typo="Typo.caption" Class="atlas-appbar-context">Gestão e inteligência operacional</MudText>
+        </div>
+        <MudSpacer />
+        <MudHidden Breakpoint="Breakpoint.SmAndDown">
+            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar clientes, serviços e códigos"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          OnKeyDown="SearchOnEnter" Class="atlas-search" aria-label="Busca global" />
+        </MudHidden>
+        <MudHidden Breakpoint="Breakpoint.MdAndUp">
+            <MudIconButton Icon="@Icons.Material.Filled.Search" Href="/busca" Color="Color.Inherit" aria-label="Abrir busca global" />
+        </MudHidden>
+        <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="@ToggleThemeAsync" aria-label="Alternar tema" />
+        <MudBadge Content="3" Color="Color.Error" Overlap="true">
+            <MudIconButton Icon="@Icons.Material.Filled.Notifications" Href="/notificacoes"
+                           Color="Color.Inherit" aria-label="Abrir notificações" />
+        </MudBadge>
+        <AuthorizeView>
+            <Authorized>
+                <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
+                         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                         AriaLabel="Menu da conta">
+                    <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Meu perfil</MudMenuItem>
+                    <MudMenuItem Href="/profile/configuracoes" Icon="@Icons.Material.Filled.Settings">Preferências</MudMenuItem>
+                    <MudMenuItem Href="/Logout" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
+                </MudMenu>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+               Elevation="1" Class="atlas-drawer">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="@($"atlas-main {_densityClass}")">
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="atlas-content-container py-4 py-md-6 px-3 px-sm-4 px-lg-6">
+            <div class="atlas-page">@Body</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _darkMode;
+    private string? _search;
+    private CurrentUserDto? _currentUser;
+    private UserPreferencesDto _preferences = new("Sistema", "Confortável", true, true, false);
+    private string _densityClass => _preferences.TableDensity == "Compacta" ? "atlas-density-compact" : "atlas-density-comfortable";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true) return;
+        var sub = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? state.User.FindFirst("sub")?.Value ?? "";
+        var email = state.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        _currentUser = await IdentityService.ResolveAsync(sub, email, state.User.Identity?.Name);
+        _preferences = await PreferencesService.GetAsync(_currentUser.Id);
+        _drawerOpen = _preferences.SidebarOpen;
+        _darkMode = _preferences.Theme == "Escuro"
+            || (_preferences.Theme == "Sistema" && _darkMode);
+    }
+
+    private async Task ToggleDrawerAsync()
+    {
+        _drawerOpen = !_drawerOpen;
+        await SaveShellPreferencesAsync(sidebar: _drawerOpen);
+    }
+    private async Task ToggleThemeAsync()
+    {
+        _darkMode = !_darkMode;
+        await SaveShellPreferencesAsync(theme: _darkMode ? "Escuro" : "Claro");
+    }
+    private async Task SaveShellPreferencesAsync(string? theme = null, bool? sidebar = null)
+    {
+        if (_currentUser is null) return;
+        _preferences = _preferences with
+        {
+            Theme = theme ?? _preferences.Theme,
+            SidebarOpen = sidebar ?? _preferences.SidebarOpen
+        };
+        await PreferencesService.SaveAsync(_currentUser.Id, _preferences);
+    }
+    private void SearchOnEnter(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !string.IsNullOrWhiteSpace(_search) && _search.Trim().Length >= 2)
+            Navigation.NavigateTo($"/busca?q={Uri.EscapeDataString(_search.Trim())}");
+    }
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2563EB", Secondary = "#0F766E", Background = "#F5F7FB",
+            Surface = "#FFFFFF", AppbarBackground = "#0B1324", AppbarText = "#F8FAFC",
+            DrawerBackground = "#FFFFFF", DrawerText = "#334155", TextPrimary = "#0F172A",
+            TextSecondary = "#64748B"
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#60A5FA", Secondary = "#2DD4BF", Background = "#07101F",
+            Surface = "#0F1B2D", AppbarBackground = "#050B14", DrawerBackground = "#0B1526",
+            DrawerText = "#D7E0EC", TextPrimary = "#F8FAFC", TextSecondary = "#A8B7CF"
+        },
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "10px", DrawerWidthLeft = "280px" },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Inter", "sans-serif"] },
+            H4 = new H4Typography { FontWeight = "700" },
+            H5 = new H5Typography { FontWeight = "700" },
+            H6 = new H6Typography { FontWeight = "600" },
+            Button = new ButtonTypography { FontWeight = "600", TextTransform = "none" }
+        }
+    };
+}

@@ -1,0 +1,24 @@
+@page "/gestao-ads"
+@attribute [Authorize]
+
+<PageTitle>Gestão Ads | CRM Atlas</PageTitle>
+<PageHeader Title="Gestão Ads" Subtitle="Contexto independente para campanhas e aquisição de oportunidades.">
+    <Actions><MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add">Nova campanha</MudButton></Actions>
+</PageHeader>
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-5">Este módulo permanece isolado dos fluxos financeiros e operacionais do CRM.</MudAlert>
+<MudGrid>
+    <MudItem xs="6" md="3"><MetricCard Title="Investimento" Value="R$ 12.480" Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="Leads" Value="184" Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Info" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="CPL médio" Value="R$ 67,82" Icon="@Icons.Material.Filled.Analytics" Color="Color.Warning" /></MudItem>
+    <MudItem xs="6" md="3"><MetricCard Title="Conversões" Value="22" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
+</MudGrid>
+<MudPaper Outlined="true" Class="pa-5 mt-5"><MudText Typo="Typo.h6">Campanhas ativas</MudText>
+    <MudTable Items="_campaigns" Hover="true" Elevation="0" Class="mt-3">
+        <HeaderContent><MudTh>Campanha</MudTh><MudTh>Canal</MudTh><MudTh>Status</MudTh><MudTh>Leads</MudTh><MudTh>Investimento</MudTh></HeaderContent>
+        <RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Channel</MudTd><MudTd><MudChip T="string" Color="Color.Success" Size="Size.Small">Ativa</MudChip></MudTd><MudTd>@context.Leads</MudTd><MudTd>@context.Spend</MudTd></RowTemplate>
+    </MudTable>
+</MudPaper>
+@code {
+    private readonly Campaign[] _campaigns=[new("Regularização AVCB SP","Google Ads",96,"R$ 6.850"),new("CLCB para comércios","Meta Ads",54,"R$ 3.420"),new("Projetos e obras","Google Ads",34,"R$ 2.210")];
+    private sealed record Campaign(string Name,string Channel,int Leads,string Spend);
+}

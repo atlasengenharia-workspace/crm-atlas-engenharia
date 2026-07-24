@@ -1,0 +1,17 @@
+<MudStack AlignItems="AlignItems.Center" Spacing="2" Class="py-10">
+    <MudIcon Icon="@Icon" Size="Size.Large" Color="Color.Secondary" />
+    <MudText Typo="Typo.h6">@Title</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">@Message</MudText>
+    @if (Action is not null)
+    {
+        <div class="mt-2">@Action</div>
+    }
+</MudStack>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Message { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? Action { get; set; }
+}
+

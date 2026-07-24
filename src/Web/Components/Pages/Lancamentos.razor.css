@@ -1,0 +1,31 @@
+.atlas-loading-host {
+    position: relative;
+    min-height: 180px;
+}
+
+.atlas-table-overlay {
+    z-index: 5;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 22px;
+    background: color-mix(in srgb, var(--mud-palette-surface) 72%, transparent) !important;
+    backdrop-filter: blur(2px);
+}
+
+.atlas-loading-badge {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .7rem 1rem;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 999px;
+    color: var(--mud-palette-text-primary);
+    background: var(--mud-palette-surface);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, .12);
+    animation: atlas-loading-enter .2s ease-out both;
+}
+
+@keyframes atlas-loading-enter {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,16 @@
+<div class="atlas-page-header mb-6">
+    <div class="atlas-page-header-copy">
+        <MudText Typo="Typo.h4">@Title</MudText>
+        @if (!string.IsNullOrWhiteSpace(Subtitle))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@Subtitle</MudText>
+        }
+    </div>
+    <div class="atlas-page-header-actions">@Actions</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

@@ -1,0 +1,14 @@
+@page "/cadastros"
+@attribute [Authorize]
+
+<PageTitle>Central de cadastros | CRM Atlas</PageTitle>
+<PageHeader Title="Central de cadastros" Subtitle="Acesse rapidamente os dados mestres da operação." />
+
+<MudGrid>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Clientes" Description="Pessoas, empresas, contatos e endereços." Href="/clientes" Icon="@Icons.Material.Filled.Groups" /></MudItem>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Orçamentos" Description="Propostas, situações e conversão em serviço." Href="/orcamentos" Icon="@Icons.Material.Filled.RequestQuote" Color="Color.Info" /></MudItem>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Prestadores" Description="Dados bancários, custos e vínculos operacionais." Href="/prestadores" Icon="@Icons.Material.Filled.Engineering" Color="Color.Warning" /></MudItem>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Serviços" Description="Contratos, parcelas, prestadores e documentos." Href="/servicos" Icon="@Icons.Material.Filled.Assignment" Color="Color.Success" /></MudItem>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Condições de pagamento" Description="Parcelas e intervalos reutilizáveis." Href="/condicoes-pagamento" Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Secondary" /></MudItem>
+    <MudItem xs="12" sm="6" lg="4"><ModuleCard Title="Templates PDF" Description="Pedidos, relatórios e documentos padronizados." Href="/relatorios" Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /></MudItem>
+</MudGrid>
