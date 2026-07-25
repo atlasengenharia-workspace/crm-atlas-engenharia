@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CrmAtlas.ApplicationCore")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7e9c71b8e7f148eb4adc1bca13ab4fe45ebff394")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+59b979c2560671d8446c3228aad20506e61fd316")]
 [assembly: System.Reflection.AssemblyProductAttribute("CrmAtlas.ApplicationCore")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CrmAtlas.ApplicationCore")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -25,43 +25,74 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? Environment.GetEnvironmentVariable("DATABASE_URL");
+
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
+            if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+                connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+            {
+                connectionString = ConvertPostgresUrlToConnectionString(connectionString);
+            }
+
             services.AddDbContext<AtlasDbContext>(
                 options => options.UseNpgsql(connectionString, npgsql =>
                     npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName)),
                 contextLifetime: ServiceLifetime.Transient,
                 optionsLifetime: ServiceLifetime.Singleton);
-            // Blazor Server components live for the whole circuit. Database services
-            // must not share one scoped DbContext across pages/layouts and events.
-            services.AddTransient(typeof(IRepository<>), typeof(EfRepository<>));
-            services.AddTransient<ICadastroServicoRepository, CadastroServicoRepository>();
-            services.AddTransient<IClienteService, ClienteService>();
-            services.AddTransient<ICondicaoPagamentoService, CondicaoPagamentoService>();
-            services.AddTransient<ICadastroServicoService, CadastroServicoService>();
-            services.AddTransient<ICustoIndiretoService, CustoIndiretoService>();
-            services.AddTransient<ILancamentoService, LancamentoService>();
-            services.AddTransient<IOrcamentoService, OrcamentoService>();
-            services.AddTransient<IPrestadorService, PrestadorService>();
-            services.AddTransient<IAcompanhamentoService, AcompanhamentoService>();
-            services.AddTransient<IAcompanhamentoRepository, AcompanhamentoRepository>();
-            services.AddTransient<IAcompanhamentoReportService, AcompanhamentoPdfReportService>();
-            services.AddTransient<IAcompanhamentoSpreadsheetReader, AcompanhamentoSpreadsheetReader>();
-            services.AddTransient<IAtlasWorkbookImportService, AtlasWorkbookImportService>();
-            services.AddTransient<INotificationService, NotificationService>();
-            services.AddTransient<IIdentityService, IdentityService>();
-            services.AddTransient<IUserPreferencesService, UserPreferencesService>();
-            services.AddTransient<IGlobalSearchService, GlobalSearchService>();
-            services.AddTransient<IDashboardQueryService, DashboardQueryService>();
-            services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
-            services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
-            {
-                client.BaseAddress = new Uri("https://viacep.com.br/ws/");
-                client.Timeout = TimeSpan.FromSeconds(10);
-            });
+        }
+        else
+        {
+            services.AddDbContext<AtlasDbContext>(
+                options => options.UseNpgsql("Host=localhost;Database=atlas_dummy", npgsql =>
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName)),
+                contextLifetime: ServiceLifetime.Transient,
+                optionsLifetime: ServiceLifetime.Singleton);
         }
 
+        // Blazor Server components live for the whole circuit. Database services
+        // must not share one scoped DbContext across pages/layouts and events.
+        services.AddTransient(typeof(IRepository<>), typeof(EfRepository<>));
+        services.AddTransient<ICadastroServicoRepository, CadastroServicoRepository>();
+        services.AddTransient<IClienteService, ClienteService>();
+        services.AddTransient<ICondicaoPagamentoService, CondicaoPagamentoService>();
+        services.AddTransient<ICadastroServicoService, CadastroServicoService>();
+        services.AddTransient<ICustoIndiretoService, CustoIndiretoService>();
+        services.AddTransient<ILancamentoService, LancamentoService>();
+        services.AddTransient<IOrcamentoService, OrcamentoService>();
+        services.AddTransient<IPrestadorService, PrestadorService>();
+        services.AddTransient<IAcompanhamentoService, AcompanhamentoService>();
+        services.AddTransient<IAcompanhamentoRepository, AcompanhamentoRepository>();
+        services.AddTransient<IAcompanhamentoReportService, AcompanhamentoPdfReportService>();
+        services.AddTransient<IAcompanhamentoSpreadsheetReader, AcompanhamentoSpreadsheetReader>();
+        services.AddTransient<IAtlasWorkbookImportService, AtlasWorkbookImportService>();
+        services.AddTransient<INotificationService, NotificationService>();
+        services.AddTransient<IIdentityService, IdentityService>();
+        services.AddTransient<IUserPreferencesService, UserPreferencesService>();
+        services.AddTransient<IGlobalSearchService, GlobalSearchService>();
+        services.AddTransient<IDashboardQueryService, DashboardQueryService>();
+        services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
+        services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
+        {
+            client.BaseAddress = new Uri("https://viacep.com.br/ws/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         return services;
+    }
+
+    private static string ConvertPostgresUrlToConnectionString(string url)
+    {
+        var uri = new Uri(url);
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+        var database = uri.AbsolutePath.TrimStart('/');
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 5432;
+
+        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;Channel Binding=Require";
     }
 }

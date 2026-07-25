@@ -21,7 +21,7 @@ public sealed class ApiExceptionHandler(
         };
 
         if (status == StatusCodes.Status500InternalServerError)
-            logger.LogError(exception, "Erro não tratado na API.");
+            logger.LogError(exception, "Erro não tratado na aplicação: {Message}", exception.Message);
 
         httpContext.Response.StatusCode = status;
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
@@ -37,9 +37,7 @@ public sealed class ApiExceptionHandler(
                     StatusCodes.Status400BadRequest => "Requisição inválida",
                     _ => "Erro interno"
                 },
-                Detail = status == StatusCodes.Status500InternalServerError
-                    ? "Ocorreu um erro inesperado."
-                    : exception.Message
+                Detail = exception.Message
             }
         });
     }

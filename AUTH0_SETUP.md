@@ -36,9 +36,9 @@ Não grave o Client Secret em `appsettings*.json`.
 Execute:
 
 ```powershell
-dotnet user-secrets --project src/Web/Web.csproj set "Auth0:Domain" "dev-mzsxv1eai51z5f0k.us.auth0.com"
-dotnet user-secrets --project src/Web/Web.csproj set "Auth0:ClientId" "Xpq7Ai2b4kdtCbVF2yJbcEm9cTQihe4Q"
-dotnet user-secrets --project src/Web/Web.csproj set "Auth0:ClientSecret" "BJXBG2wMbzWbc1yd1msetUD72rvuEtR14S3hVYtfLL7MfwoO3nmJDKhflQ9PuS7f"
+dotnet user-secrets --project src/frontend/frontend/frontend.csproj set "Auth0:Domain" "atlas-engenharia.us.auth0.com"
+dotnet user-secrets --project src/frontend/frontend/frontend.csproj set "Auth0:ClientId" "qo6kXHnUPn16B30OTkJ5TCtSvNw9ufLD"
+dotnet user-secrets --project src/frontend/frontend/frontend.csproj set "Auth0:ClientSecret" "kHyjLEyokMsYWQRpvXmXxxirw7riMaZI0pEd0Ix-p9pOYmpi1GlC5oWdIHtMtVg4"
 ```
 
 O domínio deve ser informado sem o prefixo `https://`.

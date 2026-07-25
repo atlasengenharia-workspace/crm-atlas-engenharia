@@ -9,8 +9,12 @@ public sealed class AtlasDbContextFactory : IDesignTimeDbContextFactory<AtlasDbC
     public AtlasDbContext CreateDbContext(string[] args)
     {
         var settingsPath = FindWebSettings();
-        var configuration = new ConfigurationBuilder()
-            .AddJsonFile(settingsPath, optional: false)
+        var builder = new ConfigurationBuilder();
+        if (settingsPath != null)
+        {
+            builder.AddJsonFile(settingsPath, optional: true);
+        }
+        var configuration = builder
             .AddEnvironmentVariables()
             .Build();
 
@@ -30,18 +34,17 @@ public sealed class AtlasDbContextFactory : IDesignTimeDbContextFactory<AtlasDbC
         return new AtlasDbContext(options);
     }
 
-    private static string FindWebSettings()
+    private static string? FindWebSettings()
     {
         var currentDirectory = Directory.GetCurrentDirectory();
         var candidates = new[]
         {
+            Path.Combine(currentDirectory, "src", "frontend", "frontend", "appsettings.json"),
             Path.Combine(currentDirectory, "src", "Web", "appsettings.json"),
             Path.GetFullPath(Path.Combine(currentDirectory, "..", "Web", "appsettings.json")),
             Path.Combine(AppContext.BaseDirectory, "appsettings.json")
         };
 
-        return candidates.FirstOrDefault(File.Exists)
-            ?? throw new FileNotFoundException(
-                "Não foi possível localizar src/Web/appsettings.json para o EF Core.");
+        return candidates.FirstOrDefault(File.Exists);
     }
 }
