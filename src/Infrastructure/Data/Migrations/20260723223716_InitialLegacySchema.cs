@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -39,12 +39,14 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                     origem_id = table.Column<long>(type: "bigint", nullable: false),
                     codigo = table.Column<string>(type: "text", nullable: false),
                     nome_cliente = table.Column<string>(type: "text", nullable: true),
+                    endereco = table.Column<string>(type: "text", nullable: true),
                     telefone = table.Column<string>(type: "text", nullable: true),
                     subtipo = table.Column<string>(type: "text", nullable: true),
                     situacao = table.Column<string>(type: "text", nullable: false),
                     descricao = table.Column<string>(type: "text", nullable: true),
                     valor_contrato = table.Column<decimal>(type: "numeric", nullable: true),
                     data_contrato = table.Column<DateOnly>(type: "date", nullable: true),
+                    nota_fiscal = table.Column<string>(type: "text", nullable: true),
                     condicao_pagamento = table.Column<string>(type: "text", nullable: true),
                     a_receber = table.Column<decimal>(type: "numeric", nullable: true),
                     recebido = table.Column<decimal>(type: "numeric", nullable: true),

@@ -3,9 +3,9 @@ using Microsoft.Extensions.Hosting;
 
 namespace CrmAtlas.Infrastructure.Files;
 
-public sealed class LocalReceiptStorage(IHostEnvironment environment) : IReceiptStorage
+public sealed class LocalReceiptStorage(IHostEnvironment? environment = null) : IReceiptStorage
 {
-    private readonly string _root = Path.Combine(environment.ContentRootPath, "App_Data", "comprovantes");
+    private readonly string _root = Path.Combine(environment?.ContentRootPath ?? AppContext.BaseDirectory, "App_Data", "comprovantes");
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".pdf", ".png", ".jpg", ".jpeg", ".webp" };
 
