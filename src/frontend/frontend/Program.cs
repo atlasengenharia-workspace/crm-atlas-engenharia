@@ -1,7 +1,9 @@
 using Auth0.AspNetCore.Authentication;
 using CrmAtlas.Infrastructure;
+using CrmAtlas.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using CrmAtlas.Web.Components;
 
@@ -62,9 +64,6 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
-
-using CrmAtlas.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
 
 var app = builder.Build();
 
