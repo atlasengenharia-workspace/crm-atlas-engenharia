@@ -4,6 +4,8 @@
 @inject IIdentityService IdentityService
 @inject IUserPreferencesService PreferencesService
 
+@inject INotificationService NotificationService
+
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_darkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -29,10 +31,50 @@
             </MudHidden>
             <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit" OnClick="@ToggleThemeAsync" aria-label="Alternar tema" />
-            <MudBadge Content="3" Color="Color.Error" Overlap="true">
-                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Href="/notificacoes"
-                               Color="Color.Inherit" aria-label="Abrir notificações" />
-            </MudBadge>
+            
+            <!-- Interactive Notification Bell Menu -->
+            <MudMenu Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Notificações">
+                <ActivatorContent>
+                    <MudBadge Content="@UnreadCountDisplay" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" aria-label="Abrir notificações" />
+                    </MudBadge>
+                </ActivatorContent>
+                <ChildContent>
+                    <div class="pa-3" style="min-width: 320px; max-width: 380px;">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Notificações</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@_unreadCount não lida(s)</MudChip>
+                        </MudStack>
+                        <MudDivider Class="mb-2" />
+                        @if (_recentNotifications.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="py-3 text-center">Nenhuma notificação recente.</MudText>
+                        }
+                        else
+                        {
+                            @foreach (var n in _recentNotifications.Take(4))
+                            {
+                                <MudMenuItem OnClick="@(() => OpenNotification(n))" Class="px-2 py-2 rounded mb-1">
+                                    <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                        <MudAvatar Size="Size.Small" Color="@(n.Categoria == NotificationCategory.FINANCEIRA ? Color.Warning : Color.Info)" Class="mt-1">
+                                            <MudIcon Icon="@(n.Categoria == NotificationCategory.FINANCEIRA ? Icons.Material.Filled.Payments : Icons.Material.Filled.Engineering)" Size="Size.Small" />
+                                        </MudAvatar>
+                                        <div>
+                                            <MudText Typo="Typo.body2" Class="@(!n.Lida ? "font-weight-bold" : "")">@n.Titulo</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">@n.Mensagem</MudText>
+                                        </div>
+                                    </MudStack>
+                                </MudMenuItem>
+                            }
+                        }
+                        <MudDivider Class="my-2" />
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/notificacoes"))">
+                            Ver Central de Notificações
+                        </MudButton>
+                    </div>
+                </ChildContent>
+            </MudMenu>
+
             <AuthorizeView>
                 <Authorized>
                     <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
@@ -68,6 +110,10 @@
     private UserPreferencesDto _preferences = new("Sistema", "Confortável", true, true, false);
     private string _densityClass => _preferences.TableDensity == "Compacta" ? "atlas-density-compact" : "atlas-density-comfortable";
 
+    private List<NotificationDto> _recentNotifications = [];
+    private int _unreadCount;
+    private string UnreadCountDisplay => _unreadCount > 99 ? "99+" : _unreadCount.ToString();
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -80,6 +126,29 @@
         _drawerOpen = _preferences.SidebarOpen;
         _darkMode = _preferences.Theme == "Escuro"
             || (_preferences.Theme == "Sistema" && _darkMode);
+        await LoadNotificationsAsync();
+    }
+
+    private async Task LoadNotificationsAsync()
+    {
+        if (_currentUser is null) return;
+        try
+        {
+            await NotificationService.RunRulesAsync(_currentUser.Id);
+            _recentNotifications = (await NotificationService.ListAsync(_currentUser.Id)).ToList();
+            _unreadCount = _recentNotifications.Count(x => !x.Lida);
+        }
+        catch {}
+    }
+
+    private async Task OpenNotification(NotificationDto item)
+    {
+        if (_currentUser is not null && !item.Lida)
+        {
+            await NotificationService.MarkReadAsync(_currentUser.Id, item.Id);
+            await LoadNotificationsAsync();
+        }
+        Navigation.NavigateTo("/notificacoes");
     }
 
     private async Task ToggleDrawerAsync()

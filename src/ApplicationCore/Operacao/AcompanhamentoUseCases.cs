@@ -45,6 +45,9 @@ public interface IAcompanhamentoService
 public interface IAcompanhamentoReportService
 {
     byte[] GeneratePdf(AcompanhamentoDto item);
+    byte[] GenerateGeneralOperationalReport(IEnumerable<AcompanhamentoDto> items);
+    byte[] GeneratePurchaseOrderReport(string prestador, string escopo, decimal valor, string condicao);
+    byte[] GenerateFinancialSummaryReport(decimal faturamento, decimal custos, decimal lucro, int totalLancamentos);
 }
 
 public interface IAcompanhamentoSpreadsheetReader

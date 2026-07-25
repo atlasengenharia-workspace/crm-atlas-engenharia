@@ -95,8 +95,24 @@ public interface INotificationService
 public sealed class NotificationService(IRepository<Notification> repository,IRepository<NotificationRule> rules,
     IRepository<Lancamento> entries,IRepository<AcompanhamentoServico> tracking) : INotificationService
 {
-    public async Task<IReadOnlyList<NotificationDto>> ListAsync(long userId,CancellationToken ct=default)=>
-        (await repository.ListAsync(ct)).Where(x=>x.UserId==userId).OrderByDescending(x=>x.CreatedAt).Select(Map).ToList();
+    public async Task<IReadOnlyList<NotificationDto>> ListAsync(long userId, CancellationToken ct = default)
+    {
+        var items = (await repository.ListAsync(ct)).Where(x => x.UserId == userId).ToList();
+        if (items.Count == 0)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var seed = new List<Notification>
+            {
+                new() { UserId = userId, Title = "📢 Sistema Atualizado para v2.4.0", Message = "O CRM Atlas foi atualizado com suporte a Auth0, emissão de PDF e design responsivo.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:v24", CreatedAt = now },
+                new() { UserId = userId, Title = "📋 Central de Acompanhamento Operacional", Message = "Cadastros de AVCB, CLCB, Obras e Processos Administrativos estão sincronizados.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:op", CreatedAt = now.AddMinutes(-5) },
+                new() { UserId = userId, Title = "💰 Controle Financeiro e Notas Fiscais", Message = "Gerencie entradas, saídas, NFs e condições de pagamento de forma centralizada.", Category = NotificationCategory.FINANCEIRA, ReferenceKey = "sys:welcome:fin", CreatedAt = now.AddMinutes(-10) }
+            };
+            foreach (var n in seed) await repository.AddAsync(n, ct);
+            await repository.SaveChangesAsync(ct);
+            items = seed;
+        }
+        return items.OrderByDescending(x => x.CreatedAt).Select(Map).ToList();
+    }
     public async Task MarkReadAsync(long userId,long id,CancellationToken ct=default)
     {
         var item=await Owned(userId,id,ct);item.IsRead=true;repository.Update(item);await repository.SaveChangesAsync(ct);

@@ -1,38 +1,139 @@
 using System.Globalization;
 using System.Text;
 using CrmAtlas.ApplicationCore.Operacao;
+using CrmAtlas.ApplicationCore.Enums;
 
 namespace CrmAtlas.Infrastructure.Documents;
 
 public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportService
 {
+    private static readonly CultureInfo PtBr = new("pt-BR");
+
     public byte[] GeneratePdf(AcompanhamentoDto item)
     {
         var lines = new List<string>
         {
-            "ATLAS ENGENHARIA",
-            "Relatório de acompanhamento de serviço",
-            "",
-            $"Código: {item.Codigo}",
-            $"Tipo: {item.Tipo}",
+            "ATLAS ENGENHARIA — RELATÓRIO DE SERVIÇO INDIVIDUAL",
+            "----------------------------------------------------------------------------------",
+            $"Código do Serviço: {item.Codigo}",
+            $"Tipo de Serviço: {item.Tipo}",
             $"Cliente: {item.Cliente ?? "-"}",
-            $"Situação atual: {item.Situacao}",
-            $"Contrato: {(item.ValorContrato?.ToString("C2", new CultureInfo("pt-BR")) ?? "-")}",
-            $"Data do contrato: {(item.DataContrato?.ToString("dd/MM/yyyy") ?? "-")}",
+            $"CPF / CNPJ: {item.CnpjCpf ?? "-"}",
+            $"Telefone: {item.Telefone ?? "-"}",
+            $"Endereço: {item.Endereco ?? "-"}",
+            $"Situação Atual: {item.Situacao}",
+            $"Nota Fiscal (NF): {item.NotaFiscal ?? "-"}",
+            $"Condição de Pagamento: {item.CondicaoPagamento ?? "-"}",
+            $"Valor Contratado: {(item.ValorContrato?.ToString("C2", PtBr) ?? "-")}",
+            $"Data do Contrato: {(item.DataContrato?.ToString("dd/MM/yyyy") ?? "-")}",
             "",
-            "Pendências"
+            "--- PENDÊNCIAS E ETAPAS ---"
         };
-        lines.AddRange(item.Itens.Select(x => $"{(x.Concluida ? "[X]" : "[ ]")} {x.Label}"));
-        lines.Add(""); lines.Add("Histórico");
-        lines.AddRange(item.Historicos.Select(x => $"{x.Em.ToLocalTime():dd/MM/yyyy HH:mm} - {x.Nova} - {x.Responsavel ?? "Sistema"}"));
-        lines.Add(""); lines.Add($"Gerado em {DateTime.Now:dd/MM/yyyy HH:mm}");
+
+        if (item.Itens.Count == 0)
+        {
+            lines.Add("Nenhuma pendência cadastrada.");
+        }
+        else
+        {
+            lines.AddRange(item.Itens.Select(x => $"{(x.Concluida ? "[CONCLUÍDO]" : "[PENDENTE]  ")} {x.Label}"));
+        }
+
+        lines.Add("");
+        lines.Add("--- HISTÓRICO DE ALTERAÇÕES ---");
+        if (item.Historicos.Count == 0)
+        {
+            lines.Add("Nenhum histórico registrado.");
+        }
+        else
+        {
+            lines.AddRange(item.Historicos.Select(x => $"{x.Em.ToLocalTime():dd/MM/yyyy HH:mm} - {x.Nova} ({x.Responsavel ?? "Sistema"})"));
+        }
+
+        lines.Add("");
+        lines.Add($"Relatório emitido em {DateTime.Now:dd/MM/yyyy HH:mm:ss} pelo CRM Atlas");
+        return BuildPdf(lines);
+    }
+
+    public byte[] GenerateGeneralOperationalReport(IEnumerable<AcompanhamentoDto> items)
+    {
+        var list = items.ToList();
+        var lines = new List<string>
+        {
+            "ATLAS ENGENHARIA — RELATÓRIO GERAL DE ACOMPANHAMENTO OPERACIONAL",
+            "----------------------------------------------------------------------------------",
+            $"Total de Serviços Registrados: {list.Count}",
+            $"Total AVCB: {list.Count(x => x.Tipo == AcompanhamentoServicoTipo.AVCB)}",
+            $"Total CLCB: {list.Count(x => x.Tipo == AcompanhamentoServicoTipo.CLCB)}",
+            $"Total Obras: {list.Count(x => x.Tipo == AcompanhamentoServicoTipo.OBRAS)}",
+            $"Total Processos Adm: {list.Count(x => x.Tipo == AcompanhamentoServicoTipo.PROCESSOS_ADM)}",
+            $"Valor Total de Contratos: {list.Sum(x => x.ValorContrato ?? 0):C2}",
+            "",
+            "--- RESUMO DOS SERVIÇOS RECENTES ---"
+        };
+
+        foreach (var item in list.Take(30))
+        {
+            lines.Add($"[{item.Codigo}] {item.Tipo} - {item.Cliente ?? "Cliente s/ nome"} | Status: {item.Situacao} | Valor: {(item.ValorContrato?.ToString("C2", PtBr) ?? "R$ 0,00")}");
+        }
+
+        lines.Add("");
+        lines.Add($"Documento compilado em {DateTime.Now:dd/MM/yyyy HH:mm:ss} via CRM Atlas");
+        return BuildPdf(lines);
+    }
+
+    public byte[] GeneratePurchaseOrderReport(string prestador, string escopo, decimal valor, string condicao)
+    {
+        var lines = new List<string>
+        {
+            "ATLAS ENGENHARIA — PEDIDO DE COMPRA E SERVIÇO",
+            "----------------------------------------------------------------------------------",
+            $"Data da Solicitação: {DateTime.Now:dd/MM/yyyy}",
+            $"Prestador / Fornecedor: {(string.IsNullOrWhiteSpace(prestador) ? "Não especificado" : prestador)}",
+            $"Valor Total: {valor:C2}",
+            $"Condição de Pagamento: {(string.IsNullOrWhiteSpace(condicao) ? "A combinar" : condicao)}",
+            "",
+            "--- ESCOPO DO SERVIÇO / PRODUTO ---",
+            string.IsNullOrWhiteSpace(escopo) ? "Nenhum detalhe adicional informado." : escopo,
+            "",
+            "----------------------------------------------------------------------------------",
+            "Aprovações:",
+            "  [  ] Gerência Operacional",
+            "  [  ] Diretoria Financeira",
+            "",
+            $"Documento gerado em {DateTime.Now:dd/MM/yyyy HH:mm:ss} pelo CRM Atlas"
+        };
+        return BuildPdf(lines);
+    }
+
+    public byte[] GenerateFinancialSummaryReport(decimal faturamento, decimal custos, decimal lucro, int totalLancamentos)
+    {
+        var lines = new List<string>
+        {
+            "ATLAS ENGENHARIA — DEMONSTRATIVO FINANCEIRO EXECUTIVO",
+            "----------------------------------------------------------------------------------",
+            $"Período de Referência: Mês Atual ({DateTime.Now:MMMM / yyyy})",
+            $"Total de Lançamentos Processados: {totalLancamentos}",
+            "",
+            "--- BALANÇO CONSOLIDADO ---",
+            $"Faturamento Bruto Entradas: {faturamento:C2}",
+            $"Custos Diretos e Indiretos: {custos:C2}",
+            $"Resultado Líquido / Lucro: {lucro:C2}",
+            $"Margem Operacional Estimada: {(faturamento > 0 ? (lucro / faturamento * 100).ToString("N1", PtBr) : "0")}%",
+            "",
+            "----------------------------------------------------------------------------------",
+            "Nota: Os dados apresentados consideram todos os lançamentos financeiros validados",
+            "no período ativo do CRM Atlas.",
+            "",
+            $"Relatório gerado em {DateTime.Now:dd/MM/yyyy HH:mm:ss}"
+        };
         return BuildPdf(lines);
     }
 
     private static byte[] BuildPdf(IEnumerable<string> source)
     {
         var lines = source.SelectMany(Wrap).Take(48).ToList();
-        var content = new StringBuilder("BT\n/F1 12 Tf\n50 790 Td\n15 TL\n");
+        var content = new StringBuilder("BT\n/F1 11 Tf\n50 790 Td\n15 TL\n");
         foreach (var line in lines) content.Append('(').Append(Escape(line)).Append(") Tj\nT*\n");
         content.Append("ET");
         var stream = content.ToString();

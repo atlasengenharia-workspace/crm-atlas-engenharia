@@ -1,28 +1,240 @@
 @page "/relatorios"
 @attribute [Authorize]
+@inject IAcompanhamentoReportService ReportService
+@inject IAcompanhamentoService AcompanhamentoService
+@inject ILancamentoService LancamentoService
+@inject ICustoIndiretoService CustoIndiretoService
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
 
-<PageTitle>Relatórios | CRM Atlas</PageTitle>
-<PageHeader Title="Relatórios e templates" Subtitle="Gere documentos operacionais e padronize os modelos PDF.">
-    <Actions><MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add">Novo template</MudButton></Actions>
+<PageTitle>Relatórios e Templates | CRM Atlas</PageTitle>
+
+<PageHeader Title="Relatórios e templates" Subtitle="Gere documentos operacionais, pedidos de compra e padronize os modelos PDF do CRM Atlas.">
+    <Actions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewTemplateDialog">
+            Novo template
+        </MudButton>
+    </Actions>
 </PageHeader>
-<MudGrid>
+
+<MudGrid Spacing="4">
     @foreach (var r in _reports)
     {
         <MudItem xs="12" md="6" lg="4">
-            <MudPaper Outlined="true" Class="pa-5 h-100">
-                <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Large" />
-                <MudText Typo="Typo.h6" Class="mt-3">@r.Title</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="my-2">@r.Description</MudText>
-                <MudChip T="string" Size="Size.Small">@r.Template</MudChip>
-                <div class="mt-4"><MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download">Gerar PDF</MudButton><MudIconButton Icon="@Icons.Material.Filled.Edit" aria-label="@($"Editar {r.Title}")" /></div>
+            <MudPaper Outlined="true" Class="pa-5 h-100 atlas-panel d-flex flex-column justify-space-between">
+                <div>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Large" />
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@r.Template</MudChip>
+                    </MudStack>
+                    <MudText Typo="Typo.h6" Class="mt-3 font-weight-bold">@r.Title</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="my-2">@r.Description</MudText>
+                </div>
+                <div class="mt-4 pt-3 border-top d-flex align-center justify-space-between">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" OnClick="@(() => GenerateReportAsync(r))">
+                        Gerar PDF
+                    </MudButton>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" aria-label="@($"Editar {r.Title}")" OnClick="@(() => EditReport(r))" />
+                </div>
             </MudPaper>
         </MudItem>
     }
 </MudGrid>
+
+<!-- Purchase Order Custom Dialog -->
+<MudDialog @bind-Visible="_poDialogOpen" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-2 inline-icon" />
+            Gerar Pedido de Compra
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="pt-2">
+            <MudTextField @bind-Value="_poPrestador" Label="Prestador / Fornecedor" Variant="Variant.Outlined" Placeholder="Ex: Eng. João Silva" />
+            <MudNumericField T="decimal" @bind-Value="_poValor" Label="Valor Total (R$)" Variant="Variant.Outlined" Format="C2" Culture="_ptBr" />
+            <MudTextField @bind-Value="_poCondicao" Label="Condição de Pagamento" Variant="Variant.Outlined" Placeholder="Ex: 50% entrada + 50% término" />
+            <MudTextField @bind-Value="_poEscopo" Label="Escopo do Serviço / Detalhes" Variant="Variant.Outlined" Lines="4" Placeholder="Descreva as especificações do serviço..." />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _poDialogOpen = false)">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" OnClick="GeneratePurchaseOrderAsync">
+            Download PDF
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Template Editor / Creator Dialog -->
+<MudDialog @bind-Visible="_templateDialogOpen" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.DesignServices" Class="mr-2 inline-icon" />
+            @(_editingReport != null ? "Editar Template de Relatório" : "Criar Novo Template")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="pt-2">
+            <MudTextField @bind-Value="_templateTitle" Label="Nome do Relatório" Variant="Variant.Outlined" Required="true" />
+            <MudTextField @bind-Value="_templateDescription" Label="Descrição Breve" Variant="Variant.Outlined" Lines="2" />
+            <MudTextField @bind-Value="_templateName" Label="Nome do Modelo / Categoria" Variant="Variant.Outlined" Placeholder="Ex: Executivo Padrão" />
+            <MudSelect T="string" @bind-Value="_templateOrientation" Label="Orientação da Página" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("Retrato (A4)")">Retrato (A4)</MudSelectItem>
+                <MudSelectItem Value="@("Paisagem (A4)")">Paisagem (A4)</MudSelectItem>
+            </MudSelect>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _templateDialogOpen = false)">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveTemplateAsync">
+            Salvar Template
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
-    private readonly ReportRow[] _reports =
-    [new("Relatório de acompanhamento","Situação, histórico, pendências e dados financeiros.","Operacional padrão"),
-     new("Pedido de compra","Prestador, escopo, valores e condição de pagamento.","Pedido Atlas"),
-     new("Resumo financeiro","Entradas, saídas, custos e resultado por período.","Executivo mensal")];
-    private sealed record ReportRow(string Title,string Description,string Template);
+    private static readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+
+    private List<ReportRow> _reports =
+    [
+        new("Relatório de acompanhamento", "Situação, histórico, pendências e dados financeiros operacionais.", "Operacional padrão", "ACOMPANHAMENTO"),
+        new("Pedido de compra", "Prestador, escopo, valores e condição de pagamento.", "Pedido Atlas", "PEDIDO_COMPRA"),
+        new("Resumo financeiro", "Entradas, saídas, custos e resultado consolidado por período.", "Executivo mensal", "FINANCEIRO")
+    ];
+
+    // PO State
+    private bool _poDialogOpen;
+    private string _poPrestador = "";
+    private decimal _poValor = 1500;
+    private string _poCondicao = "2x (50% entrada + 50% entrega)";
+    private string _poEscopo = "Serviços de assessoria técnica e emissão de laudo operacional.";
+
+    // Template Editor State
+    private bool _templateDialogOpen;
+    private ReportRow? _editingReport;
+    private string _templateTitle = "";
+    private string _templateDescription = "";
+    private string _templateName = "";
+    private string _templateOrientation = "Retrato (A4)";
+
+    private async Task GenerateReportAsync(ReportRow report)
+    {
+        try
+        {
+            byte[] pdfBytes;
+            string filename;
+
+            if (report.Code == "ACOMPANHAMENTO")
+            {
+                var items = await AcompanhamentoService.ListAsync();
+                pdfBytes = ReportService.GenerateGeneralOperationalReport(items);
+                filename = $"Relatorio_Acompanhamento_Atlas_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+            }
+            else if (report.Code == "PEDIDO_COMPRA")
+            {
+                _poDialogOpen = true;
+                return;
+            }
+            else if (report.Code == "FINANCEIRO")
+            {
+                var lancamentosResult = await LancamentoService.ListAsync(new LancamentoFilter(null, null, null, null, null, null, 1, 1000));
+                var custosResult = await CustoIndiretoService.ListAsync(new CustoIndiretoFilter(null, null, null, null, 1, 1000));
+
+                var lancamentos = lancamentosResult.Items;
+                var custos = custosResult.Items;
+
+                var faturamento = lancamentos.Sum(x => x.Faturamento);
+                var custosDiretos = lancamentos.Sum(x => x.CustoDireto);
+                var custosIndiretos = custos.Sum(x => x.Valor);
+                var totalCustos = custosDiretos + custosIndiretos;
+                var lucro = faturamento - totalCustos;
+
+                pdfBytes = ReportService.GenerateFinancialSummaryReport(faturamento, totalCustos, lucro, lancamentosResult.TotalItems);
+                filename = $"Resumo_Financeiro_Atlas_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+            }
+            else
+            {
+                var items = await AcompanhamentoService.ListAsync();
+                pdfBytes = ReportService.GenerateGeneralOperationalReport(items);
+                filename = $"{report.Title.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd}.pdf";
+            }
+
+            await TriggerDownloadAsync(filename, pdfBytes);
+            Snackbar.Add($"Relatório '{report.Title}' gerado com sucesso!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao gerar relatório: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task GeneratePurchaseOrderAsync()
+    {
+        try
+        {
+            var pdfBytes = ReportService.GeneratePurchaseOrderReport(_poPrestador, _poEscopo, _poValor, _poCondicao);
+            var filename = $"Pedido_Compra_Atlas_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+            await TriggerDownloadAsync(filename, pdfBytes);
+            _poDialogOpen = false;
+            Snackbar.Add("Pedido de compra gerado em PDF com sucesso!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao gerar pedido de compra: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task TriggerDownloadAsync(string filename, byte[] bytes)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFileFromBytes", filename, base64, "application/pdf");
+    }
+
+    private void OpenNewTemplateDialog()
+    {
+        _editingReport = null;
+        _templateTitle = "";
+        _templateDescription = "";
+        _templateName = "Personalizado";
+        _templateOrientation = "Retrato (A4)";
+        _templateDialogOpen = true;
+    }
+
+    private void EditReport(ReportRow report)
+    {
+        _editingReport = report;
+        _templateTitle = report.Title;
+        _templateDescription = report.Description;
+        _templateName = report.Template;
+        _templateOrientation = "Retrato (A4)";
+        _templateDialogOpen = true;
+    }
+
+    private void SaveTemplateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_templateTitle))
+        {
+            Snackbar.Add("Informe o nome do relatório.", Severity.Warning);
+            return;
+        }
+
+        if (_editingReport != null)
+        {
+            var idx = _reports.IndexOf(_editingReport);
+            if (idx >= 0)
+            {
+                _reports[idx] = new ReportRow(_templateTitle, _templateDescription, _templateName, _editingReport.Code);
+            }
+        }
+        else
+        {
+            _reports.Add(new ReportRow(_templateTitle, _templateDescription, _templateName, $"CUSTOM_{_reports.Count + 1}"));
+        }
+
+        _templateDialogOpen = false;
+        Snackbar.Add("Template de relatório salvo com sucesso!", Severity.Success);
+    }
+
+    private sealed record ReportRow(string Title, string Description, string Template, string Code);
 }
