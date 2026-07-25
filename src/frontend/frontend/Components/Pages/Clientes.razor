@@ -68,6 +68,7 @@
                     <MudTable Items="_result.Items" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm"
                               Elevation="0" Class="atlas-data-table">
                         <HeaderContent>
+                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Id ?? 0))">Código</MudTableSortLabel></MudTh>
                             <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.RazaoSocial))">Cliente</MudTableSortLabel></MudTh>
                             <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.CnpjCpf))">Documento</MudTableSortLabel></MudTh>
                             <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Telefone ?? ""))">Contato</MudTableSortLabel></MudTh>
@@ -75,6 +76,9 @@
                             <MudTh Class="text-right">Ações</MudTh>
                         </HeaderContent>
                         <RowTemplate>
+                            <MudTd DataLabel="Código">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">#@context.Id</MudChip>
+                            </MudTd>
                             <MudTd DataLabel="Cliente">
                                 <MudText Typo="Typo.body2"><strong>@context.RazaoSocial</strong></MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">@context.NomeContato</MudText>
