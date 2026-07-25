@@ -31,14 +31,15 @@ public sealed partial class AtlasWorkbookImportService(
         var content = bytes.ToArray();
         var operational = await operationalReader.ReadAsync(
             new MemoryStream(content, writable: false), fileName, null, cancellationToken);
-        if (operational.Any(x => !x.Valido))
-            throw new ArgumentException("A planilha contém linhas operacionais inválidas.");
+        var validOperational = operational.Where(x => x.Valido && x.Item != null).ToList();
+        if (validOperational.Count == 0)
+            throw new ArgumentException("A planilha não contém nenhuma linha operacional válida.");
 
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(cancellationToken)
             : null;
         var now = DateTime.UtcNow;
-        var ignored = 0;
+        var ignored = operational.Count(x => !x.Valido);
         var clientCount = 0;
         var paymentConditionCount = 0;
         var serviceCount = 0;
@@ -60,7 +61,7 @@ public sealed partial class AtlasWorkbookImportService(
         var conditionByName = paymentConditions.ToDictionary(x => x.Nome, StringComparer.OrdinalIgnoreCase);
         var trackingByCode = trackings.ToDictionary(x => x.Codigo, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var preview in operational)
+        foreach (var preview in validOperational)
         {
             var row = preview.Item!;
             var clientKey = ClientKey(row.Cliente, row.Telefone);
