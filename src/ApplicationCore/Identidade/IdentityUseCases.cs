@@ -53,8 +53,9 @@ public sealed class IdentityService(IRepository<Usuario> repository) : IIdentity
     public async Task<CurrentUserDto> ResolveAsync(string auth0Sub,string? email,string? name,CancellationToken ct=default)
     {
         if(string.IsNullOrWhiteSpace(auth0Sub))throw new ArgumentException("Identificador Auth0 ausente.");
+        var safeEmailFilter = email?.ToLower();
         var user=await repository.FindAsync(x=>x.Auth0Sub==auth0Sub,ct)
-            ?? await repository.FindAsync(x=>!string.IsNullOrWhiteSpace(email)&&x.Email.Equals(email,StringComparison.OrdinalIgnoreCase),ct);
+            ?? (string.IsNullOrWhiteSpace(safeEmailFilter) ? null : await repository.FindAsync(x=>x.Email.ToLower() == safeEmailFilter,ct));
         if(user is null)
         {
             var allUsers=await repository.ListAsync(ct);
