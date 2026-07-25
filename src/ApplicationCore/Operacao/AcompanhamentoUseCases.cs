@@ -9,10 +9,10 @@ public sealed record AcompanhamentoPendenciaDto(long Id,string Label,bool Conclu
 public sealed record AcompanhamentoDto(long Id,long OrigemId,string Codigo,AcompanhamentoServicoTipo Tipo,string? Cliente,
     string? Endereco,string? Telefone,string? Servico,string Situacao,string? Descricao,decimal? ValorContrato,DateOnly? DataContrato,
     string? NotaFiscal,string? CondicaoPagamento,int Pendencias,int Concluidas,
-    DateTime? AtualizadoEm,IReadOnlyList<AcompanhamentoHistoricoDto> Historicos,IReadOnlyList<AcompanhamentoPendenciaDto> Itens);
+    DateTime? AtualizadoEm,IReadOnlyList<AcompanhamentoHistoricoDto> Historicos,IReadOnlyList<AcompanhamentoPendenciaDto> Itens,string? CnpjCpf=null);
 public sealed record AcompanhamentoImportDto(long OrigemId,string Codigo,AcompanhamentoServicoTipo Tipo,string? Cliente,
     string? Endereco,string? Telefone,string? Servico,string Situacao,string? Descricao,decimal? ValorContrato,
-    DateOnly? DataContrato,string? NotaFiscal,string? CondicaoPagamento);
+    DateOnly? DataContrato,string? NotaFiscal,string? CondicaoPagamento,string? CnpjCpf=null);
 public sealed record AcompanhamentoImportPreviewDto(int Linha,string Aba,string Codigo,string Tipo,string? Cliente,
     bool Valido,string? Erro,AcompanhamentoImportDto? Item);
 public sealed record SituacaoConfigDto(long? Id,AcompanhamentoServicoTipo Tipo,string Nome,int Ordem,bool Inicial,bool Ativo,
@@ -73,7 +73,7 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
         {
             if(string.IsNullOrWhiteSpace(row.Codigo)||string.IsNullOrWhiteSpace(row.Situacao))throw new ArgumentException("Código e situação são obrigatórios.");
             var item=new AcompanhamentoServico{OrigemId=row.OrigemId,Codigo=row.Codigo.Trim(),TipoServico=row.Tipo,
-                NomeCliente=row.Cliente?.Trim(),Endereco=row.Endereco?.Trim(),Telefone=row.Telefone?.Trim(),Subtipo=row.Servico?.Trim(),
+                NomeCliente=row.Cliente?.Trim(),CnpjCpf=row.CnpjCpf?.Trim(),Endereco=row.Endereco?.Trim(),Telefone=row.Telefone?.Trim(),Subtipo=row.Servico?.Trim(),
                 Situacao=row.Situacao.Trim(),Descricao=row.Descricao?.Trim(),ValorContrato=row.ValorContrato,DataContrato=row.DataContrato,
                 NotaFiscal=row.NotaFiscal?.Trim(),CondicaoPagamento=row.CondicaoPagamento?.Trim(),
                 CreatedAt=now,UpdatedAt=now,UltimaMudancaSituacaoEm=now};
@@ -116,7 +116,8 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
         x.Endereco,x.Telefone,x.Subtipo,x.Situacao,x.Descricao,x.ValorContrato,x.DataContrato,x.NotaFiscal,x.CondicaoPagamento,
         x.Pendencias.Count,x.Pendencias.Count(y=>y.Concluida),x.UltimaMudancaSituacaoEm,
         x.Historicos.OrderByDescending(y=>y.CreatedAt).Select(y=>new AcompanhamentoHistoricoDto(y.Id,y.SituacaoAnterior,y.NovaSituacao,y.Descricao,y.ResponsavelNome,y.CreatedAt)).ToList(),
-        x.Pendencias.OrderBy(y=>y.Concluida).ThenBy(y=>y.Label).Select(y=>new AcompanhamentoPendenciaDto(y.Id,y.Label,y.Concluida,y.ConcluidaEm)).ToList());
+        x.Pendencias.OrderBy(y=>y.Concluida).ThenBy(y=>y.Label).Select(y=>new AcompanhamentoPendenciaDto(y.Id,y.Label,y.Concluida,y.ConcluidaEm)).ToList(),
+        x.CnpjCpf);
     private static SituacaoConfigDto MapSituation(AcompanhamentoServicoSituacaoConfig x)=>new(x.Id,x.TipoServico,x.Nome,x.Ordem??0,x.SituacaoInicial,x.Ativo,
         x.Pendencias.Where(y=>y.Ativo).OrderBy(y=>y.Ordem).Select(y=>y.Label).ToList());
 

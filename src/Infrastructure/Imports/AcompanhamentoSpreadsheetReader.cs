@@ -86,6 +86,7 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
     {
         var code = value("codigo")?.Trim() ?? "";
         var client = value("nomecliente")?.Trim();
+        var cnpjCpf = value("cnpjcpf")?.Trim();
         var address = value("endereco")?.Trim();
         var phone = value("telefone")?.Trim();
         var service = value("servico")?.Trim();
@@ -102,7 +103,7 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
             : !dateOk ? "Data do contrato inválida" : null;
         var dto = error is null
             ? new AcompanhamentoImportDto(CreateOriginId(code), code, type, client, address, phone, service,
-                status, description, contract, contractDate, invoice, paymentTerms)
+                status, description, contract, contractDate, invoice, paymentTerms, cnpjCpf)
             : null;
         return new(line, sheet, code, type.ToString(), client, error is null, error, dto);
     }
@@ -225,12 +226,14 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
 
     private static string CanonicalHeader(string header) => header switch
     {
-        "cod" or "codigo" or "origemid" => "codigo",
-        "coluna1" => "codigo",
-        "nomedocliente" or "cliente" => "nomecliente",
+        "cod" or "codigo" or "origemid" or "coluna1" or "num" or "numero" or "n" or "no" or "protocolo" or "numprotocolo" or "numeroprotocolo" or "numprocesso" or "numeroprocesso" => "codigo",
+        "nomedocliente" or "cliente" or "nome" or "razaosocial" or "empresa" => "nomecliente",
+        "cpf" or "cnpj" or "cpfcnpj" or "cnpjcpf" or "documento" or "doc" or "numdocumento" or "numerodocumento" => "cnpjcpf",
         "descricaodasituacao" or "descricao" => "descricaosituacao",
-        "rscontrato" or "rcontrato" or "valorcontrato" => "contrato",
+        "rscontrato" or "rcontrato" or "valorcontrato" or "valor" or "contrato" => "contrato",
         "condicaopag" or "condicaopagamento" => "condicaopagamento",
+        "endereco" or "endereço" or "local" or "logradouro" => "endereco",
+        "telefone" or "celular" or "fone" or "contato" => "telefone",
         _ => header
     };
 

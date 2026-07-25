@@ -142,6 +142,7 @@ internal sealed class AcompanhamentoConfiguration :
             .HasDatabaseName("idx_acompanhamento_dashboard_priority");
         builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Codigo).IsRequired();
+        builder.Property(x => x.CnpjCpf).HasMaxLength(32);
         builder.Property(x => x.Situacao).IsRequired();
         builder.Property(x => x.Descricao).HasColumnType("text");
         builder.Property(x => x.UltimaMudancaSituacaoEm).HasColumnType("timestamp with time zone");

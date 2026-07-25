@@ -39,6 +39,7 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                     origem_id = table.Column<long>(type: "bigint", nullable: false),
                     codigo = table.Column<string>(type: "text", nullable: false),
                     nome_cliente = table.Column<string>(type: "text", nullable: true),
+                    cnpj_cpf = table.Column<string>(type: "text", nullable: true),
                     endereco = table.Column<string>(type: "text", nullable: true),
                     telefone = table.Column<string>(type: "text", nullable: true),
                     subtipo = table.Column<string>(type: "text", nullable: true),

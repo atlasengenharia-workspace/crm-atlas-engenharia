@@ -11,6 +11,12 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
+                name: "cnpj_cpf",
+                table: "acompanhamento_servicos",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
                 name: "endereco",
                 table: "acompanhamento_servicos",
                 type: "text",
@@ -26,6 +32,10 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "cnpj_cpf",
+                table: "acompanhamento_servicos");
+
             migrationBuilder.DropColumn(
                 name: "endereco",
                 table: "acompanhamento_servicos");

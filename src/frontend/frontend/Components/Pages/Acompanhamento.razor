@@ -60,6 +60,7 @@
             <MudDivider Class="mb-4" />
             <MudPaper Outlined="true" Class="pa-4 mt-4">
                 <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">CPF / CNPJ</MudText><MudText Typo="Typo.body2">@(_selected.CnpjCpf??"—")</MudText></MudItem>
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Endereço</MudText><MudText Typo="Typo.body2">@(_selected.Endereco??"—")</MudText></MudItem>
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Telefone</MudText><MudText Typo="Typo.body2">@(_selected.Telefone??"—")</MudText></MudItem>
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Serviço</MudText><MudText Typo="Typo.body2">@(_selected.Servico??"—")</MudText></MudItem>
@@ -144,7 +145,7 @@
     private byte[]? _uploadedFileBytes;
     private AcompanhamentoServicoTipo? RouteType=>Navigation.ToBaseRelativePath(Navigation.Uri).ToLowerInvariant() switch{"avcb"=>AcompanhamentoServicoTipo.AVCB,"clcb"=>AcompanhamentoServicoTipo.CLCB,"obras"=>AcompanhamentoServicoTipo.OBRAS,"processos"=>AcompanhamentoServicoTipo.PROCESSOS_ADM,_=>null};
     private string Title=>RouteType is null?"Acompanhamento de serviços":$"Painel {TypeLabel(RouteType.Value)}";
-    private IEnumerable<AcompanhamentoDto> Filtered=>_items.Where(x=>RouteType is null||x.Tipo==RouteType).Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.Situacao}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<AcompanhamentoDto> Filtered=>_items.Where(x=>RouteType is null||x.Tipo==RouteType).Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Situacao}".Contains(_search,StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}

@@ -67,7 +67,7 @@ public sealed partial class AtlasWorkbookImportService(
             {
                 client = new Cliente
                 {
-                    CnpjCpf = LegacyDocument(clientKey),
+                    CnpjCpf = !string.IsNullOrWhiteSpace(row.CnpjCpf) ? CleanCnpjCpf(row.CnpjCpf) : LegacyDocument(clientKey),
                     RazaoSocial = Text(row.Cliente) ?? $"Cliente do serviço {row.Codigo}",
                     NomeContato = Text(row.Cliente),
                     Telefone = Text(row.Telefone),
@@ -76,6 +76,10 @@ public sealed partial class AtlasWorkbookImportService(
                 db.Clientes.Add(client);
                 clientByKey[clientKey] = client;
                 clientCount++;
+            }
+            else if (!string.IsNullOrWhiteSpace(row.CnpjCpf) && client.CnpjCpf.StartsWith("LEG-", StringComparison.OrdinalIgnoreCase))
+            {
+                client.CnpjCpf = CleanCnpjCpf(row.CnpjCpf);
             }
 
             if (!serviceByCode.TryGetValue(row.Codigo, out var service))
@@ -138,6 +142,7 @@ public sealed partial class AtlasWorkbookImportService(
                     Codigo = row.Codigo,
                     TipoServico = row.Tipo,
                     NomeCliente = row.Cliente,
+                    CnpjCpf = row.CnpjCpf?.Trim(),
                     Endereco = row.Endereco,
                     Telefone = row.Telefone,
                     Subtipo = row.Servico,
@@ -301,6 +306,18 @@ public sealed partial class AtlasWorkbookImportService(
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return $"LEG-{Convert.ToHexString(hash)[..12]}";
+    }
+
+    private static string CleanCnpjCpf(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "";
+        var digits = new string(input.Where(char.IsDigit).ToArray());
+        return digits.Length switch
+        {
+            11 => Convert.ToUInt64(digits).ToString(@"000\.000\.000\-00"),
+            14 => Convert.ToUInt64(digits).ToString(@"00\.000\.000\/0000\-00"),
+            _ => input.Trim()
+        };
     }
 
     private static string ClientKey(string? name, string? phone) =>

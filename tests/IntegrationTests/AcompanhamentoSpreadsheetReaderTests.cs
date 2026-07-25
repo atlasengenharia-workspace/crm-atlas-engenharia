@@ -33,6 +33,24 @@ public sealed class AcompanhamentoSpreadsheetReaderTests
     }
 
     [Fact]
+    public async Task ReadsCsvWithNumeroAndCpfCnpjHeaders()
+    {
+        const string csv = """
+            Número;Cliente;CPF/CNPJ;Situação
+            4500;Empresa Exemplo;12.345.678/0001-90;Em Andamento
+            """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+
+        var rows = await _reader.ReadAsync(stream, "PLANILHA PURA(CLCB).csv");
+
+        var row = Assert.Single(rows);
+        Assert.True(row.Valido);
+        Assert.Equal("4500", row.Codigo);
+        Assert.Equal("Empresa Exemplo", row.Item!.Cliente);
+        Assert.Equal("12.345.678/0001-90", row.Item.CnpjCpf);
+    }
+
+    [Fact]
     public async Task ReadsOnlyRequestedOperationalWorksheet()
     {
         await using var stream = new MemoryStream();

@@ -9,6 +9,7 @@ public sealed class AcompanhamentoServico : Entity
     public long OrigemId { get; set; }
     public string Codigo { get; set; } = string.Empty;
     public string? NomeCliente { get; set; }
+    public string? CnpjCpf { get; set; }
     public string? Endereco { get; set; }
     public string? Telefone { get; set; }
     public string? Subtipo { get; set; }
