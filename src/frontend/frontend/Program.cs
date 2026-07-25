@@ -63,7 +63,32 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+using CrmAtlas.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<AtlasDbContext>();
+        if (dbContext.Database.IsRelational())
+        {
+            dbContext.Database.ExecuteSqlRaw(@"
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS cnpj_cpf text;
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS endereco text;
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS nota_fiscal text;
+            ");
+            dbContext.Database.Migrate();
+        }
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Erro ao aplicar migrações do banco de dados.");
+    }
+}
 
 app.UseForwardedHeaders();
 
