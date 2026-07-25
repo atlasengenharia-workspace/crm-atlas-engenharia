@@ -1,0 +1,178 @@
+@using MudBlazor
+
+@if (IsVisible)
+{
+    <div class="atlas-import-overlay atlas-enter">
+        <div class="atlas-import-card">
+            <!-- Animated Glowing Header Icon -->
+            <div class="atlas-import-icon-container">
+                <div class="atlas-pulse-ring"></div>
+                <div class="atlas-pulse-ring-outer"></div>
+                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Class="atlas-icon-glowing" />
+            </div>
+
+            <!-- Dynamic Titles -->
+            <MudText Typo="Typo.h5" Class="font-weight-bold text-center mt-4 mb-1 atlas-title-gradient">
+                @Title
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center px-4 mb-4" Style="max-width: 480px;">
+                @Subtitle
+            </MudText>
+
+            <!-- Animated Progress Bar -->
+            <div class="w-100 px-4 mb-3">
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Size="Size.Large" Class="rounded-pill atlas-progress-glow" />
+            </div>
+
+            <!-- Step Badge Indicator -->
+            <div class="atlas-step-badge">
+                <MudIcon Icon="@CurrentStepIcon" Size="Size.Small" Class="mr-2 inline-icon" />
+                <span>@CurrentStepText</span>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .atlas-import-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(11, 19, 36, 0.85);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+    }
+
+    .atlas-import-card {
+        background: var(--mud-palette-surface);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 30px rgba(37, 99, 235, 0.25);
+        border-radius: 16px;
+        padding: 2.5rem 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 520px;
+        width: 100%;
+        animation: atlasPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .atlas-import-icon-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #2563EB, #0F766E);
+        border-radius: 50%;
+        color: white;
+        box-shadow: 0 0 25px rgba(37, 99, 235, 0.5);
+    }
+
+    .atlas-pulse-ring {
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        border: 2px solid rgba(37, 99, 235, 0.6);
+        border-radius: 50%;
+        animation: atlasPulse 2s infinite;
+    }
+
+    .atlas-pulse-ring-outer {
+        position: absolute;
+        width: 120px;
+        height: 120px;
+        border: 1px solid rgba(15, 118, 110, 0.4);
+        border-radius: 50%;
+        animation: atlasPulse 2s infinite 0.6s;
+    }
+
+    .atlas-icon-glowing {
+        font-size: 2.5rem !important;
+        animation: atlasBounce 2s infinite ease-in-out;
+    }
+
+    .atlas-title-gradient {
+        background: linear-gradient(135deg, #2563EB, #14B8A6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .atlas-progress-glow {
+        box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+    }
+
+    .atlas-step-badge {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(37, 99, 235, 0.1);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        color: var(--mud-palette-primary);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+    }
+
+    @@keyframes atlasPopIn {
+        0% { opacity: 0; transform: scale(0.85); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+
+    @@keyframes atlasPulse {
+        0% { transform: scale(0.85); opacity: 1; }
+        100% { transform: scale(1.35); opacity: 0; }
+    }
+
+    @@keyframes atlasBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "Aguarde, estamos importando os dados...";
+    [Parameter] public string Subtitle { get; set; } = "Atualizando o sistema com novos dados. Sincronizando clientes, serviços e notas fiscais...";
+
+    private int _stepIndex;
+    private System.Threading.Timer? _stepTimer;
+
+    private static readonly (string Text, string Icon)[] Steps =
+    [
+        ("1/4 • Lendo e validando estrutura da planilha...", Icons.Material.Filled.FolderOpen),
+        ("2/4 • Atualizando cadastro de clientes e pessoas...", Icons.Material.Filled.People),
+        ("3/4 • Gravando acompanhamentos, NFs e condições...", Icons.Material.Filled.Assignment),
+        ("4/4 • Finalizando atualizações no CRM Atlas...", Icons.Material.Filled.AutoAwesome)
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && _stepTimer == null)
+        {
+            _stepIndex = 0;
+            _stepTimer = new System.Threading.Timer(_ =>
+            {
+                _stepIndex = (_stepIndex + 1) % Steps.Length;
+                InvokeAsync(StateHasChanged);
+            }, null, 1200, 1800);
+        }
+        else if (!IsVisible && _stepTimer != null)
+        {
+            _stepTimer.Dispose();
+            _stepTimer = null;
+        }
+    }
+
+    private string CurrentStepText => Steps[_stepIndex].Text;
+    private string CurrentStepIcon => Steps[_stepIndex].Icon;
+}

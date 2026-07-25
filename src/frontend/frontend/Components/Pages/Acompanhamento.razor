@@ -120,21 +120,22 @@
 </MudDrawer>
 
 <MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(820px,100vw)" Elevation="8">
-    <div class="pa-5">
+    <div class="pa-5 position-relative" style="min-height: 450px;">
+        <ImportingAnimationOverlay IsVisible="_importing" />
         <MudToolBar Class="pa-0 mb-3">
             <MudStack Spacing="0">
                 <MudText Typo="Typo.h5">Importação em lote</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualização obrigatória antes de persistir.</MudText>
             </MudStack>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" Disabled="_importing" />
         </MudToolBar>
         <MudDivider Class="mb-4" />
         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">No XLSX, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.</MudAlert>
         <InputFile OnChange="ParseImportAsync" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
         @if(_preview.Count>0){<MudTable Items="_preview" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-4"><HeaderContent><MudTh>Linha</MudTh><MudTh>Código</MudTh><MudTh>Tipo</MudTh><MudTh>Cliente</MudTh><MudTh>Validação</MudTh></HeaderContent><RowTemplate><MudTd>@context.Line</MudTd><MudTd>@context.Code</MudTd><MudTd>@context.Type</MudTd><MudTd>@context.Client</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Valid?Color.Success:Color.Error)">@(context.Valid?"Válida":context.Error)</MudChip></MudTd></RowTemplate></MudTable>}
         <MudDivider Class="mt-5 mb-4" />
-        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(()=>_importOpen=false)">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(()=>_importOpen=false)" Disabled="_importing">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
     </div>
 </MudDrawer>
 
