@@ -8,6 +8,7 @@ public abstract class Entity
 public interface IRepository<TEntity> where TEntity : Entity
 {
     Task<TEntity?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<TEntity?> FindAsync(System.Linq.Expressions.Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TEntity>> ListAsync(CancellationToken cancellationToken = default);
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
     void Update(TEntity entity);

@@ -19,8 +19,6 @@ public sealed class GlobalSearchService(IClienteService clients,ICadastroServico
         query=(query??"").Trim();
         if(query.Length<2)return [];
         limitPerType=Math.Clamp(limitPerType,1,20);
-        // These services share the scoped DbContext in a Blazor circuit.
-        // Await each query before starting the next one to avoid concurrent EF operations.
         var clientsResult=await clients.ListAsync(new(null,null,null,null,null,null,null,1,100),ct);
         var servicesResult=await services.ListAsync(new(null,null,null,1,100),ct);
         var budgetsResult=await budgets.ListAsync(ct);

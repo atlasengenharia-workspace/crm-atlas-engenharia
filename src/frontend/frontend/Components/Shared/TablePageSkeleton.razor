@@ -1,0 +1,55 @@
+@using MudBlazor
+
+<MudGrid Class="mb-4">
+    @for (var metric = 0; metric < MetricCount; metric++)
+    {
+        <MudItem xs="12" sm="@MetricWidth">
+            <MudPaper Class="pa-4" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="50%" Height="16px" Animation="Animation.Wave" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" Height="28px" Animation="Animation.Wave" />
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudPaper Class="pa-4 mb-4" Outlined="true">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" md="4">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="40px" Animation="Animation.Wave" />
+        </MudItem>
+
+        <MudItem xs="6" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="40px" Animation="Animation.Wave" />
+        </MudItem>
+
+        <MudItem xs="6" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="40px" Animation="Animation.Wave" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Outlined="true" Class="pa-0">
+    <MudTable Items="DummyList" T="int" Elevation="0" Hover="true">
+        <HeaderContent>
+            @for (var col = 0; col < ColumnCount; col++)
+            {
+                <MudTh><MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" Height="20px" Animation="Animation.Wave" /></MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            @for (var col = 0; col < ColumnCount; col++)
+            {
+                <MudTd><MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" Height="18px" Animation="Animation.Wave" /></MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [Parameter] public int MetricCount { get; set; } = 3;
+    [Parameter] public int ColumnCount { get; set; } = 5;
+    [Parameter] public int RowCount { get; set; } = 5;
+
+    private int MetricWidth => Math.Max(1, 12 / Math.Max(1, MetricCount));
+    private IEnumerable<int> DummyList => Enumerable.Range(1, Math.Max(1, RowCount));
+}

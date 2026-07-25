@@ -68,6 +68,9 @@ public sealed class ApplicationUseCaseTests
         public Task<TEntity?> GetByIdAsync(long id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_items.FirstOrDefault(x => x.Id == id));
 
+        public Task<TEntity?> FindAsync(System.Linq.Expressions.Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_items.AsQueryable().FirstOrDefault(predicate));
+
         public Task<IReadOnlyList<TEntity>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TEntity>>(_items.ToList());
 

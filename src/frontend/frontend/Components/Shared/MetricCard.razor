@@ -1,0 +1,36 @@
+<MudPaper Outlined="true" Class="pa-4 d-flex flex-column justify-space-between h-100 metric-card" Style="min-height: 155px; height: 100%;">
+    <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Class="w-100 mb-2">
+        <MudStack Spacing="0" Class="flex-grow-1 pr-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="height: 32px; min-height: 32px; display: flex; align-items: center; line-height: 1.2; overflow: hidden; font-weight: 500;">@Title</MudText>
+            <MudText Typo="Typo.h5" Class="mt-1 font-weight-bold">@Value</MudText>
+        </MudStack>
+        <MudAvatar Color="@Color" Variant="Variant.Filled" Size="Size.Medium" Class="flex-shrink-0">
+            <MudIcon Icon="@Icon" />
+        </MudAvatar>
+    </MudStack>
+    <div class="mt-auto pt-1" style="height: 32px; min-height: 32px; flex: 0 0 32px; display: flex; align-items: center;">
+        @if (FooterContent != null)
+        {
+            @FooterContent
+        }
+        else if (!string.IsNullOrWhiteSpace(FooterText))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-size: 0.78rem;">@FooterText</MudText>
+        }
+        else if (!string.IsNullOrWhiteSpace(Href))
+        {
+            <MudButton Href="@Href" Variant="Variant.Text" Size="Size.Small" Class="px-0"
+                       EndIcon="@Icons.Material.Filled.ArrowForward" Color="Color.Primary">Ver detalhes</MudButton>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter] public Color Color { get; set; } = Color.Primary;
+    [Parameter] public string? FooterText { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+    [Parameter] public string? Href { get; set; }
+}

@@ -1,5 +1,6 @@
 using CrmAtlas.ApplicationCore.Servicos;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace CrmAtlas.Infrastructure.Data;
 
@@ -8,6 +9,9 @@ public sealed class CadastroServicoRepository(AtlasDbContext dbContext)
 {
     public async Task<CadastroServico?> GetByIdAsync(long id, CancellationToken cancellationToken = default) =>
         await dbContext.CadastrosServico.FindAsync([id], cancellationToken);
+
+    public async Task<CadastroServico?> FindAsync(Expression<Func<CadastroServico, bool>> predicate, CancellationToken cancellationToken = default) =>
+        await dbContext.CadastrosServico.AsNoTracking().FirstOrDefaultAsync(predicate, cancellationToken);
 
     public async Task<IReadOnlyList<CadastroServico>> ListAsync(CancellationToken cancellationToken = default) =>
         await dbContext.CadastrosServico.AsNoTracking().ToListAsync(cancellationToken);

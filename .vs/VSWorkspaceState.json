@@ -3,9 +3,10 @@
     "",
     "\\src",
     "\\src\\ApplicationCore",
-    "\\src\\Infrastructure",
-    "\\src\\Web"
+    "\\src\\Web",
+    "\\src\\Web\\Components",
+    "\\src\\Web\\Pages"
   ],
-  "SelectedNode": "\\src\\Web\\Web.csproj",
+  "SelectedNode": "\\src\\ApplicationCore\\ApplicationCore.csproj",
   "PreviewInSolutionExplorer": false
 }

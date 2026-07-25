@@ -1,0 +1,1176 @@
+@page "/"
+@attribute [Authorize]
+@using CrmAtlas.ApplicationCore.Dashboard
+@inject IDashboardQueryService Dashboard
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Painel Executivo | CRM Atlas</PageTitle>
+
+<PageHeader Title="Painel executivo" Subtitle="Visão geral financeira e gerencial baseada em dados em tempo real.">
+    <Actions>
+        <MudButton Href="/servicos" Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Add">Novo serviço</MudButton>
+    </Actions>
+</PageHeader>
+
+<!-- NAVEGAÇÃO DE ABAS & BARRA DE FILTROS GLOBAIS -->
+<MudPaper Outlined="true" Class="pa-4 mb-5 atlas-enter">
+    <MudStack Spacing="3">
+        <!-- SELETOR DE ABAS E ALTERNADOR PRÓ-LABORE -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="gap-3">
+            <div class="d-inline-flex pa-1 rounded-lg border" style="background: var(--mud-palette-background-grey);">
+                <MudButton Size="Size.Small" Variant="@(_activeTabIndex == 0 ? Variant.Filled : Variant.Text)"
+                           Color="@(_activeTabIndex == 0 ? Color.Primary : Color.Default)"
+                           StartIcon="@Icons.Material.Filled.AttachMoney"
+                           OnClick="SelectFinanceiroTabAsync" Class="px-4 font-weight-bold">
+                    FINANCEIRO
+                </MudButton>
+                <MudButton Size="Size.Small" Variant="@(_activeTabIndex == 1 ? Variant.Filled : Variant.Text)"
+                           Color="@(_activeTabIndex == 1 ? Color.Primary : Color.Default)"
+                           StartIcon="@Icons.Material.Filled.Assessment"
+                           OnClick="@(() => _activeTabIndex = 1)" Class="px-4 font-weight-bold">
+                    GERENCIAL
+                </MudButton>
+            </div>
+
+            <MudCheckBox T="bool" Value="_includeProLabore" ValueChanged="OnProLaboreChangedAsync"
+                         Label="Pró-labore nos custos" Color="Color.Primary" Dense="true" Class="my-0" />
+        </MudStack>
+
+        <MudDivider />
+
+        <!-- FILTROS DE PERÍODO, DATAS E VALORES -->
+        <MudGrid Spacing="2">
+            <MudItem xs="12" lg="4">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1 d-block font-weight-bold">Período de análise</MudText>
+                <div class="d-flex flex-wrap gap-1">
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "90d" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("90d"))" Style="white-space: nowrap;">90 dias</MudButton>
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "6m" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("6m"))" Style="white-space: nowrap;">6 meses</MudButton>
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "12m" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("12m"))" Style="white-space: nowrap;">12 meses</MudButton>
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "24m" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("24m"))" Style="white-space: nowrap;">24 meses</MudButton>
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "ytd" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("ytd"))" Style="white-space: nowrap;">Este ano</MudButton>
+                    <MudButton Size="Size.Small" Variant="@(_periodPreset == "all" ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetPeriodPresetAsync("all"))" Style="white-space: nowrap;">Tudo</MudButton>
+                </div>
+            </MudItem>
+
+            <MudItem xs="6" sm="3" lg="2">
+                <MudDatePicker Date="_startDate" DateChanged="OnStartDateChangedAsync" Label="Data inicial" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6" sm="3" lg="2">
+                <MudDatePicker Date="_endDate" DateChanged="OnEndDateChangedAsync" Label="Data final" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+
+            <MudItem xs="6" sm="3" lg="2">
+                <MudNumericField T="decimal?" Value="_minContract" ValueChanged="OnMinContractChangedAsync" Label="Valor mín. (R$)" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N0" Clearable="true" />
+            </MudItem>
+            <MudItem xs="6" sm="3" lg="2">
+                <MudNumericField T="decimal?" Value="_maxContract" ValueChanged="OnMaxContractChangedAsync" Label="Valor máx. (R$)" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N0" Clearable="true" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- SELEÇÃO DE LINHAS DE SERVIÇO E BOTÃO REFRESH -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="gap-2 pt-1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-2 font-weight-bold">Linhas de serviço:</MudText>
+                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.AVCB) ? Variant.Filled : Variant.Outlined"
+                         Color="Color.Error" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.AVCB))">AVCB</MudChip>
+                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.CLCB) ? Variant.Filled : Variant.Outlined"
+                         Color="Color.Warning" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.CLCB))">CLCB</MudChip>
+                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.PROCESSOS_ADM) ? Variant.Filled : Variant.Outlined"
+                         Color="Color.Secondary" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.PROCESSOS_ADM))">Proc. Adm</MudChip>
+                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.OBRAS) ? Variant.Filled : Variant.Outlined"
+                         Color="Color.Info" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.OBRAS))">Obras</MudChip>
+            </MudStack>
+            
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="LoadAsync" Disabled="_loading"
+                       StartIcon="@Icons.Material.Filled.Refresh">Atualizar painel</MudButton>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard">
+    @if (_data is not null)
+    {
+        @if (_activeTabIndex == 0)
+        {
+            <!-- ========================================== -->
+            <!-- TAB 1: PAINEL FINANCEIRO                 -->
+            <!-- ========================================== -->
+            <section class="atlas-enter">
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                    <strong>Qualidade de dados:</strong> O faturamento refere-se às entradas em regime de caixa. Os custos indiretos são apurados no período filtrado.
+                </MudAlert>
+
+                <!-- KPIS PRINCIPAIS DO FINANCEIRO (7 CARDS EXECUTIVOS) -->
+                <MudGrid Spacing="3">
+                    <!-- 1. Faturamento -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Faturamento" Value="@FmtCompactMoney(_data.Kpis.Revenue)" Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Primary">
+                            <FooterContent>
+                                @RenderDelta(_data.Kpis.Revenue, _data.Kpis.RevenuePrevious)
+                            </FooterContent>
+                        </MetricCard>
+                    </MudItem>
+
+                    <!-- 2. Custo direto -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Custo direto" Value="@FmtCompactMoney(_data.Kpis.DirectCosts)" Icon="@Icons.Material.Filled.TrendingDown" Color="Color.Error" FooterText="vinculado aos serviços" />
+                    </MudItem>
+
+                    <!-- 3. Custo indireto -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Custo indireto" Value="@FmtCompactMoney(_data.Kpis.IndirectCosts)" Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Warning" FooterText="@(_includeProLabore ? "com pró-labore" : "sem pró-labore")" />
+                    </MudItem>
+
+                    <!-- 4. Resultado -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Resultado" Value="@FmtCompactMoney(_data.Kpis.Result)" Icon="@Icons.Material.Filled.PieChart" Color="@(_data.Kpis.Result >= 0 ? Color.Success : Color.Error)">
+                            <FooterContent>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-size: 0.78rem;">
+                                    margem <strong style="color: @(_data.Kpis.Margin >= 0 ? "#1F9D66" : "#C8432F");">@((_data.Kpis.Margin * 100).ToString("F1", PtBr))%</strong>
+                                </MudText>
+                            </FooterContent>
+                        </MetricCard>
+                    </MudItem>
+
+                    <!-- 5. A receber (carteira) -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="A receber (carteira)" Value="@FmtCompactMoney(_data.Kpis.Receivable)" Icon="@Icons.Material.Filled.HourglassTop" Color="Color.Info" FooterText="saldo de contratos" />
+                    </MudItem>
+
+                    <!-- 6. Contratado (vendas) -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Contratado (vendas)" Value="@FmtCompactMoney(_data.Kpis.ClosedContractsValue)" Icon="@Icons.Material.Filled.Handshake" Color="Color.Dark">
+                            <FooterContent>
+                                @RenderDelta(_data.Kpis.ClosedContractsValue, _data.Kpis.ClosedContractsValuePrevious)
+                            </FooterContent>
+                        </MetricCard>
+                    </MudItem>
+
+                    <!-- 7. Novos contratos -->
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column">
+                        <MetricCard Title="Novos contratos" Value="@_data.Kpis.ClosedContractsCount.ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Description" Color="Color.Secondary">
+                            <FooterContent>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-size: 0.78rem;">
+                                    ticket médio <strong>@FmtCompactMoney(_data.Kpis.ClosedContractsCount > 0 ? _data.Kpis.ClosedContractsValue / _data.Kpis.ClosedContractsCount : 0)</strong>
+                                </MudText>
+                            </FooterContent>
+                        </MetricCard>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- VISÃO MESTRE - FATURAMENTO vs CUSTOS vs RESULTADO -->
+                <MudGrid Class="mt-3">
+                    <MudItem xs="12">
+                        <MudPaper Outlined="true" Class="pa-5">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Visão mestre — faturamento, custos e resultado</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Visão por período: barra de faturamento (caixa) ao lado da barra empilhada de custo direto + indireto, e linha de resultado.</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenMasterFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 380px; position: relative; width: 100%;">
+                                <canvas id="masterChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- VENDAS — CONTRATOS FECHADOS (TERMÔMETRO RÁPIDO) -->
+                <div class="mt-5 mb-2">
+                    <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">VENDAS — CONTRATOS FECHADOS (TERMÔMETRO RÁPIDO)</MudText>
+                </div>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="7">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Contratos fechados por linha de serviço</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Valor contratado mensal pela data de assinatura, empilhado por linha · vermelho: média móvel 3 períodos</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenVendasFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="vendasChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="5">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Quantidade fechada por serviço</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Contratos no período × período anterior</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenQtdFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="qtdChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- CAIXA — FATURAMENTO E CUSTOS -->
+                <div class="mt-5 mb-2">
+                    <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">CAIXA — FATURAMENTO E CUSTOS</MudText>
+                </div>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução do faturamento</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento mensal · linha: média móvel 3 períodos · tracejado: período anterior</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenEvoFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="evoChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Faturamento por linha de serviço</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Composição da receita em cada período</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenStackFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="stackChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- CUSTOS INDIRETOS -->
+                <div class="mt-5 mb-2">
+                    <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">CUSTOS INDIRETOS</MudText>
+                </div>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução dos custos indiretos</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Empilhado por categoria — mostra o que está crescendo</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenCostEvoFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="costEvoChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Custos indiretos por categoria</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total do período — @(_includeProLabore ? "com" : "sem") pró-labore</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenCostCatFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="costCatChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- CARTEIRA E CLIENTES -->
+                <div class="mt-5 mb-2">
+                    <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">CARTEIRA E CLIENTES</MudText>
+                </div>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">A receber por linha</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo atual de contratos (independe do período)</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenArecFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="arecChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudPaper Outlined="true" Class="pa-5 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Participação por linha</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento do período filtrado</MudText>
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenDonutFullscreenAsync" aria-label="Expandir gráfico" />
+                            </MudStack>
+                            <div style="height: 320px; position: relative; width: 100%;">
+                                <canvas id="donutChartCanvas"></canvas>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- MAIORES CLIENTES DA CARTEIRA -->
+                <MudGrid Class="mt-5 mb-6">
+                    <MudItem xs="12">
+                        <MudPaper Outlined="true" Class="pa-5">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Maiores clientes</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Recalculado pelos filtros: @string.Join(", ", _activeLines.Select(ServiceLabel)) · @(_periodPreset == "12m" ? "últimos 365 dias" : _periodPreset == "ytd" ? "ano atual" : "todo o histórico")
+                                    </MudText>
+                                </MudStack>
+                                <MudButton Href="/clientes" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small">Ver todos clientes</MudButton>
+                            </MudStack>
+
+                            <MudTable Items="_data.TopClients" Hover="true" Elevation="0" Class="atlas-data-table">
+                                <HeaderContent>
+                                    <MudTh Style="width: 45px; color: var(--mud-palette-text-secondary);">#</MudTh>
+                                    <MudTh>CLIENTE / CÓDIGOS DOS SERVIÇOS</MudTh>
+                                    <MudTh>LINHA PRINCIPAL</MudTh>
+                                    <MudTh Class="text-right">CONTRATADO ▼</MudTh>
+                                    <MudTh Class="text-center">CONTRATOS</MudTh>
+                                    <MudTh Class="text-right">A RECEBER</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="#" Style="color: var(--mud-palette-text-secondary); font-size: 0.85rem;">@context.Rank</MudTd>
+                                    <MudTd DataLabel="Cliente">
+                                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.ClientName</MudText>
+                                        @if (!string.IsNullOrEmpty(context.ServiceCodes))
+                                        {
+                                            <div style="font-size: 0.72rem; color: #718096; margin-top: 2px; font-family: Archivo, sans-serif;">@context.ServiceCodes</div>
+                                        }
+                                    </MudTd>
+                                    <MudTd DataLabel="Linha principal">
+                                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.PrimaryLine); margin-right:6px;"></span>
+                                        <span style="font-size: 0.85rem;">@context.PrimaryLine</span>
+                                    </MudTd>
+                                    <MudTd DataLabel="Contratado" Class="text-right">
+                                        <strong style="font-size: 0.9rem;">@FmtCompactMoney(context.TotalContracted)</strong>
+                                    </MudTd>
+                                    <MudTd DataLabel="Contratos" Class="text-center" Style="font-size: 0.85rem;">@context.ContractCount</MudTd>
+                                    <MudTd DataLabel="A receber" Class="text-right" Style="font-size: 0.85rem;">
+                                        @FmtCompactMoney(context.Receivable)
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+
+                            <details style="margin-top: 16px; font-size: 0.82rem; color: #718096; border-top: 1px dashed #E2E8F0; padding-top: 12px;">
+                                <summary style="cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75rem; color: #4A5568;">v ESPECIFICAÇÃO</summary>
+                                <p style="margin-top: 6px; line-height: 1.4; color: #718096;">Ranking recalculado com todos os filtros globais, com os códigos dos serviços que compõem o valor listados abaixo do nome do cliente: linhas de serviço, faixa de valor e período (pela data de assinatura; preset "Tudo" mostra o histórico completo). "Linha principal" é a linha com maior valor contratado pelo cliente. Clique no cliente abre a ficha com histórico (no sistema).</p>
+                            </details>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            </section>
+        }
+        else
+        {
+            <!-- ========================================== -->
+            <!-- TAB 2: PAINEL GERENCIAL / OPERACIONAL     -->
+            <!-- ========================================== -->
+            <section class="atlas-enter">
+                <!-- KPIS GERENCIAIS (5 CARDS EXECUTIVOS) -->
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="4" lg="2" Class="d-flex flex-column flex-grow-1">
+                        <MetricCard Title="Serviços em aberto" Value="@FilteredPriorities.Count().ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Assignment" Color="Color.Info" FooterText="@($"{_hiddenIds.Count} ocultado(s)")" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column flex-grow-1">
+                        <MetricCard Title="Valor em carteira" Value="@FmtCompactMoney(FilteredPriorities.Sum(x => x.ContractValue))" Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Primary" FooterText="@($"a receber {FmtCompactMoney(FilteredPriorities.Sum(x => x.ReceivableValue))}")" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4" lg="2" Class="d-flex flex-column flex-grow-1">
+                        <MetricCard Title="Atrasados (+90 dias)" Value="@FilteredPriorities.Count(x => x.DaysInStatus > 90 && !IsThirdPartyWait(x.Status)).ToString("N0", PtBr)" Icon="@Icons.Material.Filled.Warning" Color="Color.Error" FooterText="sem contar esperas de terceiros" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex flex-column flex-grow-1">
+                        <MetricCard Title="Aguardando terceiros" Value="@FilteredPriorities.Count(x => IsThirdPartyWait(x.Status)).ToString("N0", PtBr)" Icon="@Icons.Material.Filled.PauseCircle" Color="Color.Warning" FooterText="contratante, documentos, órgãos" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4" lg="2" Class="d-flex flex-column flex-grow-1">
+                        <MetricCard Title="Mais antigo em aberto" Value="@((FilteredPriorities.Any() ? FilteredPriorities.Max(x => x.DaysInStatus) : 0) + " dias")" Icon="@Icons.Material.Filled.Schedule" Color="Color.Secondary" FooterText="desde a assinatura" />
+                    </MudItem>
+                </MudGrid>
+
+                <!-- FILA DE PRIORIDADES -->
+                <MudGrid Class="mt-5 mb-6">
+                    <MudItem xs="12">
+                        <MudPaper Outlined="true" Class="pa-5">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Fila de prioridades — do mais antigo para o mais novo</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @FilteredPriorities.Count() serviço(s)@(!string.IsNullOrEmpty(_selectedStatusFilter) ? $" · situação: {_selectedStatusFilter}" : "") · idade contada desde a assinatura do contrato
+                                    </MudText>
+                                </MudStack>
+                                <MudButton Href="/acompanhamento" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small">Ver na operação</MudButton>
+                            </MudStack>
+
+                            <!-- FILTROS DE SITUAÇÃO (PILLS COM COUNTS) -->
+                            <div class="d-flex flex-wrap gap-2 mb-4">
+                                <MudButton Variant="string.IsNullOrEmpty(_selectedStatusFilter) ? Variant.Filled : Variant.Outlined"
+                                           Color="Color.Dark" Size="Size.Small" OnClick="@(() => _selectedStatusFilter = null)" Class="rounded-pill">
+                                    Todas <span class="ml-1 px-1 rounded bg-grey-lighten-2 text-dark font-weight-bold" style="font-size: 0.72rem;">@(_data.Priorities.Count)</span>
+                                </MudButton>
+                                @foreach (var statusGroup in StatusGroups)
+                                {
+                                    var isWait = IsThirdPartyWait(statusGroup.Status);
+                                    <MudButton Variant="_selectedStatusFilter == statusGroup.Status ? Variant.Filled : Variant.Outlined"
+                                               Color="Color.Default" Size="Size.Small" OnClick="@(() => _selectedStatusFilter = statusGroup.Status)" Class="rounded-pill" Style="border-color: #CBD5E1;">
+                                        @if (isWait)
+                                        {
+                                            <span style="margin-right: 4px; font-size: 0.75rem;">⏸</span>
+                                        }
+                                        @statusGroup.Status <span class="ml-1 px-1 rounded bg-grey-lighten-3 text-secondary font-weight-bold" style="font-size: 0.72rem;">@statusGroup.Count</span>
+                                    </MudButton>
+                                }
+                            </div>
+
+                            <!-- BUSCA DE TEXTO & OCULTADOS -->
+                            <MudGrid Class="mb-4">
+                                <MudItem xs="12" sm="8" md="9">
+                                    <MudTextField T="string" @bind-Value="_prioritySearch" Placeholder="Buscar por código, cliente, serviço ou cidade..."
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+                                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+                                </MudItem>
+                                <MudItem xs="12" sm="4" md="3" Class="d-flex justify-sm-end">
+                                    <MudCheckBox T="bool" @bind-Value="_showHidden" Color="Color.Primary" Label="@($"Mostrar ocultados ( {_hiddenIds.Count} )")" Dense="true" />
+                                </MudItem>
+                            </MudGrid>
+
+                            <MudTable Items="FilteredPriorities" Hover="true" Elevation="0" Class="atlas-data-table">
+                                <HeaderContent>
+                                    <MudTh>CÓDIGO</MudTh>
+                                    <MudTh>EM ABERTO HÁ</MudTh>
+                                    <MudTh>CLIENTE</MudTh>
+                                    <MudTh>SERVIÇO</MudTh>
+                                    <MudTh>SITUAÇÃO</MudTh>
+                                    <MudTh>CIDADE</MudTh>
+                                    <MudTh Class="text-right">CONTRATO</MudTh>
+                                    <MudTh Class="text-right">A RECEBER</MudTh>
+                                    <MudTh Class="text-center">AÇÃO</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    @{
+                                        var isHidden = _hiddenIds.Contains(context.Id);
+                                        var ageStyle = AgePillStyle(context.DaysInStatus);
+                                        var isWait = IsThirdPartyWait(context.Status);
+                                        var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                    }
+                                    <MudTd DataLabel="Código" Style="@($"font-weight: 600; color: #4A5568; {rowStyle}")">@(context.Code ?? "—")</MudTd>
+                                    <MudTd DataLabel="Em aberto há" Style="@rowStyle">
+                                        <span style="display:inline-block; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 0.78rem; background-color: @ageStyle.bg; color: @ageStyle.color;">
+                                            @context.DaysInStatus dias
+                                        </span>
+                                    </MudTd>
+                                    <MudTd DataLabel="Cliente" Style="@rowStyle">
+                                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.ServiceType.ToString()); margin-right:6px;"></span>
+                                        <strong>@context.Client</strong>
+                                    </MudTd>
+                                    <MudTd DataLabel="Serviço" Style="@rowStyle">@ServiceLabel(context.ServiceType)</MudTd>
+                                    <MudTd DataLabel="Situação" Style="@rowStyle">
+                                        <span>@context.Status</span>
+                                        @if (isWait)
+                                        {
+                                            <span style="display:inline-block; margin-left: 6px; font-size: 0.72rem; color: #718096; background: #EDF2F7; padding: 1px 6px; border-radius: 4px;">⏸ aguardando terceiros</span>
+                                        }
+                                    </MudTd>
+                                    <MudTd DataLabel="Cidade" Style="@rowStyle">@(context.City ?? "—")</MudTd>
+                                    <MudTd DataLabel="Contrato" Class="text-right" Style="@rowStyle">@FmtCompactMoney(context.ContractValue)</MudTd>
+                                    <MudTd DataLabel="A receber" Class="text-right" Style="@rowStyle">@FmtCompactMoney(context.ReceivableValue)</MudTd>
+                                    <MudTd DataLabel="Ação" Class="text-center" Style="@rowStyle">
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => ToggleHide(context.Id))">
+                                            @(isHidden ? "Reexibir" : "Ocultar")
+                                        </MudButton>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+
+                            <details style="margin-top: 16px; font-size: 0.82rem; color: #718096; border-top: 1px dashed #E2E8F0; padding-top: 12px;">
+                                <summary style="cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.75rem; color: #4A5568;">v ESPECIFICAÇÃO</summary>
+                                <p style="margin-top: 6px; line-height: 1.4; color: #718096;"><strong>Coração do painel gerencial.</strong> Lista todos os serviços não concluídos com o código do serviço (mesmo da planilha/sistema, para localizar o registro) e badge de idade: verde até 30 dias, âmber 31–90, laranja 91–180, vermelho +180 (idade contada da assinatura, pois não há data de término no processo atual). <strong>Filtro por situação:</strong> os botões acima da tabela mostram cada situação com a quantidade; aceitam seleção múltipla; "Todas" limpa. Situações de espera recebem a etiqueta "aguardando terceiros" — o atraso não é da equipe. <strong>Ordenação:</strong> clique em qualquer cabeçalho de coluna para ordenar de A a Z / do maior para o menor. <strong>Ocultar:</strong> remove o serviço da fila e dos indicadores. Clique na linha abre o serviço (no sistema).</p>
+                            </details>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            </section>
+        }
+    }
+</GlobalSkeleton>
+
+<MudDialog @bind-Visible="_isMasterFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Visão mestre — faturamento, custos e resultado (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="masterChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isVendasFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Contratos fechados por linha de serviço (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="vendasChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isQtdFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Quantidade fechada por serviço (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="qtdChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isEvoFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução do faturamento (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="evoChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isStackFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Faturamento por linha de serviço (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="stackChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isCostEvoFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução dos custos indiretos (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="costEvoChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isCostCatFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Custos indiretos por categoria (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="costCatChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isArecFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">A receber por linha (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="arecChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isDonutFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Participação por linha (Expandido)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="height: 550px; position: relative; width: 100%;">
+            <canvas id="donutChartFullscreenCanvas"></canvas>
+        </div>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private bool _loading = true;
+    private int _activeTabIndex;
+
+    private string _periodPreset = "12m";
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+
+    private decimal? _minContract;
+    private decimal? _maxContract;
+    private bool _includeProLabore = true;
+
+    private readonly HashSet<AcompanhamentoServicoTipo> _activeLines = [
+        AcompanhamentoServicoTipo.AVCB,
+        AcompanhamentoServicoTipo.CLCB,
+        AcompanhamentoServicoTipo.PROCESSOS_ADM,
+        AcompanhamentoServicoTipo.OBRAS
+    ];
+
+    private string? _selectedStatusFilter;
+    private string _prioritySearch = string.Empty;
+
+    private DashboardSnapshot? _data;
+    private List<ChartSeries<double>> _financialSeries = [], _revenueSeries = [], _contractSeries = [], _costSeries = [];
+    private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
+
+    protected override Task OnInitializedAsync()
+    {
+        SetPeriodDatesFromPreset("12m");
+        return LoadAsync();
+    }
+
+    private IEnumerable<DashboardPriorityItem> FilteredPriorities =>
+        _data?.Priorities.Where(p =>
+            (string.IsNullOrEmpty(_selectedStatusFilter) || p.Status.Equals(_selectedStatusFilter, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(_prioritySearch) ||
+             p.Code.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+             p.Client.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+             p.Status.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+             (p.City != null && p.City.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase)))
+        ) ?? [];
+
+    private IEnumerable<(string Status, int Count)> StatusGroups =>
+        _data?.Priorities.GroupBy(x => x.Status)
+            .Select(g => (Status: g.Key, Count: g.Count()))
+            .OrderByDescending(x => x.Count)
+            .AsEnumerable() ?? Enumerable.Empty<(string Status, int Count)>();
+
+    private async Task SetPeriodPresetAsync(string value)
+    {
+        _periodPreset = value;
+        SetPeriodDatesFromPreset(value);
+        await LoadAsync();
+    }
+
+    private void SetPeriodDatesFromPreset(string value)
+    {
+        var today = DateTime.Today;
+        switch (value)
+        {
+            case "90d":
+                _startDate = today.AddDays(-90);
+                _endDate = today;
+                break;
+            case "6m":
+                _startDate = today.AddMonths(-6);
+                _endDate = today;
+                break;
+            case "24m":
+                _startDate = today.AddMonths(-24);
+                _endDate = today;
+                break;
+            case "ytd":
+                _startDate = new DateTime(today.Year, 1, 1);
+                _endDate = today;
+                break;
+            case "all":
+                _startDate = new DateTime(2020, 1, 1);
+                _endDate = today;
+                break;
+            case "12m":
+            default:
+                _startDate = today.AddMonths(-12);
+                _endDate = today;
+                break;
+        }
+    }
+
+    private async Task OnStartDateChangedAsync(DateTime? date)
+    {
+        _startDate = date;
+        await LoadAsync();
+    }
+
+    private async Task OnEndDateChangedAsync(DateTime? date)
+    {
+        _endDate = date;
+        await LoadAsync();
+    }
+
+    private async Task OnMinContractChangedAsync(decimal? val)
+    {
+        _minContract = val;
+        await LoadAsync();
+    }
+
+    private async Task OnMaxContractChangedAsync(decimal? val)
+    {
+        _maxContract = val;
+        await LoadAsync();
+    }
+
+    private async Task OnProLaboreChangedAsync(bool include)
+    {
+        _includeProLabore = include;
+        await LoadAsync();
+    }
+
+    private async Task ToggleLineAsync(AcompanhamentoServicoTipo type)
+    {
+        if (_activeLines.Contains(type))
+        {
+            if (_activeLines.Count > 1) _activeLines.Remove(type);
+        }
+        else
+        {
+            _activeLines.Add(type);
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var start = _startDate.HasValue ? DateOnly.FromDateTime(_startDate.Value) : new DateOnly(2020, 1, 1);
+            var end = _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : DateOnly.FromDateTime(DateTime.Today);
+
+            var filter = new DashboardFilter(
+                start, end, _activeLines.ToList(), _includeProLabore, _minContract, _maxContract);
+
+            _data = await Dashboard.GetAsync(filter);
+            BuildCharts(_data);
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add($"Não foi possível carregar o painel executivo: {exception.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool _isMasterFullscreen = false;
+    private bool _isVendasFullscreen = false;
+    private bool _isQtdFullscreen = false;
+    private bool _isEvoFullscreen = false;
+    private bool _isStackFullscreen = false;
+    private bool _isCostEvoFullscreen = false;
+    private bool _isCostCatFullscreen = false;
+    private bool _isArecFullscreen = false;
+    private bool _isDonutFullscreen = false;
+
+    private async Task SelectFinanceiroTabAsync()
+    {
+        _activeTabIndex = 0;
+        StateHasChanged();
+        await Task.Delay(50);
+        await RenderAllChartsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_activeTabIndex == 0 && _data != null && !_loading)
+        {
+            await RenderAllChartsAsync();
+        }
+    }
+
+    private async Task RenderAllChartsAsync()
+    {
+        await RenderMasterChartAsync("masterChartCanvas");
+        await RenderVendasChartAsync("vendasChartCanvas");
+        await RenderQtdChartAsync("qtdChartCanvas");
+        await RenderEvoChartAsync("evoChartCanvas");
+        await RenderStackChartAsync("stackChartCanvas");
+        await RenderCostEvoChartAsync("costEvoChartCanvas");
+        await RenderCostCatChartAsync("costCatChartCanvas");
+        await RenderArecChartAsync("arecChartCanvas");
+        await RenderDonutChartAsync("donutChartCanvas");
+    }
+
+    private async Task RenderMasterChartAsync(string canvasId)
+    {
+        if (_data == null || _data.Periods == null || !_data.Periods.Any()) return;
+
+        var labels = _data.Periods.Select(x => x.Label).ToArray();
+        var fat = _data.Periods.Select(x => (double)x.Revenue).ToArray();
+        var cd = _data.Periods.Select(x => (double)x.DirectCosts).ToArray();
+        var ci = _data.Periods.Select(x => (double)x.IndirectCosts).ToArray();
+        var res = _data.Periods.Select(x => (double)x.Result).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderMasterChart", canvasId, labels, fat, cd, ci, res);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderVendasChartAsync(string canvasId)
+    {
+        if (_data?.MonthlyContracts == null || !_data.MonthlyContracts.Any()) return;
+
+        var labels = _data.MonthlyContracts.Select(x => x.Label).ToArray();
+        var avcb = _data.MonthlyContracts.Select(x => (double)x.Avcb).ToArray();
+        var clcb = _data.MonthlyContracts.Select(x => (double)x.Clcb).ToArray();
+        var proc = _data.MonthlyContracts.Select(x => (double)x.ProcAdm).ToArray();
+        var obras = _data.MonthlyContracts.Select(x => (double)x.Obras).ToArray();
+        var ma3 = _data.MonthlyContracts.Select(x => x.MovingAverage3.HasValue ? (double?)x.MovingAverage3.Value : null).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderVendasChart", canvasId, labels, avcb, clcb, proc, obras, ma3);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderQtdChartAsync(string canvasId)
+    {
+        if (_data?.QuantityComparisons == null || !_data.QuantityComparisons.Any()) return;
+
+        var labels = _data.QuantityComparisons.Select(x => x.LineName).ToArray();
+        var atual = _data.QuantityComparisons.Select(x => x.CurrentCount).ToArray();
+        var anterior = _data.QuantityComparisons.Select(x => x.PreviousCount).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderQtdChart", canvasId, labels, atual, anterior);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderEvoChartAsync(string canvasId)
+    {
+        if (_data?.MonthlyRevenues == null || !_data.MonthlyRevenues.Any()) return;
+
+        var labels = _data.MonthlyRevenues.Select(x => x.Label).ToArray();
+        var fat = _data.MonthlyRevenues.Select(x => (double)x.Revenue).ToArray();
+        var prev = _data.MonthlyRevenues.Select(x => (double)x.PreviousRevenue).ToArray();
+        var ma3 = _data.MonthlyRevenues.Select(x => x.MovingAverage3.HasValue ? (double?)x.MovingAverage3.Value : null).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderEvoChart", canvasId, labels, fat, ma3, prev);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderStackChartAsync(string canvasId)
+    {
+        if (_data?.MonthlyRevenues == null || !_data.MonthlyRevenues.Any()) return;
+
+        var labels = _data.MonthlyRevenues.Select(x => x.Label).ToArray();
+        var avcb = _data.MonthlyRevenues.Select(x => (double)x.Avcb).ToArray();
+        var clcb = _data.MonthlyRevenues.Select(x => (double)x.Clcb).ToArray();
+        var proc = _data.MonthlyRevenues.Select(x => (double)x.ProcAdm).ToArray();
+        var obras = _data.MonthlyRevenues.Select(x => (double)x.Obras).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderStackChart", canvasId, labels, avcb, clcb, proc, obras);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task OpenMasterFullscreenAsync()
+    {
+        _isMasterFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderMasterChartAsync("masterChartFullscreenCanvas");
+    }
+
+    private async Task OpenVendasFullscreenAsync()
+    {
+        _isVendasFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderVendasChartAsync("vendasChartFullscreenCanvas");
+    }
+
+    private async Task OpenQtdFullscreenAsync()
+    {
+        _isQtdFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderQtdChartAsync("qtdChartFullscreenCanvas");
+    }
+
+    private async Task OpenEvoFullscreenAsync()
+    {
+        _isEvoFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderEvoChartAsync("evoChartFullscreenCanvas");
+    }
+
+    private async Task RenderCostEvoChartAsync(string canvasId)
+    {
+        if (_data?.MonthlyIndirectCosts == null || !_data.MonthlyIndirectCosts.Any()) return;
+
+        var labels = _data.MonthlyIndirectCosts.Select(x => x.MonthLabel).ToArray();
+        var categories = _data.MonthlyIndirectCosts.First().Categories.Select(x => x.Category).ToArray();
+        var seriesData = categories.Select(cat =>
+            _data.MonthlyIndirectCosts.Select(m => (double)m.Categories.First(c => c.Category == cat).Value).ToArray()
+        ).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderCostEvoChart", canvasId, labels, categories, seriesData);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderCostCatChartAsync(string canvasId)
+    {
+        if (_data?.IndirectCostsByCategory == null || !_data.IndirectCostsByCategory.Any()) return;
+
+        var sortedCats = _data.IndirectCostsByCategory.OrderByDescending(x => x.Value).ToList();
+        var categories = sortedCats.Select(x => x.Label).ToArray();
+        var values = sortedCats.Select(x => (double)x.Value).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderCostCatChart", canvasId, categories, values);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task OpenStackFullscreenAsync()
+    {
+        _isStackFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderStackChartAsync("stackChartFullscreenCanvas");
+    }
+
+    private async Task OpenCostEvoFullscreenAsync()
+    {
+        _isCostEvoFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderCostEvoChartAsync("costEvoChartFullscreenCanvas");
+    }
+
+    private async Task RenderArecChartAsync(string canvasId)
+    {
+        if (_data?.ReceivableByService == null || !_data.ReceivableByService.Any()) return;
+
+        var labels = _data.ReceivableByService.Select(x => x.Label).ToArray();
+        var values = _data.ReceivableByService.Select(x => (double)x.Value).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderArecChart", canvasId, labels, values);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task RenderDonutChartAsync(string canvasId)
+    {
+        if (_data?.RevenueByService == null || !_data.RevenueByService.Any()) return;
+
+        var labels = _data.RevenueByService.Select(x => x.Label).ToArray();
+        var values = _data.RevenueByService.Select(x => (double)x.Value).ToArray();
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderDonutChart", canvasId, labels, values);
+                if (success) break;
+            }
+            catch { }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task OpenCostCatFullscreenAsync()
+    {
+        _isCostCatFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderCostCatChartAsync("costCatChartFullscreenCanvas");
+    }
+
+    private async Task OpenArecFullscreenAsync()
+    {
+        _isArecFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderArecChartAsync("arecChartFullscreenCanvas");
+    }
+
+    private async Task OpenDonutFullscreenAsync()
+    {
+        _isDonutFullscreen = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        await RenderDonutChartAsync("donutChartFullscreenCanvas");
+    }
+
+    private void BuildCharts(DashboardSnapshot data)
+    {
+        _periodLabels = data.Periods.Select(x => x.Label).ToArray();
+        _financialSeries =
+        [
+            new() { Name = "Faturamento", Data = data.Periods.Select(x => (double)x.Revenue).ToArray() },
+            new() { Name = "Custos diretos", Data = data.Periods.Select(x => (double)x.DirectCosts).ToArray() },
+            new() { Name = "Custos indiretos", Data = data.Periods.Select(x => (double)x.IndirectCosts).ToArray() },
+            new() { Name = "Resultado", Data = data.Periods.Select(x => (double)x.Result).ToArray() }
+        ];
+
+        (_revenueLabels, _revenueSeries) = Donut(data.RevenueByService);
+        (_contractLabels, _contractSeries) = Bars("Contratos", data.ContractsByService);
+        (_costLabels, _costSeries) = Donut(data.IndirectCostsByCategory);
+    }
+
+    private static (string[], List<ChartSeries<double>>) Donut(IReadOnlyList<DashboardBreakdownPoint> data) =>
+        (data.Select(x => x.Label).ToArray(),
+         data.Count == 0 ? [] : [new() { Name = "Valor", Data = data.Select(x => (double)x.Value).ToArray() }]);
+
+    private static (string[], List<ChartSeries<double>>) Bars(string name, IReadOnlyList<DashboardBreakdownPoint> data) =>
+        (data.Select(x => x.Label).ToArray(),
+         data.Count == 0 ? [] : [new() { Name = name, Data = data.Select(x => (double)x.Value).ToArray() }]);
+
+    private static Color AgeColor(int days) => days switch
+    {
+        <= 30 => Color.Success,
+        <= 90 => Color.Warning,
+        <= 180 => Color.Error,
+        _ => Color.Dark
+    };
+
+    private static string Money(decimal value) => value.ToString("C0", PtBr);
+
+    private static string FmtCompactMoney(decimal val)
+    {
+        if (val == 0) return "—";
+        var abs = Math.Abs(val);
+        if (abs >= 1_000_000m)
+            return $"R$ {(val / 1_000_000m):0.#} Mi";
+        if (abs >= 1_000m)
+            return $"R$ {(val / 1_000m):0.#} mil";
+        return $"R$ {val:N0}";
+    }
+
+    private RenderFragment RenderDelta(decimal current, decimal previous) => builder =>
+    {
+        if (previous == 0)
+        {
+            builder.AddContent(0, "—");
+            return;
+        }
+        var deltaPct = ((current / previous) - 1m) * 100m;
+        var isUp = deltaPct >= 0;
+        var arrow = isUp ? "▲" : "▼";
+        var colorHex = isUp ? "#1F9D66" : "#C8432F";
+
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "style", $"font-size: 0.78rem; color: {colorHex}; font-weight: bold; margin-right: 4px;");
+        builder.AddContent(2, $"{arrow} {Math.Abs(deltaPct):F1}%");
+        builder.CloseElement();
+
+        builder.OpenElement(3, "span");
+        builder.AddAttribute(4, "style", "font-size: 0.78rem; color: #718096;");
+        builder.AddContent(5, "vs período anterior");
+        builder.CloseElement();
+    };
+
+    private static readonly HashSet<string> ThirdPartyWaitStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Aguar. contratante",
+        "Aguardando contratante",
+        "Aguar. documentos",
+        "Aguardando documentos",
+        "Comunicado"
+    };
+
+    private static bool IsThirdPartyWait(string status) =>
+        !string.IsNullOrEmpty(status) && (ThirdPartyWaitStatuses.Contains(status) || status.ToLower().Contains("terceiro"));
+
+    private static (string bg, string color) AgePillStyle(int days) => days switch
+    {
+        <= 30 => ("#E6F4EA", "#137333"),
+        <= 90 => ("#FEF7E0", "#B06000"),
+        <= 180 => ("#FFE8D6", "#C5221F"),
+        _ => ("#FCE8E6", "#C5221F")
+    };
+
+    private readonly HashSet<long> _hiddenIds = [];
+    private bool _showHidden = false;
+
+    private void ToggleHide(long id)
+    {
+        if (_hiddenIds.Contains(id)) _hiddenIds.Remove(id);
+        else _hiddenIds.Add(id);
+    }
+
+    private static string LineDotColor(string line) => line?.ToUpper() switch
+    {
+        "AVCB" => "#C8432F",
+        "CLCB" => "#DE9427",
+        "PROC. ADM" or "PROCESSOS_ADM" => "#6B46C1",
+        "OBRAS" => "#2B6CB0",
+        _ => "#2563EB"
+    };
+
+    private static string ServiceLabel(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Proc. Adm.",
+        _ => type.ToString()
+    };
+}

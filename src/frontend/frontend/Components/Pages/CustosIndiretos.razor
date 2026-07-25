@@ -1,0 +1,386 @@
+@page "/financeiro/custos-indiretos"
+@attribute [Authorize]
+@inject ICustoIndiretoService Service
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Custos indiretos | CRM Atlas</PageTitle>
+
+<PageHeader Title="Custos indiretos" Subtitle="Acompanhe despesas administrativas e operacionais.">
+    <Actions>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile"
+                   OnClick="@(() => _importOpen = true)" Class="mr-2">Importar CSV</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="New">Novo custo</MudButton>
+    </Actions>
+</PageHeader>
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard">
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="4"><MetricCard Title="Total no período" Value="@Money(_analytics.Sum(x => x.Valor))" Icon="@Icons.Material.Filled.Payments" Color="Color.Error" /></MudItem>
+        <MudItem xs="12" sm="4"><MetricCard Title="Média por lançamento" Value="@Money(_analytics.Count == 0 ? 0 : _analytics.Average(x => x.Valor))" Icon="@Icons.Material.Filled.Analytics" Color="Color.Info" /></MudItem>
+        <MudItem xs="12" sm="4"><MetricCard Title="Maior categoria" Value="@TopCategory" Icon="@Icons.Material.Filled.Category" Color="Color.Warning" /></MudItem>
+    </MudGrid>
+
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" lg="7">
+            <MudPaper Outlined="true" Class="pa-5 cost-chart-panel">
+                <MudText Typo="Typo.h6">Distribuição por categoria</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Participação dos custos no período filtrado</MudText>
+                @if (_chartSeries.Count > 0 && _chartLabels.Length > 0)
+                {
+                    <div class="cost-chart-frame">
+                        <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="_chartSeries"
+                                  ChartLabels="_chartLabels" Width="100%" Height="300px" />
+                    </div>
+                }
+                else
+                {
+                    <EmptyState Title="Sem dados para o gráfico" Message="Ajuste o período ou registre um custo." />
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" lg="5">
+            <MudPaper Outlined="true" Class="pa-5 cost-categories-panel">
+                <MudText Typo="Typo.h6">Categorias sugeridas</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Padronização para filtros e relatórios consistentes</MudText>
+                <div class="d-flex flex-wrap gap-2 mt-4">
+                    @foreach (var category in Categories)
+                    {
+                        <MudChip T="string" Variant="Variant.Outlined" OnClick="@(() => FilterCategoryAsync(category))">@category</MudChip>
+                    }
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Outlined="true" Class="pa-4 mb-4">
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_search" Label="Descrição ou categoria"
+                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudDatePicker @bind-Date="_start" Label="Data inicial"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudDatePicker @bind-Date="_end" Label="Data final"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
+                           OnClick="ApplyFilterAsync">Filtrar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Outlined="true">
+        <MudTable Items="_result.Items" Hover="true" Loading="_loading" Elevation="0">
+            <HeaderContent>
+                <MudTh>Data</MudTh><MudTh>Descrição</MudTh><MudTh>Categoria</MudTh>
+                <MudTh Class="text-right">Valor</MudTh><MudTh Class="text-right">Ações</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Data">@context.Data.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd DataLabel="Descrição"><strong>@context.Descricao</strong></MudTd>
+                <MudTd DataLabel="Categoria">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Categoria</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Valor" Class="text-right">@Money(context.Valor)</MudTd>
+                <MudTd DataLabel="Ações" Class="text-right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => Edit(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <EmptyState Title="Nenhum custo encontrado"
+                            Message="Registre despesas como aluguel, software e combustível." />
+            </NoRecordsContent>
+        </MudTable>
+        @if (_result.TotalPages > 1)
+        {
+            <MudDivider />
+            <MudToolBar Class="justify-end pa-4">
+                <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" Color="Color.Primary" />
+            </MudToolBar>
+        }
+    </MudPaper>
+</GlobalSkeleton>
+
+<MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
+           Width="min(480px, 100vw)" Elevation="8">
+    <div class="pa-5">
+        <MudToolBar Class="pa-0 mb-3">
+            <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo custo" : "Editar custo")</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+        </MudToolBar>
+        <MudDivider Class="mb-5" />
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <MudStack Spacing="3">
+                <MudDatePicker @bind-Date="_model.Data" Label="Data" Required="true"
+                               Variant="Variant.Outlined" />
+                <MudTextField @bind-Value="_model.Descricao" Label="Descrição" Required="true"
+                               RequiredError="Informe a descrição." Variant="Variant.Outlined" />
+                <MudSelect T="string" @bind-Value="_model.Categoria" Label="Categoria" Required="true"
+                           RequiredError="Informe a categoria." Variant="Variant.Outlined">
+                    @foreach (var category in Categories)
+                    {
+                        <MudSelectItem Value="@category">@category</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudNumericField T="decimal" @bind-Value="_model.Valor" Label="Valor"
+                                 Min="0.01M" Format="C2" Required="true"
+                                 Variant="Variant.Outlined" />
+            </MudStack>
+        </MudForm>
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       Disabled="_saving" OnClick="SaveAsync">Salvar custo</MudButton>
+        </MudStack>
+    </div>
+</MudDrawer>
+
+<MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
+           Width="min(760px, 100vw)" Elevation="8">
+    <div class="pa-5">
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h5">Importar custos</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualize e confirme antes de gravar.</MudText>
+            </MudStack>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _importOpen = false)" aria-label="Fechar importação" />
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+            CSV com cabeçalho: <strong>data;descricao;categoria;valor</strong>. Datas em dd/MM/yyyy e valores como 1234,56.
+        </MudAlert>
+        <InputFile OnChange="ParseImportAsync" accept=".csv,text/csv" />
+        @if (_preview.Count > 0)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="my-4">
+                <MudText Typo="Typo.subtitle2">@_preview.Count linha(s) • @_preview.Count(x => x.Valid) válida(s)</MudText>
+                @if (_preview.Any(x => !x.Valid)){<MudChip T="string" Color="Color.Error" Size="Size.Small">Corrija o arquivo antes de importar</MudChip>}
+            </MudStack>
+            <MudTable Items="_preview" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                <HeaderContent><MudTh>Linha</MudTh><MudTh>Data</MudTh><MudTh>Descrição</MudTh><MudTh>Categoria</MudTh><MudTh>Valor</MudTh><MudTh>Validação</MudTh></HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Linha">@context.Line</MudTd><MudTd DataLabel="Data">@context.Date</MudTd>
+                    <MudTd DataLabel="Descrição">@context.Description</MudTd><MudTd DataLabel="Categoria">@context.Category</MudTd>
+                    <MudTd DataLabel="Valor">@context.Value</MudTd>
+                    <MudTd DataLabel="Validação"><MudChip T="string" Size="Size.Small" Color="@(context.Valid ? Color.Success : Color.Error)">@(context.Valid ? "Válida" : context.Error)</MudChip></MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        <MudDivider Class="mt-6 mb-4" />
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+            <MudButton OnClick="@(() => _importOpen = false)">Cancelar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Check"
+                       Disabled="@(_importing || _preview.Count == 0 || _preview.Any(x => !x.Valid))" OnClick="ConfirmImportAsync">
+                @(_importing ? "Importando..." : "Confirmar importação")
+            </MudButton>
+        </MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    private static readonly string[] Categories =
+        ["Aluguel", "Energia", "Água", "Internet e telefonia", "Software", "Combustível", "Materiais", "Marketing", "Contabilidade", "Impostos", "Outros"];
+    private PagedResult<CustoIndiretoDto> _result = new([], 1, 20, 0);
+    private IReadOnlyList<CustoIndiretoDto> _analytics = [];
+    private List<ChartSeries<double>> _chartSeries = [];
+    private string[] _chartLabels = [];
+    private readonly List<ImportPreviewRow> _preview = [];
+    private CostModel _model = new();
+    private MudForm? _form;
+    private bool _valid;
+    private bool _loading;
+    private bool _saving;
+    private bool _editorOpen;
+    private bool _importOpen;
+    private bool _importing;
+    private string? _search;
+    private DateTime? _start;
+    private DateTime? _end;
+    private int _page = 1;
+    private string TopCategory => _analytics
+        .GroupBy(x => x.Categoria)
+        .OrderByDescending(x => x.Sum(y => y.Valor))
+        .Select(x => x.Key)
+        .FirstOrDefault() ?? "Sem dados";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _result = await Service.ListAsync(new(
+                ToDateOnly(_start), ToDateOnly(_end), _search, _search, _page, 20));
+            _analytics = (await Service.ListAsync(new(
+                ToDateOnly(_start), ToDateOnly(_end), _search, _search, 1, 100))).Items;
+            var allGroups = _analytics.GroupBy(x => x.Categoria)
+                .Select(x => new { Label = x.Key, Total = x.Sum(y => y.Valor) })
+                .OrderByDescending(x => x.Total).ToList();
+            var groups = allGroups.Take(7).ToList();
+            if (allGroups.Count > 7)
+            {
+                groups.Add(new { Label = "Outras categorias", Total = allGroups.Skip(7).Sum(x => x.Total) });
+            }
+            _chartLabels = groups.Select(x => x.Label).ToArray();
+            _chartSeries = [new ChartSeries<double> { Name = "Custos", Data = groups.Select(x => (double)x.Total).ToArray() }];
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private void New() { _model = new(); _editorOpen = true; }
+    private void Edit(CustoIndiretoDto x)
+    {
+        _model = new()
+        {
+            Id = x.Id, Data = x.Data.ToDateTime(TimeOnly.MinValue),
+            Descricao = x.Descricao, Categoria = x.Categoria, Valor = x.Valor
+        };
+        _editorOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        await (_form?.ValidateAsync() ?? Task.CompletedTask);
+        if (!_valid || _model.Data is null) return;
+        _saving = true;
+        try
+        {
+            var dto = new CustoIndiretoDto(
+                _model.Id, DateOnly.FromDateTime(_model.Data.Value),
+                _model.Descricao, _model.Valor, _model.Categoria);
+            if (_model.Id is null) await Service.CreateAsync(dto);
+            else await Service.UpdateAsync(_model.Id.Value, dto);
+            _editorOpen = false;
+            Snackbar.Add("Custo salvo com sucesso.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(CustoIndiretoDto x)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir custo", $"Deseja excluir “{x.Descricao}”?", "Excluir", cancelText: "Cancelar");
+        if (confirm != true || x.Id is null) return;
+        try { await Service.DeleteAsync(x.Id.Value); await LoadAsync(); Snackbar.Add("Custo excluído.", Severity.Success); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task FilterCategoryAsync(string category)
+    {
+        _search = category;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ParseImportAsync(InputFileChangeEventArgs args)
+    {
+        _preview.Clear();
+        try
+        {
+            await using var stream = args.File.OpenReadStream(2 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var lineNumber = 0;
+            while (await reader.ReadLineAsync() is { } line)
+            {
+                lineNumber++;
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var fields = SplitCsv(line);
+                if (lineNumber == 1 && fields.Count > 0 && fields[0].Contains("data", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                _preview.Add(ParseRow(lineNumber, fields));
+            }
+            if (_preview.Count == 0) Snackbar.Add("O arquivo não possui linhas para importar.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Não foi possível ler o CSV: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmImportAsync()
+    {
+        if (_preview.Count == 0 || _preview.Any(x => !x.Valid)) return;
+        _importing = true;
+        try
+        {
+            await Service.ImportAsync(_preview.Select(x => x.Dto!).ToList());
+            Snackbar.Add($"{_preview.Count} custo(s) importado(s) com sucesso.", Severity.Success);
+            _preview.Clear();
+            _importOpen = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _importing = false; }
+    }
+
+    private static ImportPreviewRow ParseRow(int line, IReadOnlyList<string> fields)
+    {
+        if (fields.Count != 4) return new(line, "", "", "", "", false, "Esperadas 4 colunas", null);
+        var culture = new System.Globalization.CultureInfo("pt-BR");
+        var validDate = DateOnly.TryParseExact(fields[0].Trim(), "dd/MM/yyyy", culture,
+            System.Globalization.DateTimeStyles.None, out var date);
+        var validValue = decimal.TryParse(fields[3].Trim(), System.Globalization.NumberStyles.Number, culture, out var value)
+            || decimal.TryParse(fields[3].Trim(), System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out value);
+        var description = fields[1].Trim();
+        var category = fields[2].Trim();
+        var error = !validDate ? "Data inválida" : string.IsNullOrWhiteSpace(description) ? "Descrição obrigatória"
+            : string.IsNullOrWhiteSpace(category) ? "Categoria obrigatória" : !validValue || value <= 0 ? "Valor inválido" : null;
+        var dto = error is null ? new CustoIndiretoDto(null, date, description, value, category) : null;
+        return new(line, fields[0], description, category, fields[3], error is null, error, dto);
+    }
+
+    private static List<string> SplitCsv(string line)
+    {
+        var separator = line.Count(x => x == ';') >= line.Count(x => x == ',') ? ';' : ',';
+        var result = new List<string>();
+        var value = new System.Text.StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { value.Append('"'); i++; }
+            else if (c == '"') quoted = !quoted;
+            else if (c == separator && !quoted) { result.Add(value.ToString()); value.Clear(); }
+            else value.Append(c);
+        }
+        result.Add(value.ToString());
+        return result;
+    }
+
+    private static DateOnly? ToDateOnly(DateTime? value) =>
+        value is null ? null : DateOnly.FromDateTime(value.Value);
+    private static string Money(decimal value) => value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+
+    private sealed class CostModel
+    {
+        public long? Id { get; set; }
+        public DateTime? Data { get; set; } = DateTime.Today;
+        public string Descricao { get; set; } = "";
+        public decimal Valor { get; set; }
+        public string Categoria { get; set; } = "";
+    }
+
+    private sealed record ImportPreviewRow(
+        int Line, string Date, string Description, string Category, string Value,
+        bool Valid, string? Error, CustoIndiretoDto? Dto);
+}

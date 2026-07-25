@@ -1,0 +1,41 @@
+@using MudBlazor
+
+<MudGrid>
+    @for (var i = 0; i < 4; i++)
+    {
+        <MudItem xs="12" sm="6" lg="3">
+            <MudPaper Class="pa-4" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudStack Spacing="1" Style="width: 70%;">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" Height="18px" Animation="Animation.Wave" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="90%" Height="32px" Animation="Animation.Wave" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="14px" Animation="Animation.Wave" />
+                    </MudStack>
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="44px" Height="44px" Animation="Animation.Wave" />
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudGrid Class="mt-3">
+    <MudItem xs="12" lg="8">
+        <MudPaper Class="pa-5" Outlined="true" Style="min-height: 340px;">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mb-4">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="24px" Animation="Animation.Wave" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100px" Height="32px" Animation="Animation.Wave" />
+            </MudStack>
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="240px" Animation="Animation.Wave" />
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" lg="4">
+        <MudPaper Class="pa-5" Outlined="true" Style="min-height: 340px;">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mb-4">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="50%" Height="24px" Animation="Animation.Wave" />
+            </MudStack>
+            <MudStack AlignItems="AlignItems.Center" Justify="Justify.Center" Style="height: 240px;">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="180px" Height="180px" Animation="Animation.Wave" />
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

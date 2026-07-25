@@ -5,8 +5,8 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ApplicationCore.AssemblyInfoInputs.cache
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ApplicationCore.AssemblyInfo.cs
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ApplicationCore.csproj.CoreCompileInputs.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ApplicationCore.sourcelink.json
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\CrmAtlas.ApplicationCore.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\refint\CrmAtlas.ApplicationCore.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\CrmAtlas.ApplicationCore.pdb
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ref\CrmAtlas.ApplicationCore.dll
-C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\src\ApplicationCore\obj\Debug\net10.0\ApplicationCore.sourcelink.json

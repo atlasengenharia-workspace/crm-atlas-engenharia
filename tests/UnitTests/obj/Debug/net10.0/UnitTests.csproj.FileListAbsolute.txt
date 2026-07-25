@@ -92,10 +92,10 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.AssemblyInfoInputs.cache
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.AssemblyInfo.cs
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.csproj.CoreCompileInputs.cache
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.sourcelink.json
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.csproj.Up2Date
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\refint\UnitTests.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.pdb
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.genruntimeconfig.cache
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\ref\UnitTests.dll
-C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Debug\net10.0\UnitTests.sourcelink.json

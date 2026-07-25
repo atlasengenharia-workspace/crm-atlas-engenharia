@@ -1,0 +1,83 @@
+@page
+@model CrmAtlas.Web.Pages.LoginModel
+@{
+    Layout = null;
+    var challengeUrl = Url.Page(
+        "/Login",
+        "Challenge",
+        new { returnUrl = Model.ReturnUrl });
+}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#081120" />
+    <title>Acessar plataforma | Atlas Engenharia</title>
+    <link rel="preload" href="/images/auth/auth-bg-blueprint.png" as="image" />
+    <link rel="preload" href="/images/auth/auth-placeholder-image.png" as="image" />
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,500,0,0" />
+    <link rel="stylesheet" href="/css/auth-login.css" asp-append-version="true" />
+</head>
+<body>
+    <main class="auth-page">
+        <div class="auth-page__veil" aria-hidden="true"></div>
+
+        <section class="auth-shell" aria-labelledby="login-title">
+            <div class="auth-panel">
+                <div class="auth-panel__content">
+                    <img class="auth-logo"
+                         src="/images/auth/atlas-logo-white.svg"
+                         alt="Atlas Engenharia" />
+
+                    <div class="auth-copy">
+                        <h1 id="login-title">Acessar Plataforma</h1>
+                        <p class="auth-subtitle">
+                            Entre com suas credenciais corporativas para continuar.
+                        </p>
+                    </div>
+
+                    <a class="auth-submit"
+                       href="@challengeUrl"
+                       aria-label="Acessar o sistema com Auth0"
+                       data-auth-action="login">
+                        <span class="material-symbols-rounded" aria-hidden="true">login</span>
+                        <span>Acessar o sistema</span>
+                    </a>
+
+                    <p class="auth-security-note">
+                        Você será direcionado ao ambiente seguro do Auth0.
+                    </p>
+                </div>
+            </div>
+
+            <aside class="auth-hero" aria-label="Recursos da plataforma Atlas">
+                <div class="auth-hero__image" aria-hidden="true"></div>
+                <div class="auth-hero__overlay" aria-hidden="true"></div>
+                <div class="auth-hero__content">
+                    <h2>Gestão completa das suas obras e serviços</h2>
+                    <p>
+                        Acompanhe contratos, ordens de serviço, financeiro e equipes da
+                        Atlas Engenharia em um só lugar, com segurança e em tempo real.
+                    </p>
+                    <ul class="auth-benefits" aria-label="Principais recursos">
+                        <li>Controle financeiro</li>
+                        <li>Ordens de serviço</li>
+                        <li>Relatórios em tempo real</li>
+                    </ul>
+                </div>
+            </aside>
+        </section>
+    </main>
+
+    <script>
+        const loginAction = document.querySelector('[data-auth-action="login"]');
+        loginAction?.addEventListener('click', () => {
+            loginAction.classList.add('auth-submit--loading');
+            loginAction.setAttribute('aria-busy', 'true');
+        });
+    </script>
+</body>
+</html>

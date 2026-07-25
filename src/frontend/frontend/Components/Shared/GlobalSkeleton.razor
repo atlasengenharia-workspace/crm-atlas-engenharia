@@ -1,0 +1,90 @@
+@using MudBlazor
+
+@if (IsLoading)
+{
+    @switch (Layout)
+    {
+        case SkeletonLayoutType.Dashboard:
+            <DashboardSkeleton />
+            break;
+        case SkeletonLayoutType.Table:
+            <TablePageSkeleton MetricCount="@MetricCount" ColumnCount="@ColumnCount" RowCount="@RowCount" />
+            break;
+        case SkeletonLayoutType.Form:
+            <MudPaper Class="pa-6" Outlined="true">
+                <MudStack Spacing="4">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="28px" Animation="Animation.Wave" />
+                    <MudGrid Spacing="3">
+                        @for (var i = 0; i < 4; i++)
+                        {
+                            <MudItem xs="12" md="6">
+                                <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="16px" Animation="Animation.Wave" Class="mb-1" />
+                                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="44px" Animation="Animation.Wave" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100px" Height="38px" Animation="Animation.Wave" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="120px" Height="38px" Animation="Animation.Wave" />
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+            break;
+        case SkeletonLayoutType.CardGrid:
+            <MudGrid Spacing="3">
+                @for (var i = 0; i < 6; i++)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudCard Outlined="true">
+                            <MudCardHeader>
+                                <CardHeaderAvatar>
+                                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" Animation="Animation.Wave" />
+                                </CardHeaderAvatar>
+                                <CardHeaderContent>
+                                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" Height="18px" Animation="Animation.Wave" />
+                                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="14px" Animation="Animation.Wave" />
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="80px" Animation="Animation.Wave" />
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+            break;
+        default:
+            if (CustomSkeleton != null)
+            {
+                @CustomSkeleton
+            }
+            else
+            {
+                <TablePageSkeleton MetricCount="@MetricCount" ColumnCount="@ColumnCount" RowCount="@RowCount" />
+            }
+            break;
+    }
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    public enum SkeletonLayoutType
+    {
+        Table,
+        Dashboard,
+        Form,
+        CardGrid,
+        Custom
+    }
+
+    [Parameter] public bool IsLoading { get; set; } = true;
+    [Parameter] public SkeletonLayoutType Layout { get; set; } = SkeletonLayoutType.Table;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? CustomSkeleton { get; set; }
+    [Parameter] public int MetricCount { get; set; } = 3;
+    [Parameter] public int ColumnCount { get; set; } = 5;
+    [Parameter] public int RowCount { get; set; } = 5;
+}
