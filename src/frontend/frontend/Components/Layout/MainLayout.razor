@@ -21,6 +21,9 @@
         <MudSpacer />
 
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="d-none d-sm-inline-flex mr-2 cursor-pointer" OnClick="@(() => Navigation.NavigateTo("/atualizacoes"))">
+                v2.4.0
+            </MudChip>
             <MudHidden Breakpoint="Breakpoint.MdAndUp">
                 <MudIconButton Icon="@Icons.Material.Filled.Search" Href="/busca" Color="Color.Inherit" aria-label="Abrir busca global" />
             </MudHidden>
@@ -37,8 +40,9 @@
                              AriaLabel="Menu da conta">
                         <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Meu perfil</MudMenuItem>
                         <MudMenuItem Href="/profile/configuracoes" Icon="@Icons.Material.Filled.Settings">Preferências</MudMenuItem>
+                        <MudMenuItem Href="/atualizacoes" Icon="@Icons.Material.Filled.NewReleases">Atualizações (v2.4.0)</MudMenuItem>
                         <MudDivider />
-                        <MudMenuItem Href="/Login" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
+                        <MudMenuItem Href="/Logout" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
                     </MudMenu>
                 </Authorized>
             </AuthorizeView>

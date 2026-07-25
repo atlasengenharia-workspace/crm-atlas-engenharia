@@ -1,0 +1,181 @@
+@page "/atualizacoes"
+@attribute [Authorize]
+@using CrmAtlas.ApplicationCore.Sistema
+@inject ISistemaAtualizacaoService UpdateService
+@inject ISnackbar Snackbar
+
+<PageTitle>Atualizações do Sistema | CRM Atlas</PageTitle>
+
+<PageHeader Title="Atualizações do Sistema" Subtitle="Histórico de versões, novos recursos, melhorias e notas de lançamento do CRM Atlas.">
+    <Actions>
+        <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Icon="@Icons.Material.Filled.NewReleases">
+            @(_latestVersion ?? "Carregando...")
+        </MudChip>
+    </Actions>
+</PageHeader>
+
+<MudPaper Outlined="true" Class="atlas-filter-panel pa-4 mb-5 atlas-enter">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="gap-3">
+        <MudTextField @bind-Value="_search" Placeholder="Buscar por versão, recurso ou descrição..."
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" Class="flex-grow-1" Style="max-width: 500px;" />
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
+            <MudChip T="string" Color="@(_selectedCategory == null ? Color.Primary : Color.Default)"
+                     Variant="@(_selectedCategory == null ? Variant.Filled : Variant.Outlined)"
+                     OnClick="@(() => SelectCategory(null))">
+                Todas
+            </MudChip>
+            <MudChip T="string" Color="@(_selectedCategory == CategoriaAtualizacao.NovoRecurso ? Color.Success : Color.Default)"
+                     Variant="@(_selectedCategory == CategoriaAtualizacao.NovoRecurso ? Variant.Filled : Variant.Outlined)"
+                     OnClick="@(() => SelectCategory(CategoriaAtualizacao.NovoRecurso))">
+                Novos Recursos
+            </MudChip>
+            <MudChip T="string" Color="@(_selectedCategory == CategoriaAtualizacao.Melhoria ? Color.Info : Color.Default)"
+                     Variant="@(_selectedCategory == CategoriaAtualizacao.Melhoria ? Variant.Filled : Variant.Outlined)"
+                     OnClick="@(() => SelectCategory(CategoriaAtualizacao.Melhoria))">
+                Melhorias
+            </MudChip>
+            <MudChip T="string" Color="@(_selectedCategory == CategoriaAtualizacao.Correcao ? Color.Warning : Color.Default)"
+                     Variant="@(_selectedCategory == CategoriaAtualizacao.Correcao ? Variant.Filled : Variant.Outlined)"
+                     OnClick="@(() => SelectCategory(CategoriaAtualizacao.Correcao))">
+                Correções
+            </MudChip>
+        </MudStack>
+    </MudStack>
+</MudPaper>
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.CardGrid" MetricCount="0">
+    <div class="atlas-enter">
+        @if (!FilteredItems.Any())
+        {
+            <MudPaper Outlined="true" Class="pa-8 text-center">
+                <EmptyState Title="Nenhuma atualização encontrada" Message="Ajuste os filtros de busca para visualizar o histórico de versões." />
+            </MudPaper>
+        }
+        else
+        {
+            <MudTimeline TimelinePosition="TimelinePosition.Start" Class="px-0">
+                @foreach (var update in FilteredItems)
+                {
+                    <MudTimelineItem Color="@GetCategoryColor(update.Categoria)" Size="Size.Medium" Icon="@GetCategoryIcon(update.Categoria)">
+                        <ItemContent>
+                            <MudPaper Outlined="true" Class="@($"pa-5 mb-4 atlas-panel {(update.DestaquePrincipal ? "border-solid border-2 border-primary" : "")}")">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="mb-2 gap-2">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Medium" Variant="Variant.Filled">
+                                            <strong>@update.Versao</strong>
+                                        </MudChip>
+                                        <MudChip T="string" Color="@GetCategoryColor(update.Categoria)" Size="Size.Small" Variant="Variant.Outlined">
+                                            @GetCategoryLabel(update.Categoria)
+                                        </MudChip>
+                                        @if (update.DestaquePrincipal)
+                                        {
+                                            <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Star">
+                                                Versão Atual
+                                            </MudChip>
+                                        }
+                                    </MudStack>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" Class="mr-1 inline-icon" />
+                                        @update.Data.ToString("dd 'de' MMMM 'de' yyyy", PtBr)
+                                    </MudText>
+                                </MudStack>
+
+                                <MudText Typo="Typo.h6" Class="mt-1 mb-2">@update.Titulo</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@update.Descricao</MudText>
+
+                                <MudDivider Class="my-3" />
+
+                                <MudText Typo="Typo.subtitle2" Class="mb-2"><strong>Destaques e Alterações:</strong></MudText>
+                                <MudGrid Spacing="2">
+                                    @foreach (var item in update.Destaques)
+                                    {
+                                        <MudItem xs="12" md="6">
+                                            <MudPaper Outlined="true" Class="pa-3 bg-light rounded">
+                                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Class="mt-1 flex-shrink-0" />
+                                                    <div>
+                                                        <MudText Typo="Typo.body2"><strong>@item.Titulo</strong></MudText>
+                                                        @if (!string.IsNullOrWhiteSpace(item.Detalhes))
+                                                        {
+                                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@item.Detalhes</MudText>
+                                                        }
+                                                    </div>
+                                                </MudStack>
+                                            </MudPaper>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            </MudPaper>
+                        </ItemContent>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        }
+    </div>
+</GlobalSkeleton>
+
+@code {
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private IReadOnlyList<SistemaAtualizacao> _updates = [];
+    private CategoriaAtualizacao? _selectedCategory;
+    private string? _search;
+    private string? _latestVersion;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _updates = await UpdateService.GetListAsync();
+            var latest = await UpdateService.GetLatestAsync();
+            _latestVersion = latest?.Versao;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void SelectCategory(CategoriaAtualizacao? cat) => _selectedCategory = cat;
+
+    private IEnumerable<SistemaAtualizacao> FilteredItems => _updates
+        .Where(x => _selectedCategory == null || x.Categoria == _selectedCategory)
+        .Where(x => string.IsNullOrWhiteSpace(_search) ||
+                    $"{x.Versao} {x.Titulo} {x.Descricao} {string.Join(" ", x.Destaques.Select(d => d.Titulo))}"
+                        .Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private static Color GetCategoryColor(CategoriaAtualizacao cat) => cat switch
+    {
+        CategoriaAtualizacao.NovoRecurso => Color.Success,
+        CategoriaAtualizacao.Melhoria => Color.Info,
+        CategoriaAtualizacao.Correcao => Color.Warning,
+        CategoriaAtualizacao.Seguranca => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string GetCategoryIcon(CategoriaAtualizacao cat) => cat switch
+    {
+        CategoriaAtualizacao.NovoRecurso => Icons.Material.Filled.AddCircle,
+        CategoriaAtualizacao.Melhoria => Icons.Material.Filled.TrendingUp,
+        CategoriaAtualizacao.Correcao => Icons.Material.Filled.Build,
+        CategoriaAtualizacao.Seguranca => Icons.Material.Filled.Security,
+        _ => Icons.Material.Filled.Update
+    };
+
+    private static string GetCategoryLabel(CategoriaAtualizacao cat) => cat switch
+    {
+        CategoriaAtualizacao.NovoRecurso => "Novo Recurso",
+        CategoriaAtualizacao.Melhoria => "Melhoria",
+        CategoriaAtualizacao.Correcao => "Correção",
+        CategoriaAtualizacao.Seguranca => "Segurança",
+        _ => "Atualização"
+    };
+}

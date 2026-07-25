@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <base href="/" />
     <ResourcePreloader />
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -27,6 +27,31 @@
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
+        }
+
+        /* Responsive Mobile & Tablet Optimizations */
+        @@media (max-width: 768px) {
+            .mud-table-container {
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+            .mud-drawer-responsive {
+                width: 85vw !important;
+                max-width: 320px !important;
+            }
+            .mud-button-root {
+                min-height: 44px !important;
+            }
+            .atlas-panel {
+                padding: 1rem !important;
+            }
+            .atlas-filter-panel {
+                padding: 0.85rem !important;
+            }
+        }
+
+        .inline-icon {
+            vertical-align: middle;
         }
     </style>
     <ImportMap />

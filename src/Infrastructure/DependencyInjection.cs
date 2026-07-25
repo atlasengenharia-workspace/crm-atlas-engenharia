@@ -9,6 +9,7 @@ using CrmAtlas.Infrastructure.Documents;
 using CrmAtlas.Infrastructure.Imports;
 using CrmAtlas.ApplicationCore.Identidade;
 using CrmAtlas.ApplicationCore.Dashboard;
+using CrmAtlas.ApplicationCore.Sistema;
 using CrmAtlas.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -73,6 +74,7 @@ public static class DependencyInjection
         services.AddTransient<IUserPreferencesService, UserPreferencesService>();
         services.AddTransient<IGlobalSearchService, GlobalSearchService>();
         services.AddTransient<IDashboardQueryService, DashboardQueryService>();
+        services.AddTransient<ISistemaAtualizacaoService, SistemaAtualizacaoService>();
         services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
         services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
         {
