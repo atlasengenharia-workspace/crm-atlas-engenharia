@@ -296,7 +296,7 @@
         _preview.Clear();
         try
         {
-            await using var stream = args.File.OpenReadStream(2 * 1024 * 1024);
+            await using var stream = args.File.OpenReadStream(100 * 1024 * 1024);
             using var reader = new StreamReader(stream);
             var lineNumber = 0;
             while (await reader.ReadLineAsync() is { } line)

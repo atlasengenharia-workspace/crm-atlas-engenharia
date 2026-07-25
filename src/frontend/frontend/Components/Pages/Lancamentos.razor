@@ -359,7 +359,7 @@ else
         {
             if (_receipt is not null)
             {
-                await using var stream = _receipt.OpenReadStream(10 * 1024 * 1024);
+                await using var stream = _receipt.OpenReadStream(100 * 1024 * 1024);
                 var stored = await ReceiptStorage.SaveAsync(stream, _receipt.Name, _receipt.ContentType);
                 _model.ComprovanteUrl = $"/api/comprovantes/{stored.Key}";
                 _model.ComprovanteNomeArquivo = stored.OriginalFileName;
