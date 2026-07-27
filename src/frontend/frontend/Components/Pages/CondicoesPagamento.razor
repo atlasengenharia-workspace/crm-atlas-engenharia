@@ -18,7 +18,9 @@
     <MudGrid>
         <MudItem xs="12" md="@(_editing ? 7 : 12)">
             <MudPaper Outlined="true">
-                <MudTable Items="_items" Hover="true" Loading="_loading" Elevation="0">
+                <SmartTableFilter TItem="CondicaoPagamentoDto" Items="_items" Columns="_filterColumns">
+                <ChildContent Context="smartItems">
+                <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0">
                     <HeaderContent>
                         <MudTh>Nome</MudTh><MudTh>Parcelas</MudTh><MudTh>Intervalo</MudTh>
                         <MudTh Class="text-right">Ações</MudTh>
@@ -48,6 +50,8 @@
                                     Message="Crie opções como À vista, 2x ou Mensal." />
                     </NoRecordsContent>
                 </MudTable>
+                </ChildContent>
+                </SmartTableFilter>
             </MudPaper>
         </MudItem>
         @if (_editing)
@@ -89,6 +93,11 @@
 
 @code {
     private IReadOnlyList<CondicaoPagamentoDto> _items = [];
+    private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
+    [
+        new("nome","Nome",x=>x.Nome),new("parcelas","Parcelas",x=>x.QuantidadeParcelas),
+        new("intervalo","Intervalo",x=>x.Indefinido?"A definir":$"{x.IntervaloDias} dias")
+    ];
     private ConditionModel _model = new();
     private MudForm? _form;
     private bool _valid;

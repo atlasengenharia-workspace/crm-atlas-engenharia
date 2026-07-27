@@ -65,7 +65,9 @@
                         </MudButton>
                     </MudStack>
 
-                    <MudTable Items="_result.Items" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm"
+                    <SmartTableFilter TItem="ClienteDto" Items="_result.Items" Columns="_filterColumns">
+                    <ChildContent Context="smartItems">
+                    <MudTable Items="smartItems" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm"
                               Elevation="0" Class="atlas-data-table">
                         <HeaderContent>
                             <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Id ?? 0))">Código</MudTableSortLabel></MudTh>
@@ -103,6 +105,8 @@
                                         Message="Cadastre empresas e pessoas para vincular a serviços e orçamentos." />
                         </NoRecordsContent>
                     </MudTable>
+                    </ChildContent>
+                    </SmartTableFilter>
 
                     @if (_result.TotalPages > 1)
                     {
@@ -225,6 +229,13 @@
     private static readonly string[] Ufs =
         ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
     private PagedResult<ClienteDto> _result = new([], 1, 20, 0);
+    private readonly IReadOnlyList<SmartFilterColumn<ClienteDto>> _filterColumns =
+    [
+        new("codigo","Código",x=>x.Id),new("cliente","Cliente",x=>x.RazaoSocial),
+        new("documento","Documento",x=>x.CnpjCpf),new("telefone","Telefone",x=>x.Telefone),
+        new("email","E-mail",x=>x.Email),new("cidade","Cidade",x=>x.Cidade),
+        new("estado","Estado",x=>x.Estado)
+    ];
     private ClienteStatistics _statistics = new(0, 0, 0);
     private ClienteEditModel _model = new();
     private MudForm? _form;

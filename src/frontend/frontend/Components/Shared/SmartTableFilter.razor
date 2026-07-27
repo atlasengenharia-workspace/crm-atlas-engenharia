@@ -1,0 +1,157 @@
+@typeparam TItem
+
+<MudPaper Outlined="true" Class="pa-3 mb-3 smart-filter-panel">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="smart-filter-controls">
+        <MudIcon Icon="@Icons.Material.Filled.FilterAlt" Color="Color.Primary" />
+        <MudTextField T="string" @bind-Value="_quickSearch" Placeholder="Pesquisar em todas as colunas"
+                      Immediate="true" Margin="Margin.Dense" Variant="Variant.Outlined"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="smart-filter-search" />
+        <MudSelect T="string" @bind-Value="_columnKey" Label="Coluna" Margin="Margin.Dense"
+                   Variant="Variant.Outlined" Class="smart-filter-column">
+            @foreach (var column in Columns)
+            {
+                <MudSelectItem Value="@column.Key">@column.Label</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="SmartFilterOperator" @bind-Value="_operator" Label="Condição"
+                   Margin="Margin.Dense" Variant="Variant.Outlined" Class="smart-filter-operator">
+            <MudSelectItem Value="SmartFilterOperator.Contains">Contém</MudSelectItem>
+            <MudSelectItem Value="SmartFilterOperator.Equals">Igual a</MudSelectItem>
+            <MudSelectItem Value="SmartFilterOperator.NotEquals">Diferente de</MudSelectItem>
+            <MudSelectItem Value="SmartFilterOperator.StartsWith">Começa com</MudSelectItem>
+            <MudSelectItem Value="SmartFilterOperator.IsEmpty">Está vazio</MudSelectItem>
+            <MudSelectItem Value="SmartFilterOperator.IsNotEmpty">Não está vazio</MudSelectItem>
+        </MudSelect>
+        @if (NeedsValue)
+        {
+            <MudAutocomplete T="string" @bind-Value="_value" Label="Valor"
+                             SearchFunc="SearchValuesAsync" CoerceText="true" CoerceValue="true"
+                             Margin="Margin.Dense" Variant="Variant.Outlined"
+                             Clearable="true" Class="smart-filter-value" />
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="AddFilter"
+                   Disabled="@(!CanAdd)">Aplicar</MudButton>
+        @if (_filters.Count > 0 || !string.IsNullOrWhiteSpace(_quickSearch))
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearAll">Limpar</MudButton>
+        }
+    </MudStack>
+    @if (_filters.Count > 0)
+    {
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            @foreach (var filter in _filters)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined"
+                         OnClose="@(() => RemoveFilter(filter))">
+                    @FilterLabel(filter)
+                </MudChip>
+            }
+        </div>
+    }
+</MudPaper>
+
+@ChildContent(FilteredItems)
+
+<style>
+    .smart-filter-controls { flex-wrap: wrap; }
+    .smart-filter-search { min-width: 240px; flex: 1 1 280px; }
+    .smart-filter-column { min-width: 150px; }
+    .smart-filter-operator { min-width: 150px; }
+    .smart-filter-value { min-width: 180px; }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<SmartFilterColumn<TItem>> Columns { get; set; } = [];
+    [Parameter, EditorRequired] public RenderFragment<IEnumerable<TItem>> ChildContent { get; set; } = default!;
+
+    private readonly List<ActiveFilter> _filters = [];
+    private string? _quickSearch;
+    private string? _columnKey;
+    private string? _value;
+    private SmartFilterOperator _operator = SmartFilterOperator.Contains;
+
+    private bool NeedsValue => _operator is not SmartFilterOperator.IsEmpty and not SmartFilterOperator.IsNotEmpty;
+    private bool CanAdd => !string.IsNullOrWhiteSpace(_columnKey) && (!NeedsValue || !string.IsNullOrWhiteSpace(_value));
+
+    private IEnumerable<TItem> FilteredItems => Items.Where(Matches);
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrWhiteSpace(_columnKey) && Columns.Count > 0)
+            _columnKey = Columns[0].Key;
+    }
+
+    private bool Matches(TItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(_quickSearch)
+            && !Columns.Any(column => Text(column.Value(item)).Contains(_quickSearch.Trim(), StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        foreach (var filter in _filters)
+        {
+            var column = Columns.FirstOrDefault(x => x.Key == filter.ColumnKey);
+            if (column is null || !MatchesValue(Text(column.Value(item)), filter))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool MatchesValue(string source, ActiveFilter filter) => filter.Operator switch
+    {
+        SmartFilterOperator.Equals => source.Equals(filter.Value, StringComparison.OrdinalIgnoreCase),
+        SmartFilterOperator.NotEquals => !source.Equals(filter.Value, StringComparison.OrdinalIgnoreCase),
+        SmartFilterOperator.StartsWith => source.StartsWith(filter.Value, StringComparison.OrdinalIgnoreCase),
+        SmartFilterOperator.IsEmpty => string.IsNullOrWhiteSpace(source),
+        SmartFilterOperator.IsNotEmpty => !string.IsNullOrWhiteSpace(source),
+        _ => source.Contains(filter.Value, StringComparison.OrdinalIgnoreCase)
+    };
+
+    private void AddFilter()
+    {
+        if (!CanAdd) return;
+        _filters.Add(new(_columnKey!, _operator, NeedsValue ? _value!.Trim() : ""));
+        _value = null;
+    }
+
+    private void RemoveFilter(ActiveFilter filter) => _filters.Remove(filter);
+    private void ClearAll() { _filters.Clear(); _quickSearch = null; _value = null; }
+
+    private Task<IEnumerable<string>> SearchValuesAsync(string search, CancellationToken cancellationToken)
+    {
+        var column = Columns.FirstOrDefault(x => x.Key == _columnKey);
+        if (column is null) return Task.FromResult(Enumerable.Empty<string>());
+        return Task.FromResult(Items.Select(x => Text(column.Value(x)))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(x => string.IsNullOrWhiteSpace(search) || x.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x)
+            .Take(100)
+            .AsEnumerable());
+    }
+
+    private string FilterLabel(ActiveFilter filter)
+    {
+        var label = Columns.FirstOrDefault(x => x.Key == filter.ColumnKey)?.Label ?? filter.ColumnKey;
+        var operation = filter.Operator switch
+        {
+            SmartFilterOperator.Equals => "=",
+            SmartFilterOperator.NotEquals => "≠",
+            SmartFilterOperator.StartsWith => "começa com",
+            SmartFilterOperator.IsEmpty => "vazio",
+            SmartFilterOperator.IsNotEmpty => "não vazio",
+            _ => "contém"
+        };
+        return NeedsValueFor(filter.Operator) ? $"{label} {operation} “{filter.Value}”" : $"{label}: {operation}";
+    }
+
+    private static bool NeedsValueFor(SmartFilterOperator value) =>
+        value is not SmartFilterOperator.IsEmpty and not SmartFilterOperator.IsNotEmpty;
+    private static string Text(object? value) => value?.ToString()?.Trim() ?? "";
+
+    private sealed record ActiveFilter(string ColumnKey, SmartFilterOperator Operator, string Value);
+    public enum SmartFilterOperator { Contains, Equals, NotEquals, StartsWith, IsEmpty, IsNotEmpty }
+}

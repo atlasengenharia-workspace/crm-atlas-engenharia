@@ -29,7 +29,9 @@
     <MudPaper Outlined="true" Class="pa-4">
         <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou situação" Immediate="true"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
-        <MudTable Items="Filtered" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading">
+        <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns">
+        <ChildContent Context="smartItems">
+        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading">
             <HeaderContent><MudTh>Serviço</MudTh><MudTh>Cliente</MudTh><MudTh>Telefone</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Atualização</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Serviço"><strong>@context.Codigo</strong><br/><MudText Typo="Typo.caption">@TypeLabel(context.Tipo)</MudText></MudTd>
@@ -43,6 +45,8 @@
             </RowTemplate>
             <NoRecordsContent><EmptyState Title="Nenhum acompanhamento" Message="Importe serviços ou ajuste os filtros." /></NoRecordsContent>
         </MudTable>
+        </ChildContent>
+        </SmartTableFilter>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -149,6 +153,15 @@
 
 @code {
     private List<AcompanhamentoDto> _items=[]; private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
+    private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
+    [
+        new("codigo","Serviço",x=>x.Codigo),
+        new("cliente","Cliente",x=>x.Cliente),
+        new("telefone","Telefone",x=>x.Telefone),
+        new("situacao","Situação",x=>x.Situacao),
+        new("pendencias","Pendências",x=>$"{x.Concluidas}/{x.Pendencias}"),
+        new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+    ];
     private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing;
     private string? _search,_newStatus,_statusNote,_actor,_pendingLabels,_uploadedFileName;
     private byte[]? _uploadedFileBytes;

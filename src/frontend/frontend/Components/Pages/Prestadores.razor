@@ -13,7 +13,9 @@
     <MudPaper Outlined="true" Class="pa-4">
         <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar nome, documento ou contato" Immediate="true"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
-        <MudTable Items="Filtered" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading">
+        <SmartTableFilter TItem="PrestadorDto" Items="Filtered" Columns="_filterColumns">
+        <ChildContent Context="smartItems">
+        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading">
             <HeaderContent><MudTh>Prestador</MudTh><MudTh>Documento</MudTh><MudTh>Contato</MudTh><MudTh>Pagamento</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Prestador"><div class="d-flex align-center gap-2"><MudAvatar Color="Color.Primary" Size="Size.Small">@Initials(context.Nome)</MudAvatar><strong>@context.Nome</strong></div></MudTd>
@@ -25,6 +27,8 @@
             </RowTemplate>
             <NoRecordsContent><EmptyState Title="Nenhum prestador" Message="Cadastre a equipe técnica e fornecedores." /></NoRecordsContent>
         </MudTable>
+        </ChildContent>
+        </SmartTableFilter>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -58,6 +62,12 @@
 
 @code {
     private List<PrestadorDto> _items=[]; private ProviderModel _model=new(); private MudForm? _form;
+    private readonly IReadOnlyList<SmartFilterColumn<PrestadorDto>> _filterColumns =
+    [
+        new("prestador","Prestador",x=>x.Nome),new("documento","Documento",x=>x.CnpjCpf),
+        new("telefone","Telefone",x=>x.Telefone),new("email","E-mail",x=>x.Email),
+        new("pagamento","Pagamento",x=>x.MetodoPagamento)
+    ];
     private bool _loading,_open,_saving,_valid; private string? _search;
     private IEnumerable<PrestadorDto> Filtered=>string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}".Contains(_search,StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()=>await LoadAsync();

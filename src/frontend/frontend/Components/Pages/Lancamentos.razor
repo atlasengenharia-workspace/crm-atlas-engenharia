@@ -90,7 +90,9 @@ else
             <MudText Typo="Typo.body2">Atualizando lançamentos...</MudText>
         </div>
     </MudOverlay>
-    <MudTable Items="_result.Items" Hover="true" Loading="_loading" Elevation="0"
+    <SmartTableFilter TItem="LancamentoDto" Items="_result.Items" Columns="_filterColumns">
+    <ChildContent Context="smartItems">
+    <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0"
               Breakpoint="Breakpoint.Md">
         <HeaderContent>
             <MudTh>Data</MudTh><MudTh>Lançamento</MudTh><MudTh>Tipo</MudTh>
@@ -132,6 +134,8 @@ else
                         Message="Registre uma entrada ou saída para começar o controle financeiro." />
         </NoRecordsContent>
     </MudTable>
+    </ChildContent>
+    </SmartTableFilter>
     @if (_result.TotalPages > 1)
     {
         <div class="d-flex justify-end pa-4">
@@ -257,6 +261,13 @@ else
 
 @code {
     private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
+    private readonly IReadOnlyList<SmartFilterColumn<LancamentoDto>> _filterColumns =
+    [
+        new("data","Data",x=>x.Data.ToString("dd/MM/yyyy")),new("lancamento","Lançamento",x=>x.Descricao),
+        new("codigo","Código",x=>x.Codigo),new("servico","Serviço",x=>x.CodigoServico),
+        new("tipo","Tipo",x=>x.Tipo==LancamentoTipo.ENTRADA?"Entrada":"Saída"),
+        new("status","Status",x=>StatusLabel(x.Status)),new("valor","Valor",x=>x.Valor)
+    ];
     private EntryModel _model = new();
     private IReadOnlyList<CadastroServicoDto> _services = [];
     private IReadOnlyList<PrestadorDto> _providers = [];

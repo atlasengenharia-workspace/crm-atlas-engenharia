@@ -20,19 +20,19 @@
     <MudGrid Class="mb-5" Spacing="3">
         <MudItem xs="12" sm="6" md="3">
             <MetricCard Title="Total no período" Value="@Money(_analytics.Sum(x => x.Valor))"
-                        Subtitle="Soma das despesas filtradas" Icon="@Icons.Material.Filled.Payments" Color="Color.Error" />
+                        FooterText="Soma das despesas filtradas" Icon="@Icons.Material.Filled.Payments" Color="Color.Error" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MetricCard Title="Média por custo" Value="@Money(_analytics.Count == 0 ? 0 : _analytics.Average(x => x.Valor))"
-                        Subtitle="Valor médio por lançamento" Icon="@Icons.Material.Filled.Analytics" Color="Color.Info" />
+                        FooterText="Valor médio por lançamento" Icon="@Icons.Material.Filled.Analytics" Color="Color.Info" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MetricCard Title="Maior categoria" Value="@TopCategory"
-                        Subtitle="Maior impacto no orçamento" Icon="@Icons.Material.Filled.Category" Color="Color.Warning" />
+                        FooterText="Maior impacto no orçamento" Icon="@Icons.Material.Filled.Category" Color="Color.Warning" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MetricCard Title="Total de lançamentos" Value="@_analytics.Count.ToString("N0", PtBr)"
-                        Subtitle="Registros no período" Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
+                        FooterText="Registros no período" Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" />
         </MudItem>
     </MudGrid>
 
@@ -46,7 +46,7 @@
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Participação proporcional das despesas no período selecionado</MudText>
                     </div>
                 </MudStack>
-                @if (_chartSeries.Count > 0 && _chartLabels.Length > 0)
+                @if (_chartSeries.Count > 0 && _chartLabels.Length > 0 && _chartSeries[0].Data != null && _chartSeries[0].Data.Count == _chartLabels.Length)
                 {
                     <div class="d-flex justify-center align-center py-2" style="min-height: 280px;">
                         <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="_chartSeries"
@@ -127,7 +127,9 @@
 
     <!-- Main Data Table -->
     <MudPaper Outlined="true" Class="atlas-panel">
-        <MudTable Items="_result.Items" Hover="true" Striped="true" Loading="_loading" Elevation="0">
+        <SmartTableFilter TItem="CustoIndiretoDto" Items="_result.Items" Columns="_filterColumns">
+        <ChildContent Context="smartItems">
+        <MudTable Items="smartItems" Hover="true" Striped="true" Loading="_loading" Elevation="0">
             <HeaderContent>
                 <MudTh style="width: 70px;">#ID</MudTh>
                 <MudTh>Data</MudTh>
@@ -162,6 +164,8 @@
                             Message="Ajuste os filtros de busca ou cadastre uma nova despesa." />
             </NoRecordsContent>
         </MudTable>
+        </ChildContent>
+        </SmartTableFilter>
 
         @if (_result.TotalPages > 1)
         {
@@ -295,6 +299,12 @@
         ["Aluguel", "Energia", "Água", "Internet e telefonia", "Software", "Combustível", "Materiais", "Marketing", "Contabilidade", "Impostos", "Outros"];
 
     private PagedResult<CustoIndiretoDto> _result = new([], 1, 20, 0);
+    private readonly IReadOnlyList<SmartFilterColumn<CustoIndiretoDto>> _filterColumns =
+    [
+        new("id","ID",x=>x.Id),new("data","Data",x=>x.Data.ToString("dd/MM/yyyy")),
+        new("descricao","Descrição",x=>x.Descricao),new("categoria","Categoria",x=>x.Categoria),
+        new("valor","Valor",x=>x.Valor)
+    ];
     private IReadOnlyList<CustoIndiretoDto> _analytics = [];
     private List<ChartSeries<double>> _chartSeries = [];
     private string[] _chartLabels = [];
@@ -390,8 +400,11 @@
             _analytics = (await Service.ListAsync(new(
                 ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000))).Items;
 
-            var allGroups = _analytics.GroupBy(x => x.Categoria)
+            var allGroups = _analytics
+                .Where(x => !string.IsNullOrWhiteSpace(x.Categoria))
+                .GroupBy(x => x.Categoria)
                 .Select(x => new { Label = x.Key, Total = x.Sum(y => y.Valor) })
+                .Where(x => x.Total > 0)
                 .OrderByDescending(x => x.Total).ToList();
 
             var groups = allGroups.Take(7).ToList();
@@ -400,8 +413,16 @@
                 groups.Add(new { Label = "Outras categorias", Total = allGroups.Skip(7).Sum(x => x.Total) });
             }
 
-            _chartLabels = groups.Select(x => x.Label).ToArray();
-            _chartSeries = [new ChartSeries<double> { Name = "Custos (R$)", Data = groups.Select(x => (double)x.Total).ToArray() }];
+            if (groups.Count > 0)
+            {
+                _chartLabels = groups.Select(x => x.Label).ToArray();
+                _chartSeries = [new ChartSeries<double> { Name = "Custos (R$)", Data = groups.Select(x => (double)x.Total).ToArray() }];
+            }
+            else
+            {
+                _chartLabels = Array.Empty<string>();
+                _chartSeries = new List<ChartSeries<double>>();
+            }
         }
         catch (Exception ex)
         {
