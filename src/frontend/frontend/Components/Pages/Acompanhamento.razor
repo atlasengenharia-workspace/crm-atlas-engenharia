@@ -70,7 +70,14 @@
                 </MudGrid>
             </MudPaper>
             <MudGrid Class="mt-4">
-                <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_newStatus" Label="Nova situação" Variant="Variant.Outlined">@foreach(var status in _situations.Where(x=>x.Tipo==_selected.Tipo&&x.Ativo)){<MudSelectItem Value="@status.Nome">@status.Nome</MudSelectItem>}</MudSelect></MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete T="string" @bind-Value="_newStatus"
+                                     Label="Nova situação" Variant="Variant.Outlined"
+                                     SearchFunc="SearchStatusesAsync"
+                                     CoerceText="true" CoerceValue="true"
+                                     Clearable="true"
+                                     HelperText="Selecione uma opção ou digite uma nova situação." />
+                </MudItem>
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="_actor" Label="Responsável" Variant="Variant.Outlined" /></MudItem>
                 <MudItem xs="12"><MudTextField @bind-Value="_statusNote" Label="Observação da mudança" Variant="Variant.Outlined" Lines="2" /></MudItem>
                 <MudItem xs="12"><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ChangeStatusAsync">Atualizar situação</MudButton></MudItem>
@@ -150,6 +157,20 @@
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
+    private Task<IEnumerable<string>> SearchStatusesAsync(string value,CancellationToken cancellationToken)
+    {
+        if(_selected is null)return Task.FromResult(Enumerable.Empty<string>());
+        var statuses=_situations.Where(x=>x.Tipo==_selected.Tipo&&x.Ativo).Select(x=>x.Nome)
+            .Concat(_items.Where(x=>x.Tipo==_selected.Tipo).Select(x=>x.Situacao))
+            .Concat(["Em análise","Em andamento","Aguardando cliente","Aguardando documentos",
+                "Aguardando vistoria","Concluído","Cancelado"])
+            .Where(x=>!string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(x=>string.IsNullOrWhiteSpace(value)||x.Contains(value,StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x=>x)
+            .AsEnumerable();
+        return Task.FromResult(statuses);
+    }
     private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);_items=(await Service.ListAsync()).ToList();}
     private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_newStatus))return;await Service.ChangeStatusAsync(_selected.Id,_newStatus,_statusNote,_actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
     private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
