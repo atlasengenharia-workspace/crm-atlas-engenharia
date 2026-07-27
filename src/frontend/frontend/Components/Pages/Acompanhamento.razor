@@ -30,10 +30,11 @@
         <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou situação" Immediate="true"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
         <MudTable Items="Filtered" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading">
-            <HeaderContent><MudTh>Serviço</MudTh><MudTh>Cliente</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Atualização</MudTh><MudTh>Ações</MudTh></HeaderContent>
+            <HeaderContent><MudTh>Serviço</MudTh><MudTh>Cliente</MudTh><MudTh>Telefone</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Atualização</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Serviço"><strong>@context.Codigo</strong><br/><MudText Typo="Typo.caption">@TypeLabel(context.Tipo)</MudText></MudTd>
                 <MudTd DataLabel="Cliente">@context.Cliente</MudTd>
+                <MudTd DataLabel="Telefone">@(string.IsNullOrWhiteSpace(context.Telefone) ? "—" : context.Telefone)</MudTd>
                 <MudTd DataLabel="Situação"><MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Situacao</MudChip></MudTd>
                 <MudTd DataLabel="Pendências">@context.Concluidas/@context.Pendencias</MudTd>
                 <MudTd DataLabel="Atualização">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
