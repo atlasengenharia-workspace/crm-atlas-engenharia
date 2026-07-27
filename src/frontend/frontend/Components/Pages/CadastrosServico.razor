@@ -5,6 +5,7 @@
 @inject ICondicaoPagamentoService CondicaoService
 @inject IOrcamentoService OrcamentoService
 @inject IPrestadorService PrestadorService
+@inject IAcompanhamentoService AcompanhamentoService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -26,7 +27,7 @@
                               Variant="Variant.Outlined" Margin="Margin.Dense"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
             </MudItem>
-            <MudItem xs="7" md="3">
+            <MudItem xs="12" sm="6" md="3">
                 <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipo"
                            Label="Tipo de serviço" Variant="Variant.Outlined"
                            Margin="Margin.Dense" Clearable="true">
@@ -36,7 +37,22 @@
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="5" md="2" Class="d-flex align-center">
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" @bind-Value="_situacao"
+                           Label="Situação" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Clearable="true">
+                    @foreach (var status in AvailableSituations)
+                    {
+                        <MudSelectItem Value="@status">@status</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="_ocultarConcluidos" Color="Color.Primary">
+                    Ocultar concluídos
+                </MudSwitch>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
                 <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
                            OnClick="ApplyFilterAsync">Filtrar</MudButton>
             </MudItem>
@@ -47,7 +63,7 @@
         <MudTable Items="_result.Items" Hover="true" Loading="_loading" Elevation="0"
                   Breakpoint="Breakpoint.Md">
             <HeaderContent>
-                <MudTh>Código</MudTh><MudTh>Empresa</MudTh><MudTh>Serviço</MudTh>
+                <MudTh>Código</MudTh><MudTh>Empresa</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh>
                 <MudTh>Contrato</MudTh><MudTh>Entrada</MudTh><MudTh Class="text-right">Ações</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -59,6 +75,11 @@
                 <MudTd DataLabel="Serviço">
                     <MudChip T="string" Size="Size.Small" Color="Color.Primary">@TypeLabel(context.TipoServico)</MudChip>
                     <MudText Typo="Typo.caption" Class="ml-1">@context.Subtipo</MudText>
+                </MudTd>
+                <MudTd DataLabel="Situação">
+                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.SituacaoInicial)">
+                        @(context.SituacaoInicial ?? "Não informada")
+                    </MudChip>
                 </MudTd>
                 <MudTd DataLabel="Contrato">@Money(context.ValorContrato ?? 0)</MudTd>
                 <MudTd DataLabel="Entrada">@context.DataEntrada.ToString("dd/MM/yyyy")</MudTd>
@@ -186,8 +207,12 @@
                                            Required="true" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="_model.SituacaoInicial" Label="Situação inicial"
-                                          Variant="Variant.Outlined" />
+                            <MudAutocomplete T="string" @bind-Value="_model.SituacaoInicial"
+                                             Label="Situação" Variant="Variant.Outlined"
+                                             SearchFunc="SearchSituationsAsync"
+                                             CoerceText="true" CoerceValue="true"
+                                             Clearable="true"
+                                             HelperText="Selecione uma situação ou digite uma nova." />
                         </MudItem>
                         <MudItem xs="12" sm="6">
                             <MudDatePicker @bind-Date="_model.DataContrato" Label="Data do contrato"
@@ -336,6 +361,7 @@
     private IReadOnlyList<CadastroServicoSubtipoConfigDto> _subtypes = [];
     private IReadOnlyList<OrcamentoDto> _budgets = [];
     private IReadOnlyList<PrestadorDto> _providers = [];
+    private IReadOnlyList<SituacaoConfigDto> _situations = [];
     private ServiceModel _model = new();
     private MudForm? _form;
     private bool _valid;
@@ -344,8 +370,16 @@
     private bool _editorOpen;
     private string? _search;
     private AcompanhamentoServicoTipo? _tipo;
+    private string? _situacao;
+    private bool _ocultarConcluidos = true;
     private int _page = 1;
 
+    private IEnumerable<string> AvailableSituations =>
+        _situations.Where(x => x.Ativo && (_tipo is null || x.Tipo == _tipo))
+            .Select(x => x.Nome)
+            .Concat(_result.Items.Select(x => x.SituacaoInicial).OfType<string>())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x);
     private IEnumerable<string> CurrentSubtypes =>
         _subtypes.FirstOrDefault(x => x.TipoServico == _model.TipoServico)?.Subtipos ?? [];
     private decimal NetValue => Math.Max(0, (_model.ValorContrato ?? 0) - (_model.ValorNotaFiscal ?? 0));
@@ -370,6 +404,7 @@
             _subtypes = await Service.ListSubtiposAsync();
             _budgets = await OrcamentoService.ListAsync();
             _providers = await PrestadorService.ListAsync();
+            _situations = await AcompanhamentoService.ListSituationsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
@@ -377,7 +412,8 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        try { _result = await Service.ListAsync(new(_search, _search, _tipo, _page, 20)); }
+        try { _result = await Service.ListAsync(new(
+            _search, _search, _tipo, _page, 20, _situacao, _ocultarConcluidos)); }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
@@ -395,7 +431,22 @@
     {
         _model.TipoServico = value;
         _model.Subtipo = CurrentSubtypes.FirstOrDefault() ?? "";
+        _model.SituacaoInicial = _situations
+            .Where(x => x.Tipo == value && x.Ativo)
+            .OrderByDescending(x => x.Inicial)
+            .ThenBy(x => x.Ordem)
+            .Select(x => x.Nome)
+            .FirstOrDefault();
     }
+
+    private Task<IEnumerable<string>> SearchSituationsAsync(string value, CancellationToken cancellationToken) =>
+        Task.FromResult(_situations
+            .Where(x => x.Tipo == _model.TipoServico && x.Ativo)
+            .Select(x => x.Nome)
+            .Where(x => string.IsNullOrWhiteSpace(value)
+                || x.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .AsEnumerable());
     private void AddInstallment() => _model.Parcelas.Add(new()
     {
         Numero = _model.Parcelas.Count + 1,
@@ -460,6 +511,14 @@
         _ => type.ToString()
     };
     private static string Money(decimal value) => value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+    private static Color StatusColor(string? status) =>
+        status?.Contains("conclu", StringComparison.OrdinalIgnoreCase) == true
+        || status?.Contains("finaliz", StringComparison.OrdinalIgnoreCase) == true
+            ? Color.Success
+            : status?.Contains("análise", StringComparison.OrdinalIgnoreCase) == true
+              || status?.Contains("analise", StringComparison.OrdinalIgnoreCase) == true
+                ? Color.Warning
+                : Color.Default;
     private static bool ClosedBudget(string status) =>
         status.Contains("fech", StringComparison.OrdinalIgnoreCase)
         || status.Contains("recus", StringComparison.OrdinalIgnoreCase);

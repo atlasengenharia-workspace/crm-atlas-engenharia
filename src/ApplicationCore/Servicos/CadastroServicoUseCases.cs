@@ -54,7 +54,9 @@ public sealed record CadastroServicoFilter(
     string? DocumentoEmpresa,
     AcompanhamentoServicoTipo? TipoServico,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    string? Situacao = null,
+    bool OcultarConcluidos = true);
 
 public sealed record CadastroServicoSubtipoConfigDto(
     AcompanhamentoServicoTipo TipoServico,
@@ -88,9 +90,10 @@ public sealed class CadastroServicoService(
         CancellationToken cancellationToken = default)
     {
         var source = (await repository.ListDetailedAsync(cancellationToken))
-            .Where(x => Contains(x.Codigo, filter.Codigo))
-            .Where(x => Contains(x.DocumentoEmpresa, filter.DocumentoEmpresa))
+            .Where(x => MatchesSearch(x, filter.Codigo, filter.DocumentoEmpresa))
             .Where(x => filter.TipoServico is null || x.TipoServico == filter.TipoServico)
+            .Where(x => Contains(x.SituacaoInicial, filter.Situacao))
+            .Where(x => !filter.OcultarConcluidos || !IsCompleted(x.SituacaoInicial))
             .OrderByDescending(x => x.CreatedAt)
             .Select(ToDto);
         return PagedResult<CadastroServicoDto>.Create(source, filter.Page, filter.PageSize);
@@ -278,6 +281,21 @@ public sealed class CadastroServicoService(
 
     private static bool Contains(string? source, string? value) =>
         string.IsNullOrWhiteSpace(value) || (source?.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private static bool MatchesSearch(CadastroServico item, string? codigo, string? documento)
+    {
+        var search = !string.IsNullOrWhiteSpace(codigo) ? codigo : documento;
+        return string.IsNullOrWhiteSpace(search)
+            || Contains(item.Codigo, search)
+            || Contains(item.DocumentoEmpresa, search)
+            || Contains(item.RazaoSocialEmpresa, search)
+            || Contains(item.Subtipo, search);
+    }
+
+    private static bool IsCompleted(string? status) =>
+        status?.Contains("conclu", StringComparison.OrdinalIgnoreCase) == true
+        || status?.Contains("finaliz", StringComparison.OrdinalIgnoreCase) == true
+        || status?.Contains("encerr", StringComparison.OrdinalIgnoreCase) == true;
 
     private static string Required(string? value, string message) =>
         Clean(value) ?? throw new ArgumentException(message);
