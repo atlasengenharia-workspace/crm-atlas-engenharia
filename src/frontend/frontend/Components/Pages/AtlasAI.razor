@@ -59,7 +59,7 @@
             else if (question.Contains("orçamento", StringComparison.OrdinalIgnoreCase)
                      || question.Contains("orcamento", StringComparison.OrdinalIgnoreCase))
             {
-                var budgets = await OrcamentoService.ListAsync();
+                var budgets = (await OrcamentoService.ListAsync()).Items;
                 var open = budgets.Count(x => !x.Situacao.Contains("aprov", StringComparison.OrdinalIgnoreCase)
                     && !x.Situacao.Contains("recus", StringComparison.OrdinalIgnoreCase)
                     && !x.Situacao.Contains("fech", StringComparison.OrdinalIgnoreCase));
@@ -67,7 +67,7 @@
             }
             else
             {
-                var services = await AcompanhamentoService.ListAsync();
+                var services = (await AcompanhamentoService.ListAsync()).Items;
                 var withPending = services.Count(x => x.Pendencias > x.Concluidas);
                 _answer = $"Existem {services.Count} serviços em acompanhamento; {withPending} possuem pendências abertas. Use os filtros da fila operacional para localizar os casos.";
             }

@@ -90,7 +90,7 @@
     private bool _loading,_ruleOpen;private int _tab;
     private IEnumerable<NotificationDto> Filtered=>_tab switch{1=>_items.Where(x=>!x.Lida),2=>_items.Where(x=>x.ConfirmadaEm is not null),_=>_items};
     protected override async Task OnInitializedAsync(){_loading=true;try{var auth=await AuthenticationStateProvider.GetAuthenticationStateAsync();var p=auth.User;var sub=p.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value??p.FindFirst("sub")?.Value??"";var email=p.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;_user=await IdentityService.ResolveAsync(sub,email,p.Identity?.Name);await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
-    private async Task LoadAsync(){if(_user is null)return;_items=(await Service.ListAsync(_user.Id)).ToList();_rules=(await Service.ListRulesAsync()).ToList();}
+    private async Task LoadAsync(){if(_user is null)return;_items=(await Service.ListAsync(new NotificationFilter(_user.Id))).Items.ToList();_rules=(await Service.ListRulesAsync()).ToList();}
     private async Task ReadAsync(NotificationDto x){if(_user is null||x.Lida)return;await Service.MarkReadAsync(_user.Id,x.Id);await LoadAsync();}
     private async Task ConfirmAsync(NotificationDto x){if(_user is null)return;await Service.ConfirmAsync(_user.Id,x.Id);Snackbar.Add("Notificação confirmada.",Severity.Success);await LoadAsync();}
     private async Task RunRulesAsync(){if(_user is null)return;var count=await Service.RunRulesAsync(_user.Id);Snackbar.Add(count==0?"Nenhum alerta novo.":$"{count} alerta(s) gerado(s).",count==0?Severity.Info:Severity.Success);await LoadAsync();}

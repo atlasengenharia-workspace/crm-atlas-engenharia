@@ -10,9 +10,15 @@ public sealed record CondicaoPagamentoDto(
     int? IntervaloDias,
     bool Indefinido);
 
+public sealed record CondicaoPagamentoFilter(
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20,
+    long? AfterId = null);
+
 public interface ICondicaoPagamentoService
 {
-    Task<IReadOnlyList<CondicaoPagamentoDto>> ListAsync(CancellationToken cancellationToken = default);
+    Task<CursorResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> CreateAsync(CondicaoPagamentoDto dto, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> UpdateAsync(long id, CondicaoPagamentoDto dto, CancellationToken cancellationToken = default);
@@ -22,11 +28,26 @@ public interface ICondicaoPagamentoService
 public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repository)
     : ICondicaoPagamentoService
 {
-    public async Task<IReadOnlyList<CondicaoPagamentoDto>> ListAsync(CancellationToken cancellationToken = default) =>
-        (await repository.ListAsync(cancellationToken))
-        .OrderBy(x => x.Nome)
-        .Select(ToDto)
-        .ToList();
+    public async Task<CursorResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default)
+    {
+        var query = repository.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter?.Search))
+            query = query.Where(x => x.Nome.Contains(filter.Search.Trim()));
+
+        if (filter?.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+
+        return new CursorResult<CondicaoPagamentoDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+    }
 
     public async Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
         ToDto(await FindAsync(id, cancellationToken));

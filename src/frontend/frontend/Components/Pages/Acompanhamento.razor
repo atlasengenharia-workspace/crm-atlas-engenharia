@@ -36,11 +36,11 @@
     <MudPaper Outlined="true" Class="pa-4">
         <MudGrid Class="mb-3">
             <MudItem xs="12" md="5">
-                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente, serviço, endereço ou situação" Immediate="true"
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente, serviço, endereço ou situação" Immediate="true" OnKeyDown="SearchOnEnter"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro"
+                <MudSelect T="AcompanhamentoServicoTipo?" Value="_tipoFiltro" ValueChanged="OnTipoFiltroChanged"
                            Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
                     @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
                     {
@@ -49,7 +49,7 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" sm="6" md="3">
-                <MudSwitch T="bool" @bind-Value="_hideCompleted" Color="Color.Primary"
+                <MudSwitch T="bool" Value="_hideCompleted" ValueChanged="OnHideCompletedChanged" Color="Color.Primary"
                            Label="Ocultar concluídos" />
             </MudItem>
         </MudGrid>
@@ -242,6 +242,17 @@
         </div>
         </ChildContent>
         </SmartTableFilter>
+
+        <MudDivider Class="my-3" />
+        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Página @_page
+            </MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+            </MudStack>
+        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -470,7 +481,10 @@
 </style>
 
 @code {
-    private List<AcompanhamentoDto> _items=[]; private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
+    private List<AcompanhamentoDto> _items=[]; private CursorResult<AcompanhamentoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
+    private int _page = 1;
+    private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,1), new("cliente","Cliente",x=>x.Cliente,2),
@@ -557,7 +571,59 @@
         return Color.Info;
     }
     protected override async Task OnInitializedAsync()=>await LoadAsync();
-    private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private async Task LoadAsync()
+    {
+        _loading=true;
+        try
+        {
+            _result = await Service.ListAsync(new AcompanhamentoFilter(_search, _tipoFiltro, _hideCompleted, _page, 20, _cursors[_page - 1]));
+            _items = _result.Items.ToList();
+            _situations=(await Service.ListSituationsAsync()).ToList();
+        }
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_loading=false;}
+    }
+
+    private async Task SearchOnEnter(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
+    }
+
+    private async Task OnTipoFiltroChanged(AcompanhamentoServicoTipo? value)
+    {
+        _tipoFiltro = value;
+        _page = 1;
+        _cursors = new List<long?> { null };
+        await LoadAsync();
+    }
+
+    private async Task OnHideCompletedChanged(bool value)
+    {
+        _hideCompleted = value;
+        _page = 1;
+        _cursors = new List<long?> { null };
+        await LoadAsync();
+    }
+
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
+
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
     private async Task AbrirFormularioNovo()=>await _servicoForm.Open();
     private async Task OnServicoSalvoAsync()=>await LoadAsync();
@@ -623,7 +689,7 @@
     private static IEnumerable<string> DefaultStatuses(AcompanhamentoServicoTipo type) => type == AcompanhamentoServicoTipo.AVCB
         ? ["Aguar. Contratante", "Aguar. Documentos", "Comunicado", "Concluído", "Concluído - Aguar. Pag.", "Em análise", "Executar"]
         : ["Em análise", "Em andamento", "Aguardando cliente", "Aguardando documentos", "Aguardando vistoria", "Concluído", "Cancelado"];
-    private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);_items=(await Service.ListAsync()).ToList();}
+    private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);await LoadAsync();}
     private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_newStatus))return;await Service.ChangeStatusAsync(_selected.Id,_newStatus,_statusNote,_actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
     private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
     private void OpenSettings(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";_settingsOpen=true;}

@@ -4,6 +4,14 @@ using CrmAtlas.ApplicationCore.Enums;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
 
+public sealed record AcompanhamentoFilter(
+    string? Search = null,
+    AcompanhamentoServicoTipo? Tipo = null,
+    bool HideCompleted = false,
+    int Page = 1,
+    int PageSize = 20,
+    long? AfterId = null);
+
 public sealed record AcompanhamentoHistoricoDto(long Id,string? Anterior,string Nova,string? Descricao,string? Responsavel,DateTime Em);
 public sealed record AcompanhamentoPendenciaDto(long Id,string Label,bool Concluida,DateTime? ConcluidaEm);
 public sealed record AcompanhamentoDto(long Id,long OrigemId,string Codigo,AcompanhamentoServicoTipo Tipo,string? Cliente,
@@ -23,6 +31,8 @@ public sealed record SituacaoConfigDto(long? Id,AcompanhamentoServicoTipo Tipo,s
 public interface IAcompanhamentoRepository
 {
     Task<IReadOnlyList<AcompanhamentoServico>> ListDetailedAsync(CancellationToken ct=default);
+    IQueryable<AcompanhamentoServico> AsQueryable();
+    Task<IReadOnlyList<AcompanhamentoServico>> ToListAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default);
     Task<AcompanhamentoServico?> GetDetailedAsync(long id,CancellationToken ct=default);
     Task<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>> ListSituationsAsync(CancellationToken ct=default);
     Task<AcompanhamentoServicoSituacaoConfig?> GetSituationAsync(long id,CancellationToken ct=default);
@@ -35,7 +45,7 @@ public interface IAcompanhamentoRepository
 
 public interface IAcompanhamentoService
 {
-    Task<IReadOnlyList<AcompanhamentoDto>> ListAsync(AcompanhamentoServicoTipo? tipo=null,CancellationToken ct=default);
+    Task<CursorResult<AcompanhamentoDto>> ListAsync(AcompanhamentoFilter? filter=null,CancellationToken ct=default);
     Task<AcompanhamentoDto> GetAsync(long id,CancellationToken ct=default);
     Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows,CancellationToken ct=default);
     Task ChangeStatusAsync(long id,string novaSituacao,string? descricao,string? responsavel,CancellationToken ct=default);
@@ -66,8 +76,44 @@ public interface IAcompanhamentoSpreadsheetReader
 
 public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) : IAcompanhamentoService
 {
-    public async Task<IReadOnlyList<AcompanhamentoDto>> ListAsync(AcompanhamentoServicoTipo? tipo=null,CancellationToken ct=default)=>
-        (await repository.ListDetailedAsync(ct)).Where(x=>tipo is null||x.TipoServico==tipo).OrderByDescending(x=>x.UpdatedAt).Select(Map).ToList();
+    public async Task<CursorResult<AcompanhamentoDto>> ListAsync(AcompanhamentoFilter? filter=null,CancellationToken ct=default)
+    {
+        var query = repository.AsQueryable();
+
+        if (filter?.Tipo is not null)
+            query = query.Where(x => x.TipoServico == filter.Tipo);
+
+        if (filter?.HideCompleted == true)
+            query = query.Where(x => !x.Situacao.StartsWith("Concluído") && !x.Situacao.StartsWith("Concluido"));
+
+        if (!string.IsNullOrWhiteSpace(filter?.Search))
+        {
+            var term = filter.Search.Trim();
+            query = query.Where(x =>
+                x.Codigo.Contains(term) ||
+                (x.NomeCliente != null && x.NomeCliente.Contains(term)) ||
+                (x.CnpjCpf != null && x.CnpjCpf.Contains(term)) ||
+                (x.Endereco != null && x.Endereco.Contains(term)) ||
+                (x.Telefone != null && x.Telefone.Contains(term)) ||
+                (x.Subtipo != null && x.Subtipo.Contains(term)) ||
+                x.Situacao.Contains(term) ||
+                (x.Descricao != null && x.Descricao.Contains(term)) ||
+                (x.ProximaParcelaTexto != null && x.ProximaParcelaTexto.Contains(term)));
+        }
+
+        if (filter?.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(Map).ToList();
+
+        return new CursorResult<AcompanhamentoDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+    }
     public async Task<AcompanhamentoDto> GetAsync(long id,CancellationToken ct=default)=>Map(await Find(id,ct));
     public async Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows,CancellationToken ct=default)
     {

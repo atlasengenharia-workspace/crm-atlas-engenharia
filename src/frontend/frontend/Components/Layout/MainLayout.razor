@@ -238,7 +238,7 @@
         try
         {
             if (evaluateRules) await NotificationService.RunRulesAsync(_currentUser.Id);
-            _recentNotifications = (await NotificationService.ListAsync(_currentUser.Id)).ToList();
+            _recentNotifications = (await NotificationService.ListAsync(new NotificationFilter(_currentUser.Id))).Items.ToList();
             _unreadCount = _recentNotifications.Count(x => !x.Lida);
         }
         catch {}

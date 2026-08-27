@@ -13,17 +13,49 @@ public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? No
     [Required] string Situacao, string? Telefone, AcompanhamentoServicoTipo TipoServico, decimal? ValorTotal,
     DateOnly? Data = null, [EmailAddress] string? Email = null);
 
+public sealed record OrcamentoFilter(
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20,
+    long? AfterId = null);
+
 public interface IOrcamentoService
 {
-    Task<IReadOnlyList<OrcamentoDto>> ListAsync(CancellationToken ct = default);
+    Task<CursorResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default);
     Task<OrcamentoDto> SaveAsync(OrcamentoDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
 }
 
 public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcamentoService
 {
-    public async Task<IReadOnlyList<OrcamentoDto>> ListAsync(CancellationToken ct = default) =>
-        (await repository.ListAsync(ct)).OrderByDescending(x => x.CreatedAt).Select(Map).ToList();
+    public async Task<CursorResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default)
+    {
+        var query = repository.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter?.Search))
+        {
+            var term = filter.Search.Trim();
+            query = query.Where(x =>
+                x.Codigo.Contains(term) ||
+                (x.Nome != null && x.Nome.Contains(term)) ||
+                (x.Descricao != null && x.Descricao.Contains(term)) ||
+                (x.Telefone != null && x.Telefone.Contains(term)) ||
+                (x.Email != null && x.Email.Contains(term)));
+        }
+
+        if (filter?.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(Map).ToList();
+
+        return new CursorResult<OrcamentoDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+    }
 
     public async Task<OrcamentoDto> SaveAsync(OrcamentoDto dto, CancellationToken ct = default)
     {
@@ -67,9 +99,15 @@ public sealed record PrestadorDetalheDto(
     IReadOnlyList<PrestadorServicoVinculadoDto> Servicos,
     IReadOnlyList<PrestadorLancamentoVinculadoDto> Lancamentos);
 
+public sealed record PrestadorFilter(
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20,
+    long? AfterId = null);
+
 public interface IPrestadorService
 {
-    Task<IReadOnlyList<PrestadorDto>> ListAsync(CancellationToken ct = default);
+    Task<CursorResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default);
     Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default);
     Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
@@ -80,8 +118,34 @@ public sealed class PrestadorService(
     IRepository<CadastroServico> servicos,
     IRepository<Lancamento> lancamentos) : IPrestadorService
 {
-    public async Task<IReadOnlyList<PrestadorDto>> ListAsync(CancellationToken ct = default) =>
-        (await repository.ListAsync(ct)).OrderBy(x => x.Nome).Select(Map).ToList();
+    public async Task<CursorResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default)
+    {
+        var query = repository.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter?.Search))
+        {
+            var term = filter.Search.Trim();
+            query = query.Where(x =>
+                x.Nome.Contains(term) ||
+                (x.CnpjCpf != null && x.CnpjCpf.Contains(term)) ||
+                (x.Telefone != null && x.Telefone.Contains(term)) ||
+                (x.Email != null && x.Email.Contains(term)) ||
+                (x.MetodoPagamento != null && x.MetodoPagamento.Contains(term)));
+        }
+
+        if (filter?.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(Map).ToList();
+
+        return new CursorResult<PrestadorDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+    }
 
     public async Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default)
     {
@@ -143,9 +207,15 @@ public sealed record NotificationDto(long Id,string Titulo,string? Mensagem,Noti
     DateTimeOffset CriadaEm,bool Lida,DateTimeOffset? ConfirmadaEm,string? Referencia);
 public sealed record NotificationRuleDto(long? Id,string Nome,NotificationRuleType Tipo,NotificationCategory Categoria,
     int Dias,bool Ativa);
+public sealed record NotificationFilter(
+    long UserId,
+    int Page = 1,
+    int PageSize = 20,
+    long? AfterId = null);
+
 public interface INotificationService
 {
-    Task<IReadOnlyList<NotificationDto>> ListAsync(long userId,CancellationToken ct=default);
+    Task<CursorResult<NotificationDto>> ListAsync(NotificationFilter filter,CancellationToken ct=default);
     Task MarkReadAsync(long userId,long id,CancellationToken ct=default);
     Task ConfirmAsync(long userId,long id,CancellationToken ct=default);
     Task<IReadOnlyList<NotificationRuleDto>> ListRulesAsync(CancellationToken ct=default);
@@ -156,23 +226,37 @@ public interface INotificationService
 public sealed class NotificationService(IRepository<Notification> repository,IRepository<NotificationRule> rules,
     IRepository<Lancamento> entries,IRepository<AcompanhamentoServico> tracking) : INotificationService
 {
-    public async Task<IReadOnlyList<NotificationDto>> ListAsync(long userId, CancellationToken ct = default)
+    public async Task<CursorResult<NotificationDto>> ListAsync(NotificationFilter filter, CancellationToken ct = default)
     {
-        var items = (await repository.ListAsync(ct)).Where(x => x.UserId == userId).ToList();
-        if (items.Count == 0)
+        var query = repository.AsQueryable().Where(x => x.UserId == filter.UserId);
+
+        if (filter.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
+
+        if (items.Count == 0 && filter.AfterId is null)
         {
             var now = DateTimeOffset.UtcNow;
             var seed = new List<Notification>
             {
-                new() { UserId = userId, Title = "📢 Sistema Atualizado para v2.4.0", Message = "O CRM Atlas foi atualizado com suporte a Auth0, emissão de PDF e design responsivo.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:v24", CreatedAt = now },
-                new() { UserId = userId, Title = "📋 Central de Acompanhamento Operacional", Message = "Cadastros de AVCB, CLCB, Obras e Processos Administrativos estão sincronizados.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:op", CreatedAt = now.AddMinutes(-5) },
-                new() { UserId = userId, Title = "💰 Controle Financeiro e Notas Fiscais", Message = "Gerencie entradas, saídas, NFs e condições de pagamento de forma centralizada.", Category = NotificationCategory.FINANCEIRA, ReferenceKey = "sys:welcome:fin", CreatedAt = now.AddMinutes(-10) }
+                new() { UserId = filter.UserId, Title = "📢 Sistema Atualizado para v2.4.0", Message = "O CRM Atlas foi atualizado com suporte a Auth0, emissão de PDF e design responsivo.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:v24", CreatedAt = now },
+                new() { UserId = filter.UserId, Title = "📋 Central de Acompanhamento Operacional", Message = "Cadastros de AVCB, CLCB, Obras e Processos Administrativos estão sincronizados.", Category = NotificationCategory.TECNICA, ReferenceKey = "sys:welcome:op", CreatedAt = now.AddMinutes(-5) },
+                new() { UserId = filter.UserId, Title = "💰 Controle Financeiro e Notas Fiscais", Message = "Gerencie entradas, saídas, NFs e condições de pagamento de forma centralizada.", Category = NotificationCategory.FINANCEIRA, ReferenceKey = "sys:welcome:fin", CreatedAt = now.AddMinutes(-10) }
             };
             foreach (var n in seed) await repository.AddAsync(n, ct);
             await repository.SaveChangesAsync(ct);
-            items = seed;
+            return new CursorResult<NotificationDto>(seed.Select(Map).ToList(), filter.Page, pageSize, null, false);
         }
-        return items.OrderByDescending(x => x.CreatedAt).Select(Map).ToList();
+
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(Map).ToList();
+
+        return new CursorResult<NotificationDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
     public async Task MarkReadAsync(long userId,long id,CancellationToken ct=default)
     {

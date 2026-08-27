@@ -52,6 +52,17 @@
                 </MudTable>
                 </ChildContent>
                 </SmartTableFilter>
+
+                <MudDivider Class="my-3" />
+                <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Página @_page
+                    </MudText>
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                        <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+                    </MudStack>
+                </MudToolBar>
             </MudPaper>
         </MudItem>
         @if (_editing)
@@ -92,7 +103,10 @@
 </GlobalSkeleton>
 
 @code {
-    private IReadOnlyList<CondicaoPagamentoDto> _items = [];
+    private List<CondicaoPagamentoDto> _items = [];
+    private CursorResult<CondicaoPagamentoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
+    private int _page = 1;
     private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
     [
         new("nome","Nome",x=>x.Nome,1),new("parcelas","Parcelas",x=>x.QuantidadeParcelas,2,true),
@@ -109,9 +123,32 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        try { _items = await Service.ListAsync(); }
+        try
+        {
+            _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, _page, 20, _cursors[_page - 1]));
+            _items = _result.Items.ToList();
+        }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
+    }
+
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
     }
 
     private void New() { _model = new(); _editing = true; }

@@ -18,7 +18,7 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true"
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true" OnKeyDown="SearchOnEnter"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
         <SmartTableFilter TItem="OrcamentoDto" Items="Filtered" Columns="_filterColumns">
         <ChildContent Context="smartItems">
@@ -37,6 +37,17 @@
         </MudTable>
         </ChildContent>
         </SmartTableFilter>
+
+        <MudDivider Class="my-3" />
+        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Página @_page
+            </MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+            </MudStack>
+        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -65,7 +76,10 @@
 </MudDrawer>
 
 @code {
-    private List<OrcamentoDto> _items=[]; private BudgetModel _model=new(); private MudForm? _form;
+    private List<OrcamentoDto> _items=[]; private CursorResult<OrcamentoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
+    private int _page = 1;
+    private BudgetModel _model=new(); private MudForm? _form;
     private readonly IReadOnlyList<SmartFilterColumn<OrcamentoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,1),new("cliente","Cliente",x=>x.Nome,2),
@@ -75,7 +89,42 @@
     private bool _loading,_open,_saving,_valid; private string? _search;
     private IEnumerable<OrcamentoDto> Filtered => string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Codigo} {x.Nome} {x.Descricao} {x.Telefone} {x.Email} {x.Data:dd/MM/yyyy}".Contains(_search,StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()=>await LoadAsync();
-    private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    private async Task LoadAsync()
+    {
+        _loading=true;
+        try
+        {
+            _result = await Service.ListAsync(new OrcamentoFilter(_search, _page, 20, _cursors[_page - 1]));
+            _items = _result.Items.ToList();
+        }
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_loading=false;}
+    }
+
+    private async Task SearchOnEnter(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
+    }
+
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
+
     private void New(){_model=new(){Codigo=$"ORC-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
     private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
     private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}

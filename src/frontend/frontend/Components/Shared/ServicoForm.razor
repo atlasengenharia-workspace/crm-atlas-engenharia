@@ -352,10 +352,10 @@
         {
             var clients = await ClienteService.ListAsync(new(null, null, null, null, null, null, null, 1, 2000));
             _clientes = clients.Items;
-            _conditions = await CondicaoService.ListAsync();
+            _conditions = (await CondicaoService.ListAsync(new(PageSize: 5000))).Items;
             _subtypes = await Service.ListSubtiposAsync();
-            _budgets = await OrcamentoService.ListAsync();
-            _providers = await PrestadorService.ListAsync();
+            _budgets = (await OrcamentoService.ListAsync(new(PageSize: 5000))).Items;
+            _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _situations = await AcompanhamentoService.ListSituationsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }

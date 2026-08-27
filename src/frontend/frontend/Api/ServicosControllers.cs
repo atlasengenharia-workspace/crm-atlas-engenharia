@@ -9,7 +9,9 @@ namespace CrmAtlas.Web.Api;
 public sealed class CondicoesPagamentoController(ICondicaoPagamentoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<CondicaoPagamentoDto>> List(CancellationToken ct) => service.ListAsync(ct);
+    public Task<CursorResult<CondicaoPagamentoDto>> List(
+        [FromQuery] CondicaoPagamentoFilter filter,
+        CancellationToken ct) => service.ListAsync(filter, ct);
 
     [HttpGet("{id:long}")]
     public Task<CondicaoPagamentoDto> Get(long id, CancellationToken ct) => service.GetAsync(id, ct);

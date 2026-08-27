@@ -1,3 +1,4 @@
+using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Operacao;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,9 @@ public sealed class AcompanhamentosController(
     IAcompanhamentoReportService reports) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<AcompanhamentoDto>> List(CancellationToken ct) => service.ListAsync(null, ct);
+    public Task<CursorResult<AcompanhamentoDto>> List(
+        [FromQuery] AcompanhamentoFilter filter,
+        CancellationToken ct) => service.ListAsync(filter, ct);
 
     [HttpGet("{id:long}")]
     public Task<AcompanhamentoDto> Get(long id, CancellationToken ct) => service.GetAsync(id, ct);
@@ -25,8 +28,8 @@ public sealed class AcompanhamentosController(
     [HttpGet("export/excel")]
     public async Task<IActionResult> ExportExcel(CancellationToken ct)
     {
-        var items = await service.ListAsync(null, ct);
-        var file = reports.GenerateExcel(items);
+        var result = await service.ListAsync(new AcompanhamentoFilter { PageSize = 5000 }, ct);
+        var file = reports.GenerateExcel(result.Items);
         return File(file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "acompanhamentos.xlsx");
     }
 

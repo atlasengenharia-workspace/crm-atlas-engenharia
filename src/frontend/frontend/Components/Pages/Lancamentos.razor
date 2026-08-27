@@ -288,7 +288,7 @@ else
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
-            _providers = await PrestadorService.ListAsync();
+            _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _result = await Service.ListAsync(CurrentFilter(1, 20, null));
             _summaryItems = _result.Items;
         }

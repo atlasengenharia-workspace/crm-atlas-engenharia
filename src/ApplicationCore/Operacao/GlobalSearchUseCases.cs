@@ -21,20 +21,20 @@ public sealed class GlobalSearchService(IClienteService clients,ICadastroServico
         limitPerType=Math.Clamp(limitPerType,1,20);
         var clientsResult=await clients.ListAsync(new(null,null,null,null,null,null,null,1,100),ct);
         var servicesResult=await services.ListAsync(new(null,null,null,1,100),ct);
-        var budgetsResult=await budgets.ListAsync(ct);
-        var providersResult=await providers.ListAsync(ct);
-        var trackingResult=await tracking.ListAsync(null,ct);
+        var budgetsResult=await budgets.ListAsync(new OrcamentoFilter(null,1,100),ct);
+        var providersResult=await providers.ListAsync(new PrestadorFilter(null,1,100),ct);
+        var trackingResult=await tracking.ListAsync(new AcompanhamentoFilter(null,null,false,1,100),ct);
         var result=new List<GlobalSearchResult>();
         result.AddRange(clientsResult.Items.Where(x=>Matches($"{x.RazaoSocial} {x.CnpjCpf} {x.NomeContato} {x.Email} {x.Telefone} {x.Cidade} {x.Estado}",query))
             .Take(limitPerType).Where(x=>x.Id is not null)
             .Select(x=>new GlobalSearchResult(GlobalSearchResultType.CLIENTE,x.Id!.Value,x.RazaoSocial,x.CnpjCpf,x.Cidade)));
         result.AddRange(servicesResult.Items.Where(x=>Matches($"{x.Codigo} {x.RazaoSocialEmpresa} {x.DocumentoEmpresa} {x.Subtipo}",query))
             .Take(limitPerType).Where(x=>x.Id is not null).Select(x=>new GlobalSearchResult(GlobalSearchResultType.SERVICO,x.Id!.Value,x.RazaoSocialEmpresa,x.Subtipo,x.Codigo)));
-        result.AddRange(budgetsResult.Where(x=>Matches($"{x.Codigo} {x.Nome} {x.Descricao} {x.Situacao}",query))
+        result.AddRange(budgetsResult.Items.Where(x=>Matches($"{x.Codigo} {x.Nome} {x.Descricao} {x.Situacao}",query))
             .Take(limitPerType).Where(x=>x.Id is not null).Select(x=>new GlobalSearchResult(GlobalSearchResultType.ORCAMENTO,x.Id!.Value,x.Nome??x.Codigo,x.Situacao,x.Codigo)));
-        result.AddRange(providersResult.Where(x=>Matches($"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}",query))
+        result.AddRange(providersResult.Items.Where(x=>Matches($"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}",query))
             .Take(limitPerType).Where(x=>x.Id is not null).Select(x=>new GlobalSearchResult(GlobalSearchResultType.PRESTADOR,x.Id!.Value,x.Nome,x.Email,x.CnpjCpf)));
-        result.AddRange(trackingResult.Where(x=>Matches($"{x.Codigo} {x.Cliente} {x.Situacao} {x.Descricao}",query))
+        result.AddRange(trackingResult.Items.Where(x=>Matches($"{x.Codigo} {x.Cliente} {x.Situacao} {x.Descricao}",query))
             .Take(limitPerType).Select(x=>new GlobalSearchResult(GlobalSearchResultType.ACOMPANHAMENTO,x.Id,x.Cliente??x.Codigo,x.Situacao,x.Codigo)));
         return result;
     }
