@@ -1,0 +1,31 @@
+name: .NET
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore src/frontend/frontend/frontend.csproj
+
+    - name: Build
+      run: dotnet build src/frontend/frontend/frontend.csproj --no-restore --configuration Release
+
+    - name: Test Unit
+      run: dotnet test tests/UnitTests/UnitTests.csproj --verbosity normal
+
+    - name: Test Integration
+      run: dotnet test tests/IntegrationTests/IntegrationTests.csproj --verbosity normal
