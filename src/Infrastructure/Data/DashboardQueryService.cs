@@ -99,19 +99,31 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
 
         var prioritiesQuery = db.Acompanhamentos
             .AsNoTracking()
-            .Where(x => types.Contains(x.TipoServico));
+            .SelectMany(a => db.CadastrosServico.AsNoTracking().Where(c => c.Codigo == a.Codigo).DefaultIfEmpty(),
+                (a, c) => new { a, c })
+            .Where(x => types.Contains(x.a.TipoServico));
 
         if (filter.MinContractValue.HasValue)
-            prioritiesQuery = prioritiesQuery.Where(x => x.ValorContrato >= filter.MinContractValue.Value);
+            prioritiesQuery = prioritiesQuery.Where(x => x.a.ValorContrato >= filter.MinContractValue.Value);
         if (filter.MaxContractValue.HasValue)
-            prioritiesQuery = prioritiesQuery.Where(x => x.ValorContrato <= filter.MaxContractValue.Value);
+            prioritiesQuery = prioritiesQuery.Where(x => x.a.ValorContrato <= filter.MaxContractValue.Value);
 
         var prioritiesRaw = await prioritiesQuery
             .Select(x => new
             {
-                x.Id, x.Codigo, x.NomeCliente, x.TipoServico, x.Situacao, x.Endereco,
-                x.ValorContrato, x.Recebido, x.AReceber, x.DataContrato, x.UltimaMudancaSituacaoEm, x.CreatedAt,
-                OpenPendencies = x.Pendencias.Count(p => !p.Concluida)
+                x.a.Id,
+                x.a.Codigo,
+                x.a.NomeCliente,
+                x.a.TipoServico,
+                x.a.Situacao,
+                x.a.Endereco,
+                x.a.ValorContrato,
+                x.a.Recebido,
+                x.a.AReceber,
+                DataContrato = x.a.DataContrato ?? (x.c != null ? x.c.DataContrato : null),
+                x.a.UltimaMudancaSituacaoEm,
+                x.a.CreatedAt,
+                OpenPendencies = x.a.Pendencias.Count(p => !p.Concluida)
             })
             .ToListAsync(cancellationToken);
 
