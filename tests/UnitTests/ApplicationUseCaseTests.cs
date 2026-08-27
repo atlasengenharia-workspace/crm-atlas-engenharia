@@ -59,7 +59,7 @@ public sealed class ApplicationUseCaseTests
 
         Assert.Single(result.Items);
         Assert.Equal("Aluguel", result.Items[0].Descricao);
-        Assert.Equal(1, result.TotalItems);
+        Assert.False(result.HasNext);
     }
 
     [Theory]
@@ -115,6 +115,14 @@ public sealed class ApplicationUseCaseTests
 
         public Task<IReadOnlyList<TEntity>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TEntity>>(_items.ToList());
+
+        public IQueryable<TEntity> AsQueryable() => _items.AsQueryable();
+
+        public Task<IReadOnlyList<TEntity>> ToListAsync(IQueryable<TEntity> query, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TEntity>>(query.ToList());
+
+        public Task<int> CountAsync(IQueryable<TEntity> query, CancellationToken cancellationToken = default) =>
+            Task.FromResult(query.Count());
 
         public Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
         {

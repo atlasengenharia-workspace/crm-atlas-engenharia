@@ -101,9 +101,9 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
         if (filter.DataFinal is not null)
             query = query.Where(x => x.Data <= filter.DataFinal);
         if (!string.IsNullOrWhiteSpace(filter.Descricao))
-            query = query.Where(x => x.Descricao.Contains(filter.Descricao.Trim()));
+            query = query.Where(x => x.Descricao.ToLower().Contains(filter.Descricao.Trim().ToLower()));
         if (!string.IsNullOrWhiteSpace(filter.Categoria))
-            query = query.Where(x => x.Categoria.Contains(filter.Categoria.Trim()));
+            query = query.Where(x => x.Categoria.ToLower().Contains(filter.Categoria.Trim().ToLower()));
 
         if (filter.AfterId is not null)
             query = query.Where(x => x.Id < filter.AfterId);
@@ -205,8 +205,8 @@ public sealed class LancamentoService(
         if (filter.DataFinal is not null)
             query = query.Where(x => x.Data <= filter.DataFinal);
 
-        var descricao = filter.Descricao?.Trim();
-        var codigoServico = filter.CodigoServico?.Trim();
+        var descricao = filter.Descricao?.Trim().ToLowerInvariant();
+        var codigoServico = filter.CodigoServico?.Trim().ToLowerInvariant();
 
         if (!string.IsNullOrWhiteSpace(descricao) || !string.IsNullOrWhiteSpace(codigoServico))
         {
@@ -214,14 +214,14 @@ public sealed class LancamentoService(
             if (same)
             {
                 query = query.Where(x =>
-                    (x.Descricao != null && x.Descricao.Contains(descricao!))
-                    || (x.CodigoServico != null && x.CodigoServico.Contains(codigoServico!)));
+                    (x.Descricao != null && x.Descricao.ToLower().Contains(descricao!))
+                    || (x.CodigoServico != null && x.CodigoServico.ToLower().Contains(codigoServico!)));
             }
             else
             {
                 query = query.Where(x =>
-                    (string.IsNullOrWhiteSpace(descricao) || (x.Descricao != null && x.Descricao.Contains(descricao!)))
-                    && (string.IsNullOrWhiteSpace(codigoServico) || (x.CodigoServico != null && x.CodigoServico.Contains(codigoServico!))));
+                    (string.IsNullOrWhiteSpace(descricao) || (x.Descricao != null && x.Descricao.ToLower().Contains(descricao!)))
+                    && (string.IsNullOrWhiteSpace(codigoServico) || (x.CodigoServico != null && x.CodigoServico.ToLower().Contains(codigoServico!))));
             }
         }
 
