@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ClosedXML.Excel;
 using CrmAtlas.ApplicationCore.Enums;
 using CrmAtlas.ApplicationCore.Operacao;
 
@@ -27,7 +28,8 @@ public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportServic
             ("Nota Fiscal (NF)", item.NotaFiscal ?? "-"),
             ("Condição Pagamento", item.CondicaoPagamento ?? "-"),
             ("Valor do Contrato", item.ValorContrato?.ToString("C2", PtBr) ?? "-"),
-            ("Data do Contrato", item.DataContrato?.ToString("dd/MM/yyyy") ?? "-")
+            ("Data do Contrato", item.DataContrato?.ToString("dd/MM/yyyy") ?? "-"),
+            ("Próxima Parcela", item.ProximaParcela?.ToString("dd/MM/yyyy") ?? "-")
         });
 
         // Pendencies Table
@@ -67,6 +69,53 @@ public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportServic
         }
 
         return doc.Build();
+    }
+
+    public byte[] GenerateExcel(IEnumerable<AcompanhamentoDto> items)
+    {
+        var list = items.ToList();
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Acompanhamentos");
+        var headers = new[] { "Código", "Tipo", "Cliente", "CPF/CNPJ", "Endereço", "Telefone", "Serviço", "R$ Contrato", "Data Contrato", "NF", "Condição Pagamento", "Próxima Parcela", "Situação", "Observações", "A Receber", "Recebido", "Custos", "Atualização" };
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var cell = ws.Cell(1, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromColor(System.Drawing.Color.FromArgb(15, 27, 45));
+            cell.Style.Font.FontColor = XLColor.White;
+        }
+        for (int r = 0; r < list.Count; r++)
+        {
+            var x = list[r];
+            var row = r + 2;
+            ws.Cell(row, 1).Value = x.Codigo;
+            ws.Cell(row, 2).Value = x.Tipo.ToString();
+            ws.Cell(row, 3).Value = x.Cliente;
+            ws.Cell(row, 4).Value = x.CnpjCpf;
+            ws.Cell(row, 5).Value = x.Endereco;
+            ws.Cell(row, 6).Value = x.Telefone;
+            ws.Cell(row, 7).Value = x.Servico;
+            ws.Cell(row, 8).Value = x.ValorContrato;
+            ws.Cell(row, 8).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 9).Value = x.DataContrato?.ToString("dd/MM/yyyy");
+            ws.Cell(row, 10).Value = x.NotaFiscal;
+            ws.Cell(row, 11).Value = x.CondicaoPagamento;
+            ws.Cell(row, 12).Value = x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto;
+            ws.Cell(row, 13).Value = x.Situacao;
+            ws.Cell(row, 14).Value = x.Descricao;
+            ws.Cell(row, 15).Value = x.AReceber;
+            ws.Cell(row, 15).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 16).Value = x.Recebido;
+            ws.Cell(row, 16).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 17).Value = x.Custos;
+            ws.Cell(row, 17).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 18).Value = x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+        }
+        ws.Columns().AdjustToContents();
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
     }
 
     public byte[] GenerateGeneralOperationalReport(IEnumerable<AcompanhamentoDto> items)

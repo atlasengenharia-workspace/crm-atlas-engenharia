@@ -1,16 +1,26 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IIdentityService IdentityService
 @inject IUserPreferencesService PreferencesService
 
 @inject INotificationService NotificationService
+@inject IRealtimeChangeFeed RealtimeChanges
+@inject ISnackbar Snackbar
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_darkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+
+<MudOverlay Visible="_loggingOut" DarkBackground="true" ZIndex="2000">
+    <MudPaper Class="pa-5 d-flex flex-column align-center gap-3" Elevation="8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        <MudText Typo="Typo.subtitle1">Saindo...</MudText>
+    </MudPaper>
+</MudOverlay>
 
 <MudLayout>
     <MudAppBar Elevation="1">
@@ -25,7 +35,7 @@
 
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
             <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" Class="d-none d-sm-inline-flex mr-2 cursor-pointer" OnClick="@(() => Navigation.NavigateTo("/atualizacoes"))">
-                v2.4.0
+                v2.5.0
             </MudChip>
             <MudHidden Breakpoint="Breakpoint.MdAndUp">
                 <MudIconButton Icon="@Icons.Material.Filled.Search" Href="/busca" Color="Color.Inherit" aria-label="Abrir busca global" />
@@ -33,44 +43,67 @@
             <MudIconButton Icon="@(_darkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit" OnClick="@ToggleThemeAsync" aria-label="Alternar tema" />
             
-            <!-- Interactive Notification Bell Menu -->
-            <MudMenu Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Notificações">
+            <!-- Central rápida de notificações -->
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Notificações">
                 <ActivatorContent>
-                    <MudBadge Content="@UnreadCountDisplay" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)">
-                        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" aria-label="Abrir notificações" />
+                    <MudBadge Content="@UnreadCountDisplay" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)" Class="atlas-notification-badge">
+                        <MudIconButton Icon="@(_unreadCount > 0 ? Icons.Material.Filled.NotificationsActive : Icons.Material.Filled.NotificationsNone)"
+                                       Color="Color.Inherit"
+                                       Class="@(_unreadCount > 0 ? "atlas-bell-has-news" : null)"
+                                       aria-label="@(_unreadCount > 0 ? $"Abrir {_unreadCount} notificações não lidas" : "Abrir notificações")" />
                     </MudBadge>
                 </ActivatorContent>
                 <ChildContent>
-                    <div class="pa-3" style="min-width: 320px; max-width: 380px;">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
-                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Notificações</MudText>
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@_unreadCount não lida(s)</MudChip>
+                    <div class="atlas-notification-dropdown">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pa-3 pb-2">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Notificações</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Atualizações importantes do sistema</MudText>
+                            </MudStack>
+                            @if (_unreadCount > 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error">@_unreadCount nova(s)</MudChip>
+                            }
                         </MudStack>
-                        <MudDivider Class="mb-2" />
+                        <MudDivider />
                         @if (_recentNotifications.Count == 0)
                         {
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="py-3 text-center">Nenhuma notificação recente.</MudText>
+                            <MudStack AlignItems="AlignItems.Center" Spacing="1" Class="pa-6">
+                                <MudAvatar Color="Color.Default" Variant="Variant.Outlined"><MudIcon Icon="@Icons.Material.Filled.NotificationsNone" /></MudAvatar>
+                                <MudText Typo="Typo.subtitle2">Tudo em dia</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Nenhuma notificação recente.</MudText>
+                            </MudStack>
                         }
                         else
                         {
-                            @foreach (var n in _recentNotifications.Take(4))
-                            {
-                                <MudMenuItem OnClick="@(() => OpenNotification(n))" Class="px-2 py-2 rounded mb-1">
-                                    <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                        <MudAvatar Size="Size.Small" Color="@(n.Categoria == NotificationCategory.FINANCEIRA ? Color.Warning : Color.Info)" Class="mt-1">
-                                            <MudIcon Icon="@(n.Categoria == NotificationCategory.FINANCEIRA ? Icons.Material.Filled.Payments : Icons.Material.Filled.Engineering)" Size="Size.Small" />
-                                        </MudAvatar>
-                                        <div>
-                                            <MudText Typo="Typo.body2" Class="@(!n.Lida ? "font-weight-bold" : "")">@n.Titulo</MudText>
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">@n.Mensagem</MudText>
-                                        </div>
-                                    </MudStack>
-                                </MudMenuItem>
-                            }
+                            <div class="atlas-notification-list">
+                                @foreach (var n in _recentNotifications.Take(8))
+                                {
+                                    <MudMenuItem OnClick="@(() => OpenNotification(n))" Class="atlas-notification-item">
+                                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2" Class="w-100">
+                                            <MudAvatar Size="Size.Small" Color="@(n.Categoria == NotificationCategory.FINANCEIRA ? Color.Warning : Color.Info)" Variant="Variant.Outlined" Class="mt-1">
+                                                <MudIcon Icon="@(n.Categoria == NotificationCategory.FINANCEIRA ? Icons.Material.Filled.Payments : Icons.Material.Filled.Engineering)" Size="Size.Small" />
+                                            </MudAvatar>
+                                            <MudStack Spacing="0" Class="atlas-notification-copy">
+                                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                    @if (!n.Lida) { <span class="atlas-unread-dot" aria-label="Não lida"></span> }
+                                                    <MudText Typo="Typo.body2" Class="@(!n.Lida ? "font-weight-bold" : "")">@n.Titulo</MudText>
+                                                </MudStack>
+                                                @if (!string.IsNullOrWhiteSpace(n.Mensagem))
+                                                {
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="atlas-notification-message">@n.Mensagem</MudText>
+                                                }
+                                                <MudText Typo="Typo.caption" Color="Color.Primary">@RelativeTime(n.CriadaEm) • @NotificationDestination(n)</MudText>
+                                            </MudStack>
+                                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Color="Color.Secondary" Class="mt-2" />
+                                        </MudStack>
+                                    </MudMenuItem>
+                                }
+                            </div>
                         }
-                        <MudDivider Class="my-2" />
-                        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" OnClick="@(() => Navigation.NavigateTo("/notificacoes"))">
-                            Ver Central de Notificações
+                        <MudDivider />
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" Class="rounded-0 py-3" EndIcon="@Icons.Material.Filled.ArrowForward" OnClick="@(() => Navigation.NavigateTo("/notificacoes"))">
+                            Ver todas as notificações
                         </MudButton>
                     </div>
                 </ChildContent>
@@ -83,9 +116,9 @@
                              AriaLabel="Menu da conta">
                         <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Meu perfil</MudMenuItem>
                         <MudMenuItem Href="/profile/configuracoes" Icon="@Icons.Material.Filled.Settings">Preferências</MudMenuItem>
-                        <MudMenuItem Href="/atualizacoes" Icon="@Icons.Material.Filled.NewReleases">Atualizações (v2.4.0)</MudMenuItem>
+                        <MudMenuItem Href="/atualizacoes" Icon="@Icons.Material.Filled.NewReleases">Atualizações (v2.5.0)</MudMenuItem>
                         <MudDivider />
-                        <MudMenuItem Href="/Logout" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
+                        <MudMenuItem OnClick="LogoutAsync" Disabled="_loggingOut" Icon="@Icons.Material.Filled.Logout">Sair</MudMenuItem>
                     </MudMenu>
                 </Authorized>
             </AuthorizeView>
@@ -103,9 +136,31 @@
     </MudMainContent>
 </MudLayout>
 
+<style>
+    .atlas-notification-dropdown { width: min(400px, calc(100vw - 24px)); overflow: hidden; }
+    .atlas-notification-list { max-height: min(60vh, 480px); overflow-y: auto; overscroll-behavior: contain; }
+    .atlas-notification-item { padding: 12px 14px !important; border-bottom: 1px solid var(--mud-palette-divider); transition: background .16s ease; }
+    .atlas-notification-item:hover { background: var(--mud-palette-action-default-hover); }
+    .atlas-notification-copy { min-width: 0; flex: 1; }
+    .atlas-notification-message { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .atlas-unread-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--mud-palette-error); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mud-palette-error) 18%, transparent); }
+    .atlas-bell-has-news { transform-origin: 50% 10%; animation: atlas-bell-ring 3.2s ease-in-out infinite; }
+    .atlas-notification-badge .mud-badge { animation: atlas-badge-pulse 2s ease-out infinite; }
+    @@keyframes atlas-bell-ring {
+        0%, 82%, 100% { transform: rotate(0); }
+        86% { transform: rotate(13deg); }
+        90% { transform: rotate(-11deg); }
+        94% { transform: rotate(7deg); }
+        98% { transform: rotate(-4deg); }
+    }
+    @@keyframes atlas-badge-pulse { 0%, 60%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); } 80% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }
+    @@media (prefers-reduced-motion: reduce) { .atlas-bell-has-news, .atlas-notification-badge .mud-badge { animation: none; } }
+</style>
+
 @code {
     private bool _drawerOpen = true;
     private bool _darkMode;
+    private bool _loggingOut;
     private string? _search = string.Empty;
     private CurrentUserDto? _currentUser;
     private UserPreferencesDto _preferences = new("Sistema", "Confortável", true, true, false);
@@ -113,11 +168,14 @@
 
     private List<NotificationDto> _recentNotifications = [];
     private int _unreadCount;
+    private IDisposable? _realtimeSubscription;
+    private CancellationTokenSource? _realtimeRefreshCancellation;
     private string UnreadCountDisplay => _unreadCount > 99 ? "99+" : _unreadCount.ToString();
 
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        _realtimeSubscription = RealtimeChanges.Subscribe(OnRealtimeChangedAsync);
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         if (state.User.Identity?.IsAuthenticated != true) return;
         var sub = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -140,14 +198,46 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        _realtimeSubscription?.Dispose();
+        _realtimeRefreshCancellation?.Cancel();
+        _realtimeRefreshCancellation?.Dispose();
     }
 
-    private async Task LoadNotificationsAsync()
+    private Task OnRealtimeChangedAsync(RealtimeChange change) => InvokeAsync(async () =>
+    {
+        if (change.Module == "notificacoes") await LoadNotificationsAsync(evaluateRules: false);
+        var label = change.Module.Replace('-', ' ');
+        Snackbar.Add($"{char.ToUpperInvariant(label[0])}{label[1..]} atualizado em tempo real.", Severity.Info,
+            config => { config.VisibleStateDuration = 2500; config.ShowCloseIcon = true; });
+        StateHasChanged();
+
+        if (_currentUser is not null && change.Module != "notificacoes")
+            await ScheduleRealtimeRefreshAsync();
+    });
+
+    private async Task ScheduleRealtimeRefreshAsync()
+    {
+        _realtimeRefreshCancellation?.Cancel();
+        _realtimeRefreshCancellation?.Dispose();
+        _realtimeRefreshCancellation = new CancellationTokenSource();
+        var cancellationToken = _realtimeRefreshCancellation.Token;
+
+        try
+        {
+            await Task.Delay(150, cancellationToken);
+            Navigation.Refresh();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task LoadNotificationsAsync(bool evaluateRules = true)
     {
         if (_currentUser is null) return;
         try
         {
-            await NotificationService.RunRulesAsync(_currentUser.Id);
+            if (evaluateRules) await NotificationService.RunRulesAsync(_currentUser.Id);
             _recentNotifications = (await NotificationService.ListAsync(_currentUser.Id)).ToList();
             _unreadCount = _recentNotifications.Count(x => !x.Lida);
         }
@@ -159,9 +249,39 @@
         if (_currentUser is not null && !item.Lida)
         {
             await NotificationService.MarkReadAsync(_currentUser.Id, item.Id);
-            await LoadNotificationsAsync();
+            await LoadNotificationsAsync(evaluateRules: false);
         }
-        Navigation.NavigateTo("/notificacoes");
+        Navigation.NavigateTo(NotificationRoute(item));
+    }
+
+    private static string NotificationRoute(NotificationDto item)
+    {
+        var reference = item.Referencia ?? string.Empty;
+        if (reference.StartsWith("parcela:", StringComparison.OrdinalIgnoreCase) || reference.Contains(":fin", StringComparison.OrdinalIgnoreCase))
+            return "/financeiro/lancamentos";
+        if (reference.StartsWith("servico:", StringComparison.OrdinalIgnoreCase) || reference.Contains(":op", StringComparison.OrdinalIgnoreCase))
+            return "/acompanhamento";
+        if (reference.StartsWith("sys:welcome:v", StringComparison.OrdinalIgnoreCase))
+            return "/atualizacoes";
+        return "/notificacoes";
+    }
+
+    private static string NotificationDestination(NotificationDto item) => NotificationRoute(item) switch
+    {
+        "/financeiro/lancamentos" => "Abrir lançamentos",
+        "/acompanhamento" => "Abrir acompanhamento",
+        "/atualizacoes" => "Ver atualização",
+        _ => "Abrir notificação"
+    };
+
+    private static string RelativeTime(DateTimeOffset createdAt)
+    {
+        var elapsed = DateTimeOffset.UtcNow - createdAt.ToUniversalTime();
+        if (elapsed.TotalMinutes < 1) return "Agora";
+        if (elapsed.TotalHours < 1) return $"Há {(int)elapsed.TotalMinutes} min";
+        if (elapsed.TotalDays < 1) return $"Há {(int)elapsed.TotalHours} h";
+        if (elapsed.TotalDays < 7) return $"Há {(int)elapsed.TotalDays} d";
+        return createdAt.LocalDateTime.ToString("dd/MM/yyyy");
     }
 
     private async Task ToggleDrawerAsync()
@@ -183,6 +303,15 @@
             SidebarOpen = sidebar ?? _preferences.SidebarOpen
         };
         await PreferencesService.SaveAsync(_currentUser.Id, _preferences);
+    }
+    private async Task LogoutAsync()
+    {
+        if (_loggingOut) return;
+        _loggingOut = true;
+        await InvokeAsync(StateHasChanged);
+        try { await JS.InvokeVoidAsync("crmAtlas.beginLogout"); }
+        catch { }
+        Navigation.NavigateTo("/Logout", forceLoad: true, replace: true);
     }
     private void SearchOnEnter(KeyboardEventArgs args)
     {

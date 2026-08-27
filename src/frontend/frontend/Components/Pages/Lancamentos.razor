@@ -12,6 +12,7 @@
 <PageHeader Title="Lançamentos financeiros"
             Subtitle="Controle entradas, saídas, previsões e pagamentos realizados.">
     <Actions>
+        <ValuesVisibilityToggle @bind-Hidden="_hideValues" />
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
                    StartIcon="@Icons.Material.Filled.Add" OnClick="New">Novo lançamento</MudButton>
     </Actions>
@@ -26,21 +27,21 @@ else
 <MudGrid Class="mb-4">
     <MudItem xs="12" sm="4">
         <MudPaper Outlined="true" Class="pa-4">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Entradas nesta página</MudText>
-            <MudText Typo="Typo.h5" Color="Color.Success">@Money(_result.Items.Sum(x => x.Faturamento))</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Entradas no período</MudText>
+            <MudText Typo="Typo.h5" Color="Color.Success">@Money(_summaryItems.Sum(x => x.Faturamento))</MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="4">
         <MudPaper Outlined="true" Class="pa-4">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Saídas nesta página</MudText>
-            <MudText Typo="Typo.h5" Color="Color.Error">@Money(_result.Items.Sum(x => x.CustoDireto))</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Saídas no período</MudText>
+            <MudText Typo="Typo.h5" Color="Color.Error">@Money(_summaryItems.Sum(x => x.CustoDireto))</MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="4">
         <MudPaper Outlined="true" Class="pa-4">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo nesta página</MudText>
-            <MudText Typo="Typo.h5" Color="@(_result.Items.Sum(x => x.Lucro) >= 0 ? Color.Success : Color.Error)">
-                @Money(_result.Items.Sum(x => x.Lucro))
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo no período</MudText>
+            <MudText Typo="Typo.h5" Color="@(_summaryItems.Sum(x => x.Lucro) >= 0 ? Color.Success : Color.Error)">
+                @Money(_summaryItems.Sum(x => x.Lucro))
             </MudText>
         </MudPaper>
     </MudItem>
@@ -60,7 +61,7 @@ else
                 <MudSelectItem T="LancamentoTipo?" Value="LancamentoTipo.SAIDA">Saída</MudSelectItem>
             </MudSelect>
         </MudItem>
-        <MudItem xs="6" md="3">
+        <MudItem xs="6" md="2">
             <MudSelect T="LancamentoStatus?" @bind-Value="_status" Label="Status"
                        Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
                 @foreach (var status in Enum.GetValues<LancamentoStatus>())
@@ -69,7 +70,9 @@ else
                 }
             </MudSelect>
         </MudItem>
-        <MudItem xs="12" md="3" Class="d-flex align-center">
+        <MudItem xs="6" md="2"><MudDatePicker @bind-Date="_startDate" Label="Data inicial" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" /></MudItem>
+        <MudItem xs="6" md="2"><MudDatePicker @bind-Date="_endDate" Label="Data final" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" /></MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center">
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
                        OnClick="ApplyFilterAsync" Disabled="_loading">
                 @if (_loading)
@@ -165,19 +168,9 @@ else
                         <MudSelectItem Value="LancamentoTipo.SAIDA">Saída</MudSelectItem>
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect T="LancamentoStatus" @bind-Value="_model.Status" Label="Status"
-                               Required="true" Variant="Variant.Outlined">
-                        @foreach (var status in Enum.GetValues<LancamentoStatus>())
-                        {
-                            <MudSelectItem Value="@status">@StatusLabel(status)</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_model.Descricao" Label="Descrição"
-                                  Required="true" RequiredError="Informe a descrição."
-                                  Variant="Variant.Outlined" />
+                    <MudTextField Value="_model.Descricao" Label="Descrição (preenchida pelo serviço)"
+                                  ReadOnly="true" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudDatePicker @bind-Date="_model.Data" Label="Data" Required="true"
@@ -188,13 +181,11 @@ else
                                      Required="true" Min="0.01M" Format="C2" Variant="Variant.Outlined" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="long?" Value="_model.CadastroServicoId" ValueChanged="ServiceChanged"
-                               Label="Serviço vinculado" Variant="Variant.Outlined" Clearable="true">
-                        @foreach (var item in _services)
-                        {
-                            <MudSelectItem T="long?" Value="@item.Id">@item.Codigo — @item.RazaoSocialEmpresa</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudAutocomplete T="CadastroServicoDto" Value="SelectedService" ValueChanged="ServiceChanged"
+                                     Label="Serviço vinculado" Variant="Variant.Outlined" Clearable="true"
+                                     SearchFunc="SearchServicesAsync" ToStringFunc="ServiceLabel"
+                                     CoerceText="false" ResetValueOnEmptyText="true"
+                                     HelperText="Digite o código ou o nome do cliente para pesquisar." />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="int?" Value="_model.NumeroParcela" ValueChanged="InstallmentChanged"
@@ -261,12 +252,13 @@ else
 
 @code {
     private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
+    private IReadOnlyList<LancamentoDto> _summaryItems = [];
     private readonly IReadOnlyList<SmartFilterColumn<LancamentoDto>> _filterColumns =
     [
-        new("data","Data",x=>x.Data.ToString("dd/MM/yyyy")),new("lancamento","Lançamento",x=>x.Descricao),
-        new("codigo","Código",x=>x.Codigo),new("servico","Serviço",x=>x.CodigoServico),
-        new("tipo","Tipo",x=>x.Tipo==LancamentoTipo.ENTRADA?"Entrada":"Saída"),
-        new("status","Status",x=>StatusLabel(x.Status)),new("valor","Valor",x=>x.Valor)
+        new("data","Data",x=>x.Data,1),new("lancamento","Lançamento",x=>x.Descricao,2),
+        new("codigo","Código",x=>x.Codigo,2),new("servico","Serviço",x=>x.CodigoServico,2),
+        new("tipo","Tipo",x=>x.Tipo==LancamentoTipo.ENTRADA?"Entrada":"Saída",3),
+        new("status","Status",x=>StatusLabel(x.Status),4),new("valor","Valor",x=>x.Valor,5,true)
     ];
     private EntryModel _model = new();
     private IReadOnlyList<CadastroServicoDto> _services = [];
@@ -274,13 +266,17 @@ else
     private IBrowserFile? _receipt;
     private MudForm? _form;
     private bool _valid;
+    private bool _hideValues;
     private bool _initialLoading = true;
     private bool _loading;
     private bool _saving;
     private bool _editorOpen;
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
     private string? _search;
     private LancamentoTipo? _tipo;
     private LancamentoStatus? _status;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
     private int _page = 1;
 
     private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
@@ -289,13 +285,10 @@ else
     {
         try
         {
-            var servicesTask = CadastroServicoService.ListAsync(new(null, null, null, 1, 2000));
-            var providersTask = PrestadorService.ListAsync();
-            var entriesTask = Service.ListAsync(new(null, null, null, null, null, null, 1, 20));
-            await Task.WhenAll(servicesTask, providersTask, entriesTask);
-            _services = servicesTask.Result.Items;
-            _providers = providersTask.Result;
-            _result = entriesTask.Result;
+            _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
+            _providers = await PrestadorService.ListAsync();
+            _result = await Service.ListAsync(CurrentFilter(1, 5000));
+            _summaryItems = _result.Items;
         }
         catch (Exception ex)
         {
@@ -311,11 +304,27 @@ else
 
     private async Task LoadAsync()
     {
+        await _loadGate.WaitAsync();
         _loading = true;
-        try { _result = await Service.ListAsync(new(_tipo, _status, null, null, _search, _search, _page, 20)); }
+        try
+        {
+            if (_startDate.HasValue && _endDate.HasValue && _startDate.Value.Date > _endDate.Value.Date)
+            {
+                Snackbar.Add("A data inicial não pode ser posterior à data final.", Severity.Warning);
+                return;
+            }
+            _result = await Service.ListAsync(CurrentFilter(1, 5000));
+            _summaryItems = _result.Items;
+        }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
-        finally { _loading = false; }
+        finally { _loading = false; _loadGate.Release(); }
     }
+
+    private LancamentoFilter CurrentFilter(int page, int pageSize) => new(
+        _tipo, _status,
+        _startDate.HasValue ? DateOnly.FromDateTime(_startDate.Value) : null,
+        _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : null,
+        _search, _search, page, pageSize);
 
     private void New() { _model = new(); _receipt = null; _editorOpen = true; }
     private void Edit(LancamentoDto x)
@@ -336,12 +345,23 @@ else
         _editorOpen = true;
     }
 
-    private void ServiceChanged(long? id)
+    private Task<IEnumerable<CadastroServicoDto>> SearchServicesAsync(string value, CancellationToken cancellationToken) =>
+        Task.FromResult(_services.Where(x => string.IsNullOrWhiteSpace(value)
+            || x.Codigo?.Contains(value, StringComparison.OrdinalIgnoreCase) == true
+            || x.RazaoSocialEmpresa.Contains(value, StringComparison.OrdinalIgnoreCase)).Take(50));
+
+    private static string ServiceLabel(CadastroServicoDto? item) =>
+        item is null ? string.Empty : $"{item.Codigo} — {item.RazaoSocialEmpresa}";
+
+    private void ServiceChanged(CadastroServicoDto? service)
     {
-        _model.CadastroServicoId = id;
+        _model.CadastroServicoId = service?.Id;
         _model.NumeroParcela = null;
-        _model.CodigoServico = SelectedService?.Codigo;
-        _model.NomeCliente = SelectedService?.RazaoSocialEmpresa;
+        _model.CodigoServico = service?.Codigo;
+        _model.NomeCliente = service?.RazaoSocialEmpresa;
+        _model.Descricao = service is null
+            ? string.Empty
+            : $"{service.Codigo} — {service.Subtipo} — {service.RazaoSocialEmpresa}";
     }
     private void InstallmentChanged(int? number)
     {
@@ -402,7 +422,7 @@ else
         LancamentoStatus.PAGO => "Pago",
         _ => "Previsto"
     };
-    private static string Money(decimal value) => value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+    private string Money(decimal value) => _hideValues ? "R$ ••••••" : value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
 
     private sealed class EntryModel
     {

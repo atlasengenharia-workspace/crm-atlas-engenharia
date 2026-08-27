@@ -2,13 +2,16 @@ using CrmAtlas.ApplicationCore.Enums;
 
 namespace CrmAtlas.ApplicationCore.Dashboard;
 
+public enum DashboardGranularity { Semana, Mes, Trimestre, Ano }
+
 public sealed record DashboardFilter(
     DateOnly Start,
     DateOnly End,
     IReadOnlyList<AcompanhamentoServicoTipo> ServiceTypes,
     bool IncludeProLabore = true,
     decimal? MinContractValue = null,
-    decimal? MaxContractValue = null);
+    decimal? MaxContractValue = null,
+    DashboardGranularity Granularity = DashboardGranularity.Mes);
 
 public sealed record DashboardKpis(
     decimal Revenue,

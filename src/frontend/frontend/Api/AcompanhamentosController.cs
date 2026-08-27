@@ -22,6 +22,14 @@ public sealed class AcompanhamentosController(
         return File(reports.GeneratePdf(item), "application/pdf", $"acompanhamento-{item.Codigo}.pdf");
     }
 
+    [HttpGet("export/excel")]
+    public async Task<IActionResult> ExportExcel(CancellationToken ct)
+    {
+        var items = await service.ListAsync(null, ct);
+        var file = reports.GenerateExcel(items);
+        return File(file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "acompanhamentos.xlsx");
+    }
+
     [HttpPost("import")]
     public Task<IReadOnlyList<AcompanhamentoDto>> Import(
         IReadOnlyList<AcompanhamentoImportDto> rows, CancellationToken ct) => service.ImportAsync(rows, ct);

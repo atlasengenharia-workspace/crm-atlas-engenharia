@@ -10,7 +10,8 @@ using CrmAtlas.ApplicationCore.Identidade;
 namespace CrmAtlas.ApplicationCore.Operacao;
 
 public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? Nome, string? Descricao,
-    [Required] string Situacao, string? Telefone, AcompanhamentoServicoTipo TipoServico, decimal? ValorTotal);
+    [Required] string Situacao, string? Telefone, AcompanhamentoServicoTipo TipoServico, decimal? ValorTotal,
+    DateOnly? Data = null, [EmailAddress] string? Email = null);
 
 public interface IOrcamentoService
 {
@@ -28,10 +29,16 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
     {
         if (string.IsNullOrWhiteSpace(dto.Codigo) || string.IsNullOrWhiteSpace(dto.Situacao))
             throw new ArgumentException("Código e situação são obrigatórios.");
+        var code = dto.Codigo.Trim();
+        var duplicate = (await repository.ListAsync(ct)).Any(x =>
+            x.Id != dto.Id && x.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
+        if (duplicate)
+            throw new ArgumentException($"Já existe um orçamento com o código {code}. Informe outro código.");
         var entity = dto.Id is null ? new Orcamento { CreatedAt = DateTime.UtcNow } :
             await repository.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
-        entity.Codigo = dto.Codigo.Trim(); entity.Nome = dto.Nome?.Trim(); entity.Descricao = dto.Descricao?.Trim();
-        entity.Situacao = dto.Situacao.Trim(); entity.Telefone = dto.Telefone; entity.TipoServico = dto.TipoServico;
+        entity.Codigo = code; entity.Nome = dto.Nome?.Trim(); entity.Descricao = dto.Descricao?.Trim();
+        entity.Situacao = dto.Situacao.Trim(); entity.Telefone = dto.Telefone; entity.Email = dto.Email?.Trim();
+        entity.Data = dto.Data ?? DateOnly.FromDateTime(DateTime.Today); entity.TipoServico = dto.TipoServico;
         entity.ValorTotal = dto.ValorTotal; entity.UpdatedAt = DateTime.UtcNow;
         if (dto.Id is null) await repository.AddAsync(entity, ct); else repository.Update(entity);
         await repository.SaveChangesAsync(ct); return Map(entity);
@@ -42,23 +49,77 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
     }
-    private static OrcamentoDto Map(Orcamento x) => new(x.Id, x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.TipoServico, x.ValorTotal);
+    private static OrcamentoDto Map(Orcamento x) => new(x.Id, x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.TipoServico, x.ValorTotal, x.Data, x.Email);
 }
 
 public sealed record PrestadorDto(long? Id, [Required] string Nome, string? CnpjCpf, string? Telefone,
     string? Email, string? MetodoPagamento, string? ChavePix, string? Banco, string? Agencia, string? Conta);
 
+public sealed record PrestadorServicoVinculadoDto(
+    string? Codigo, string? Cliente, AcompanhamentoServicoTipo Tipo, string? Situacao,
+    decimal? ValorContrato, decimal? ValorProvisionado, decimal? ValorEfetivo);
+
+public sealed record PrestadorLancamentoVinculadoDto(
+    DateOnly? Data, string? Descricao, decimal? Valor, string Tipo, string Situacao);
+
+public sealed record PrestadorDetalheDto(
+    PrestadorDto Prestador,
+    IReadOnlyList<PrestadorServicoVinculadoDto> Servicos,
+    IReadOnlyList<PrestadorLancamentoVinculadoDto> Lancamentos);
+
 public interface IPrestadorService
 {
     Task<IReadOnlyList<PrestadorDto>> ListAsync(CancellationToken ct = default);
+    Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default);
     Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
 }
 
-public sealed class PrestadorService(IRepository<Prestador> repository) : IPrestadorService
+public sealed class PrestadorService(
+    IRepository<Prestador> repository,
+    IRepository<CadastroServico> servicos,
+    IRepository<Lancamento> lancamentos) : IPrestadorService
 {
     public async Task<IReadOnlyList<PrestadorDto>> ListAsync(CancellationToken ct = default) =>
         (await repository.ListAsync(ct)).OrderBy(x => x.Nome).Select(Map).ToList();
+
+    public async Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default)
+    {
+        var prestador = await repository.GetByIdAsync(id, ct)
+            ?? throw new NotFoundException("Prestador não encontrado.");
+
+        var todosServicos = await servicos.ListAsync(ct);
+        var servicosVinculados = todosServicos
+            .Where(s => s.Prestadores.Any(p => p.PrestadorId == id))
+            .Select(s =>
+            {
+                var vinculos = s.Prestadores.Where(p => p.PrestadorId == id);
+                return new PrestadorServicoVinculadoDto(
+                    s.Codigo,
+                    s.Cliente?.RazaoSocial,
+                    s.TipoServico,
+                    s.SituacaoInicial,
+                    s.ValorContrato,
+                    vinculos.Sum(p => p.ValorProvisionado ?? 0m),
+                    vinculos.Sum(p => p.ValorEfetivo ?? 0m));
+            })
+            .ToList();
+
+        var todosLancamentos = await lancamentos.ListAsync(ct);
+        var lancamentosVinculados = todosLancamentos
+            .Where(l => l.PrestadorId == id)
+            .OrderByDescending(l => l.Data ?? DateOnly.MinValue)
+            .Select(l => new PrestadorLancamentoVinculadoDto(
+                l.Data,
+                l.Descricao,
+                l.Valor,
+                l.Tipo.ToString(),
+                l.Status.ToString()))
+            .ToList();
+
+        return new PrestadorDetalheDto(Map(prestador), servicosVinculados, lancamentosVinculados);
+    }
+
     public async Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(dto.Nome)) throw new ArgumentException("Nome do prestador é obrigatório.");

@@ -43,16 +43,33 @@ public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options) : D
     public DbSet<WhatsAppMetaIntegration> WhatsAppIntegrations => Set<WhatsAppMetaIntegration>();
     public DbSet<WhatsAppMetaIntegrationAudit> WhatsAppIntegrationAudits => Set<WhatsAppMetaIntegrationAudit>();
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AtlasDbContext).Assembly);
         modelBuilder.ApplySnakeCaseNames();
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyAuditTimestamps();
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Um DbContext de Blazor Server pode permanecer vivo durante toda a sessão.
+            // Não deixe entidades rejeitadas serem reenviadas nas próximas operações.
+            ChangeTracker.Clear();
+            throw;
+        }
     }
 
     private void ApplyAuditTimestamps()

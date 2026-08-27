@@ -65,6 +65,14 @@
           }
         }
       },
+      "ExcelDataReader/3.9.0": {
+        "runtime": {
+          "lib/net8.0/ExcelDataReader.dll": {
+            "assemblyVersion": "3.9.0.0",
+            "fileVersion": "3.9.0.0"
+          }
+        }
+      },
       "ExcelNumberFormat/1.1.0": {
         "runtime": {
           "lib/netstandard2.0/ExcelNumberFormat.dll": {
@@ -485,6 +493,7 @@
         "dependencies": {
           "ClosedXML": "0.105.0",
           "CrmAtlas.ApplicationCore": "1.0.0",
+          "ExcelDataReader": "3.9.0",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.3"
         },
         "runtime": {
@@ -544,6 +553,13 @@
       "sha512": "sha512-6APEp/ElZV58S/4v8mf4Ke3ONEDORs64MqdD64Z7wWpcHANB9oovQsGIwtqjnKihulOj7T0a6IxHIHOfMqKOng==",
       "path": "documentformat.openxml.framework/3.1.1",
       "hashPath": "documentformat.openxml.framework.3.1.1.nupkg.sha512"
+    },
+    "ExcelDataReader/3.9.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3lEkUzG67UWPYj/xlX5Hua3MeQQktnK0B7WGzDjLpdJpBtct7szX0E4WB3Kl6C/8bNnbkyT2eO0FSPV+9CCemw==",
+      "path": "exceldatareader/3.9.0",
+      "hashPath": "exceldatareader.3.9.0.nupkg.sha512"
     },
     "ExcelNumberFormat/1.1.0": {
       "type": "package",

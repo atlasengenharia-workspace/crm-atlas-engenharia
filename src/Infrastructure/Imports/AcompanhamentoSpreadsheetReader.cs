@@ -11,7 +11,10 @@ namespace CrmAtlas.Infrastructure.Imports;
 public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpreadsheetReader
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
-    private static readonly string[] RequiredHeaders = ["codigo", "nomecliente", "situacao"];
+    private static readonly string[] RequiredHeaders = ["codigo"];
+    private static readonly string[] IdentityHeaders =
+        ["codigo", "nomecliente", "cnpjcpf", "endereco", "telefone", "servico", "situacao", "descricaosituacao", "nf", "datacontrato"];
+    private static readonly string[] AmountHeaders = ["contrato", "areceber", "recebido", "custos"];
 
     public async Task<IReadOnlyList<AcompanhamentoImportPreviewDto>> ReadAsync(
         Stream stream, string fileName, AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default)
@@ -21,21 +24,26 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
             throw new ArgumentException("O nome do arquivo é obrigatório.", nameof(fileName));
 
         var extension = Path.GetExtension(fileName);
-        if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".xlsb", StringComparison.OrdinalIgnoreCase))
         {
             await using var bufferedStream = new MemoryStream();
             await stream.CopyToAsync(bufferedStream, ct);
             bufferedStream.Position = 0;
-            return ReadWorkbook(bufferedStream, tipo);
+            using var workbook = SpreadsheetWorkbookLoader.Load(bufferedStream, fileName);
+            return ReadWorkbook(workbook, tipo);
         }
         if (extension.Equals(".csv", StringComparison.OrdinalIgnoreCase))
             return await ReadCsvAsync(stream, fileName, tipo, ct);
-        throw new ArgumentException("Formato não suportado. Selecione um arquivo .xlsx ou .csv.");
+        throw new ArgumentException("Formato não suportado. Selecione um arquivo .xlsx, .xlsb ou .csv.");
     }
 
-    private static IReadOnlyList<AcompanhamentoImportPreviewDto> ReadWorkbook(Stream stream, AcompanhamentoServicoTipo? requestedType)
+    // Recebe o workbook ja carregado para que a importacao integrada nao
+    // precise converter o arquivo duas vezes (o .xlsb e reconstruido em
+    // memoria pelo SpreadsheetWorkbookLoader, o que e caro).
+    internal static IReadOnlyList<AcompanhamentoImportPreviewDto> ReadWorkbook(
+        XLWorkbook workbook, AcompanhamentoServicoTipo? requestedType)
     {
-        using var workbook = new XLWorkbook(stream);
         var result = new List<AcompanhamentoImportPreviewDto>();
         foreach (var worksheet in workbook.Worksheets)
         {
@@ -48,11 +56,27 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
             for (var rowNumber = headerRow.RowNumber() + 1; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
-                if (!row.IsEmpty())
-                    result.Add(ParseRow(rowNumber, worksheet.Name, sheetType.Value, header => ReadCell(row, headers, header)));
+                if (row.IsEmpty()) continue;
+                string? Value(string header) => ReadCell(row, headers, header);
+                if (!HasContent(Value)) continue;
+                result.Add(ParseRow(rowNumber, worksheet.Name, sheetType.Value, Value));
             }
         }
         return result.Count > 0 ? result : throw new ArgumentException("Nenhuma aba compatível com acompanhamento foi encontrada no arquivo.");
+    }
+
+    // Linhas de rodape das abas costumam trazer apenas zeros de formula
+    // (A Receber = 0, Recebido = 0, Custos = 0) sem codigo nem cliente.
+    // Sem esse filtro elas viravam acompanhamentos "IMP-..." fantasmas.
+    private static bool HasContent(Func<string, string?> value)
+    {
+        foreach (var header in IdentityHeaders)
+            if (!string.IsNullOrWhiteSpace(value(header)))
+                return true;
+        foreach (var header in AmountHeaders)
+            if (TryDecimal(value(header), out var amount) && amount is not null && amount != 0m)
+                return true;
+        return false;
     }
 
     private static async Task<IReadOnlyList<AcompanhamentoImportPreviewDto>> ReadCsvAsync(
@@ -84,7 +108,9 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
     private static AcompanhamentoImportPreviewDto ParseRow(
         int line, string sheet, AcompanhamentoServicoTipo type, Func<string, string?> value)
     {
-        var code = value("codigo")?.Trim() ?? "";
+        var code = value("codigo")?.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+            code = CreateImportCode(sheet, line);
         var client = value("nomecliente")?.Trim();
         var cnpjCpf = value("cnpjcpf")?.Trim();
         var address = value("endereco")?.Trim();
@@ -96,16 +122,26 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
         var description = value("descricaosituacao")?.Trim();
         var invoice = value("nf")?.Trim();
         var paymentTerms = value("condicaopagamento")?.Trim();
-        var valueOk = TryDecimal(value("contrato"), out var contract);
-        var dateOk = TryDate(value("datacontrato"), out var contractDate);
-        var error = string.IsNullOrWhiteSpace(code) ? "Código obrigatório"
-            : !valueOk ? "Valor do contrato inválido"
-            : !dateOk ? "Data do contrato inválida" : null;
-        var dto = error is null
-            ? new AcompanhamentoImportDto(CreateOriginId(code), code, type, client, address, phone, service,
-                status, description, contract, contractDate, invoice, paymentTerms, cnpjCpf)
+        _ = TryDecimal(value("areceber"), out var receivable);
+        _ = TryDecimal(value("recebido"), out var received);
+        _ = TryDecimal(value("custos"), out var costs);
+        _ = TryDecimal(value("contrato"), out var contract);
+        _ = TryDate(value("datacontrato"), out var contractDate);
+
+        // "Prox. Parcela" nem sempre é data: na aba de Processos Adm a coluna
+        // é preenchida com a próxima ação ("Finalizar", "Protocolar"). Quando
+        // não dá para ler como data, o texto original é preservado em vez de
+        // ser jogado fora.
+        var nextInstallmentRaw = value("proximaparcela")?.Trim();
+        _ = TryDate(nextInstallmentRaw, out var nextInstallment);
+        var nextInstallmentText = nextInstallment is null && !string.IsNullOrWhiteSpace(nextInstallmentRaw)
+            ? nextInstallmentRaw
             : null;
-        return new(line, sheet, code, type.ToString(), client, error is null, error, dto);
+
+        var dto = new AcompanhamentoImportDto(CreateOriginId(code), code, type, client, address, phone, service,
+            status, description, contract, contractDate, invoice, paymentTerms, cnpjCpf, receivable, received, costs,
+            nextInstallment, nextInstallmentText);
+        return new(line, sheet, code, type.ToString(), client, true, null, dto);
     }
 
     private static IXLRow? FindHeaderRow(IXLWorksheet worksheet)
@@ -145,9 +181,35 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
         if (!headers.TryGetValue(header, out var column)) return null;
         var cell = row.Cell(column);
         if (cell.IsEmpty()) return null;
-        if (header == "datacontrato" && cell.TryGetValue<DateTime>(out var date))
-            return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        if (cell.DataType == XLDataType.Number) return cell.GetDouble().ToString(CultureInfo.InvariantCulture);
+
+        var isDateHeader = header is "datacontrato" or "proximaparcela";
+        if (isDateHeader)
+        {
+            if (cell.TryGetValue<DateTime>(out var date))
+                return date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (cell.TryGetValue<double>(out var serial) && serial is > 0 and < 2958466)
+            {
+                try
+                {
+                    return DateTime.FromOADate(serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                }
+                catch { }
+            }
+            var formatted = cell.GetFormattedString();
+            if (!string.IsNullOrWhiteSpace(formatted))
+                return formatted;
+            return cell.GetString();
+        }
+
+        // TryDecimal expects pt-BR text first. Returning an Excel number with an
+        // invariant decimal point made it look like a thousands separator
+        // (8851.800000000001 became 8851800000000001).
+        if (cell.DataType == XLDataType.Number)
+        {
+            if (cell.TryGetValue<decimal>(out var number))
+                return number.ToString(PtBr);
+            return cell.GetDouble().ToString("G17", PtBr);
+        }
         return cell.GetFormattedString();
     }
 
@@ -182,17 +244,49 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
     {
         value = null;
         if (string.IsNullOrWhiteSpace(text)) return true;
-        if (double.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var serial) && serial is > 0 and < 2958466)
+
+        var clean = text.Trim();
+
+        // Check for Excel serial number (accepting both comma and dot)
+        var cleanForDouble = clean.Replace(",", ".");
+        if (double.TryParse(cleanForDouble, NumberStyles.Number, CultureInfo.InvariantCulture, out var serial) && serial is > 0 and < 2958466)
         {
-            value = DateOnly.FromDateTime(DateTime.FromOADate(serial));
-            return true;
+            try
+            {
+                value = DateOnly.FromDateTime(DateTime.FromOADate(serial));
+                return true;
+            }
+            catch { }
         }
-        if (DateOnly.TryParse(text, PtBr, DateTimeStyles.None, out var date)
-            || DateOnly.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+
+        if (DateOnly.TryParse(clean, PtBr, DateTimeStyles.None, out var date)
+            || DateOnly.TryParse(clean, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
         {
             value = date;
             return true;
         }
+
+        if (DateTime.TryParse(clean, PtBr, DateTimeStyles.None, out var dt)
+            || DateTime.TryParse(clean, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+        {
+            value = DateOnly.FromDateTime(dt);
+            return true;
+        }
+
+        string[] formats =
+        [
+            "dd/MM/yyyy", "dd-MM-yyyy", "dd.MM.yyyy", "yyyy-MM-dd", "yyyy/MM/dd",
+            "d/M/yyyy", "d-M-yyyy", "d.M.yyyy",
+            "dd/MM/yy", "dd-MM-yy", "dd.MM.yy", "d/M/yy",
+            "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss"
+        ];
+        if (DateTime.TryParseExact(clean, formats, PtBr, DateTimeStyles.None, out dt)
+            || DateTime.TryParseExact(clean, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+        {
+            value = DateOnly.FromDateTime(dt);
+            return true;
+        }
+
         return false;
     }
 
@@ -202,6 +296,12 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
         if (digits.Length > 0 && long.TryParse(digits, out var numeric) && numeric > 0) return numeric;
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim().ToUpperInvariant()));
         return BitConverter.ToInt64(hash, 0) & long.MaxValue;
+    }
+
+    private static string CreateImportCode(string sheet, int line)
+    {
+        var normalizedSheet = NormalizeHeader(sheet);
+        return $"IMP-{(normalizedSheet.Length > 12 ? normalizedSheet[..12] : normalizedSheet)}-{line:000000}";
     }
 
     private static List<string> ParseCsvLine(string line)
@@ -230,8 +330,18 @@ public sealed partial class AcompanhamentoSpreadsheetReader : IAcompanhamentoSpr
         "nomedocliente" or "cliente" or "nome" or "razaosocial" or "empresa" => "nomecliente",
         "cpf" or "cnpj" or "cpfcnpj" or "cnpjcpf" or "documento" or "doc" or "numdocumento" or "numerodocumento" => "cnpjcpf",
         "descricaodasituacao" or "descricao" => "descricaosituacao",
-        "rscontrato" or "rcontrato" or "valorcontrato" or "valor" or "contrato" => "contrato",
-        "condicaopag" or "condicaopagamento" => "condicaopagamento",
+        "rscontrato" or "rcontrato" or "valorcontrato" or "valor" or "contrato" or "vlcontrato" or "vlrcontrato" => "contrato",
+        "condicaopag" or "condicaopagamento" or "condicao" or "formapagamento" or "formapag" => "condicaopagamento",
+        "proximaparcela" or "proxparcela" or "proximavencimento" or "proximovencimento" or "proxvencimento"
+            or "vencimentoproximaparcela" or "vencimentoproxparcela" or "vencimentodaproximaparcela" or "vencimentodaproxparcela"
+            or "vencimentoparcela" or "vencimentodaparcela" or "dataproxparcela" or "dtproxparcela" or "dataproximaparcela"
+            or "dtdaproximaparcela" or "datadaproximaparcela" or "datadaproxparcela" or "dataprox" or "dtprox"
+            or "datavencimento" or "dtvencimento" or "vencimento" or "dataparcela" or "dtparcela" or "proxparcelas"
+            or "proximasparcelas" or "proximovenc" or "proxvenc" or "prox" or "proxima" or "proximo"
+            or "proximadata" or "dtvenc" or "datavenc" or "1aparcela" or "primeiraparcela" or "dt1aparcela"
+            or "data1aparcela" or "venc1aparcela" or "proxparcelavencimento" or "vencimentoprox" or "dtproxvenc"
+            or "dataproxvenc" or "dataproxvencimento" or "dtproxvencimento" or "parcela1" or "venc" or "vencimentos"
+            or "proximovencimentoparcela" or "proxvencimentoparcela" => "proximaparcela",
         "endereco" or "endereço" or "local" or "logradouro" => "endereco",
         "telefone" or "celular" or "fone" or "contato" => "telefone",
         _ => header

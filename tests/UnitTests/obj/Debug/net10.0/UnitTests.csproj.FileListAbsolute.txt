@@ -16,7 +16,6 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\Microsoft.TestPlatform.CrossPlatEngine.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\Microsoft.TestPlatform.Utilities.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\Microsoft.VisualStudio.TestPlatform.Common.dll
-C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\Newtonsoft.Json.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\xunit.assert.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\xunit.core.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\bin\Debug\net10.0\xunit.execution.dotnet.dll

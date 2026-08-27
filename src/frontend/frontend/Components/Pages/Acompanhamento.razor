@@ -1,19 +1,26 @@
 @page "/acompanhamento"
-@page "/avcb"
-@page "/clcb"
-@page "/obras"
-@page "/processos"
 @attribute [Authorize]
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject IAcompanhamentoService Service
 @inject IAcompanhamentoSpreadsheetReader SpreadsheetReader
 @inject IAtlasWorkbookImportService WorkbookImportService
 @inject ISnackbar Snackbar
 
-<PageTitle>Acompanhamento | CRM Atlas</PageTitle>
-<PageHeader Title="@Title" Subtitle="Situações, pendências e histórico em uma visão operacional única.">
+<PageTitle>Serviços | CRM Atlas</PageTitle>
+<PageHeader Title="Serviços" Subtitle="Acompanhe, filtre e gerencie todos os serviços em uma única tela.">
     <Actions>
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile" OnClick="@(()=>_importOpen=true)">Importar lote</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AbrirFormularioNovo">
+            Novo serviço
+        </MudButton>
+        <MudTooltip Text="Mostrar opções para importação em lote" Placement="Placement.Bottom">
+            <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.UploadFile"
+                       OnClick="@(() => _importOpen = true)"
+                       Style="background-color: #F59E0B; color: #FFFFFF; box-shadow: 0 3px 8px rgba(245, 158, 11, 0.28);" Class="ml-2">
+                Importar planilha
+            </MudButton>
+        </MudTooltip>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.SimCardDownload" Class="ml-2" OnClick="ExportarExcelAsync">Exportar Excel</MudButton>
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Settings" Class="ml-2" OnClick="OpenSettings">Situações</MudButton>
     </Actions>
 </PageHeader>
@@ -27,28 +34,218 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou situação" Immediate="true"
-                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
-        <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns">
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" md="5">
+                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente, serviço, endereço ou situação" Immediate="true"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro"
+                           Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                    @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                    {
+                        <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@(new AcompanhamentoServicoTipo?(type))">@TypeLabel(type)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSwitch T="bool" @bind-Value="_hideCompleted" Color="Color.Primary"
+                           Label="Ocultar concluídos" />
+            </MudItem>
+        </MudGrid>
+        <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
+                          HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading">
-            <HeaderContent><MudTh>Serviço</MudTh><MudTh>Cliente</MudTh><MudTh>Telefone</MudTh><MudTh>Situação</MudTh><MudTh>Pendências</MudTh><MudTh>Atualização</MudTh><MudTh>Ações</MudTh></HeaderContent>
+        <div class="atlas-operational-table-scroll">
+        @if (_selectedIds.Count > 0)
+        {
+            <MudPaper Outlined="true" Class="pa-3 mb-3">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudText Class="font-weight-bold">@_selectedIds.Count selecionado(s)</MudText>
+                    <MudSelect T="string" @bind-Value="_bulkSituacao" Label="Nova situação" Clearable="true"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 180px;">
+                        @foreach (var status in _situations.Where(x => x.Ativo).Select(x => x.Nome).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x))
+                        {
+                            <MudSelectItem T="string" Value="@status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTextField T="string" @bind-Value="_bulkDescricao" Label="Nova observação"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 220px;" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="@(() => AplicarBulkAsync())" Disabled="_bulkApplying">Aplicar em massa</MudButton>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Clear" OnClick="@(() => _selectedIds.Clear())">Limpar</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading" Class="atlas-operational-table">
+            <HeaderContent>
+                <MudTh Style="width: 40px;"><MudCheckBox T="bool" Value="@(smartItems.All(x => _selectedIds.Contains(x.Id)))" ValueChanged="@(async (bool b) => ToggleSelectAll(smartItems, b))" Dense="true" /></MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Codigo)">Código</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Código" Items="Filtered" GetValue='x=>x.Codigo' Selected='@GetColumnFilter("codigo")' SelectedChanged='(v)=>OnColumnFilterChanged("codigo", v)' />
+                    </MudStack>
+                </MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Cliente??string.Empty)">Cliente</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Cliente" Items="Filtered" GetValue='x=>x.Cliente' Selected='@GetColumnFilter("cliente")' SelectedChanged='(v)=>OnColumnFilterChanged("cliente", v)' />
+                    </MudStack>
+                </MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Endereco??string.Empty)">Endereço</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Endereço" Items="Filtered" GetValue='x=>x.Endereco' Selected='@GetColumnFilter("endereco")' SelectedChanged='(v)=>OnColumnFilterChanged("endereco", v)' />
+                    </MudStack>
+                </MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Telefone??string.Empty)">Telefone</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Telefone" Items="Filtered" GetValue='x=>x.Telefone' Selected='@GetColumnFilter("telefone")' SelectedChanged='(v)=>OnColumnFilterChanged("telefone", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Servico??string.Empty)">Serviço</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Tipo" Items="Filtered" GetValue='x=>TypeLabel(x.Tipo)' Selected='@GetColumnFilter("tipo")' SelectedChanged='(v)=>OnColumnFilterChanged("tipo", v)' />
+                    </MudStack>
+                 </MudTh>
+                  <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ValorContrato??0)">R$ Contrato</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="R$ Contrato" Items="Filtered" GetValue='x=>Money(x.ValorContrato)' Selected='@GetColumnFilter("valorContrato")' SelectedChanged='(v)=>OnColumnFilterChanged("valorContrato", v)' />
+                    </MudStack>
+                </MudTh>
+                  <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.DataContrato??DateOnly.MinValue)">Data Contrato</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Data Contrato" Items="Filtered" GetValue='x=>x.DataContrato?.ToString("dd/MM/yyyy")' Selected='@GetColumnFilter("dataContrato")' SelectedChanged='(v)=>OnColumnFilterChanged("dataContrato", v)' />
+                    </MudStack>
+                </MudTh>
+                   <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.NotaFiscal??string.Empty)">NF</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="NF" Items="Filtered" GetValue='x=>x.NotaFiscal' Selected='@GetColumnFilter("nf")' SelectedChanged='(v)=>OnColumnFilterChanged("nf", v)' />
+                    </MudStack>
+                </MudTh>
+                   <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.CondicaoPagamento??string.Empty)">Condição pag.</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Condição pag." Items="Filtered" GetValue='x=>x.CondicaoPagamento' Selected='@GetColumnFilter("condicaoPagamento")' SelectedChanged='(v)=>OnColumnFilterChanged("condicaoPagamento", v)' />
+                    </MudStack>
+                </MudTh>
+                   <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ProximaParcela??DateOnly.MinValue)">Prox. Parcela</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Prox. Parcela" Items="Filtered" GetValue='x=>x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto' Selected='@GetColumnFilter("proximaParcela")' SelectedChanged='(v)=>OnColumnFilterChanged("proximaParcela", v)' />
+                    </MudStack>
+                </MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Situacao)">Situação</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Situação" Items="Filtered" GetValue='x=>x.Situacao' Selected='@GetColumnFilter("situacao")' SelectedChanged='(v)=>OnColumnFilterChanged("situacao", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Descricao??string.Empty)">Observações</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Observações" Items="Filtered" GetValue='x=>x.Descricao' Selected='@GetColumnFilter("observacoes")' SelectedChanged='(v)=>OnColumnFilterChanged("observacoes", v)' />
+                    </MudStack>
+                </MudTh>
+                <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ObservacaoMudanca??string.Empty)">Observação da mudança</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Observação da mudança" Items="Filtered" GetValue='x=>x.ObservacaoMudanca' Selected='@GetColumnFilter("observacaoMudanca")' SelectedChanged='(v)=>OnColumnFilterChanged("observacaoMudanca", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.AReceber??0)">A receber</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="A receber" Items="Filtered" GetValue='x=>Money(x.AReceber)' Selected='@GetColumnFilter("areceber")' SelectedChanged='(v)=>OnColumnFilterChanged("areceber", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Recebido??0)">Recebido</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Recebido" Items="Filtered" GetValue='x=>Money(x.Recebido)' Selected='@GetColumnFilter("recebido")' SelectedChanged='(v)=>OnColumnFilterChanged("recebido", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Custos??0)">Custos</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Custos" Items="Filtered" GetValue='x=>Money(x.Custos)' Selected='@GetColumnFilter("custos")' SelectedChanged='(v)=>OnColumnFilterChanged("custos", v)' />
+                    </MudStack>
+                </MudTh>
+                 <MudTh>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.AtualizadoEm??DateTime.MinValue)">Atualização</MudTableSortLabel>
+                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Atualização" Items="Filtered" GetValue='x=>x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")' Selected='@GetColumnFilter("atualizacao")' SelectedChanged='(v)=>OnColumnFilterChanged("atualizacao", v)' />
+                    </MudStack>
+                </MudTh><MudTh>Ações</MudTh>
+            </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Serviço"><strong>@context.Codigo</strong><br/><MudText Typo="Typo.caption">@TypeLabel(context.Tipo)</MudText></MudTd>
+                <MudTd><MudCheckBox T="bool" Value="@(_selectedIds.Contains(context.Id))" ValueChanged="@((bool b) => ToggleSelect(context, b))" Dense="true" /></MudTd>
+                <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd>
                 <MudTd DataLabel="Cliente">@context.Cliente</MudTd>
+                <MudTd DataLabel="Endereço">@(string.IsNullOrWhiteSpace(context.Endereco) ? "—" : context.Endereco)</MudTd>
                 <MudTd DataLabel="Telefone">@(string.IsNullOrWhiteSpace(context.Telefone) ? "—" : context.Telefone)</MudTd>
-                <MudTd DataLabel="Situação"><MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Situacao</MudChip></MudTd>
-                <MudTd DataLabel="Pendências">@context.Concluidas/@context.Pendencias</MudTd>
-                <MudTd DataLabel="Atualização">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
-                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar {context.Codigo}")" />
+                <MudTd DataLabel="Serviço">
+                    <MudText Typo="Typo.body2" Class="font-weight-medium">@(string.IsNullOrWhiteSpace(context.Servico) ? TypeLabel(context.Tipo) : context.Servico)</MudText>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@TypeColor(context.Tipo)">@TypeLabel(context.Tipo)</MudChip>
+                 </MudTd>
+                  <MudTd DataLabel="R$ Contrato">@Money(context.ValorContrato)</MudTd>
+                  <MudTd DataLabel="Data Contrato">@(context.DataContrato?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
+                   <MudTd DataLabel="NF">@(string.IsNullOrWhiteSpace(context.NotaFiscal) ? "—" : context.NotaFiscal)</MudTd>
+                   <MudTd DataLabel="Condição pag.">@(string.IsNullOrWhiteSpace(context.CondicaoPagamento) ? "—" : context.CondicaoPagamento)</MudTd>
+                   <MudTd DataLabel="Prox. Parcela">@(context.ProximaParcela?.ToString("dd/MM/yyyy") ?? context.ProximaParcelaTexto ?? "—")</MudTd>
+                 <MudTd DataLabel="Situação">
+                     @if (_editStatusId == context.Id)
+                     {
+                         <MudSelect T="string" Value="_editingSituacao" ValueChanged="@(async (string s) => await SaveSituacaoAsync(context, s))"
+                                    Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense">
+                             @foreach (var status in StatusesFor(context.Tipo))
+                             {
+                                 <MudSelectItem T="string" Value="@status">@status</MudSelectItem>
+                             }
+                         </MudSelect>
+                     }
+                     else
+                     {
+                         <span class="atlas-status-pill" style="@SituationStyle(context)" @onclick="@(() => StartEditSituacao(context))">@context.Situacao</span>
+                     }
+                 </MudTd>
+                 <MudTd DataLabel="Observações" Class="atlas-observation-cell">
+                     @if (_editDescId == context.Id)
+                     {
+                         <MudTextField @bind-Value="_editingDescricao"
+                                       OnBlur="@(async () => await SaveDescricaoAsync(context))"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                     }
+                     else
+                     {
+                         <MudText Typo="Typo.body2" @onclick="@(() => StartEditDescricao(context))" Style="cursor:pointer;">@(string.IsNullOrWhiteSpace(context.Descricao) ? "—" : context.Descricao)</MudText>
+                     }
+                 </MudTd>
+                 <MudTd DataLabel="Observação da mudança" Class="atlas-observation-cell">
+                     <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(context.ObservacaoMudanca) ? "—" : context.ObservacaoMudanca)</MudText>
+                 </MudTd>
+                 <MudTd DataLabel="A receber">@Money(context.AReceber)</MudTd>
+                 <MudTd DataLabel="Recebido">@Money(context.Recebido)</MudTd>
+                 <MudTd DataLabel="Custos">@Money(context.Custos)</MudTd>
+                 <MudTd DataLabel="Atualização">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
+                    <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
                     <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" /></MudTd>
             </RowTemplate>
             <NoRecordsContent><EmptyState Title="Nenhum acompanhamento" Message="Importe serviços ou ajuste os filtros." /></NoRecordsContent>
         </MudTable>
+        </div>
         </ChildContent>
         </SmartTableFilter>
     </MudPaper>
 </GlobalSkeleton>
+
+<ServicoForm @ref="_servicoForm" OnSaved="OnServicoSalvoAsync" />
 
 <MudDrawer @bind-Open="_detailOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(720px, 100vw)" Elevation="8">
     @if (_selected is not null)
@@ -62,6 +259,11 @@
                 <MudSpacer />
                 <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" />
             </MudToolBar>
+            <MudButton OnClick="@(async () => await _servicoForm.Open(_selected.Codigo))"
+                       Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.EditNote" Class="mb-4">
+                Editar cadastro completo
+            </MudButton>
             <MudDivider Class="mb-4" />
             <MudPaper Outlined="true" Class="pa-4 mt-4">
                 <MudGrid Spacing="2">
@@ -70,8 +272,13 @@
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Telefone</MudText><MudText Typo="Typo.body2">@(_selected.Telefone??"—")</MudText></MudItem>
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Serviço</MudText><MudText Typo="Typo.body2">@(_selected.Servico??"—")</MudText></MudItem>
                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Condição de pagamento</MudText><MudText Typo="Typo.body2">@(_selected.CondicaoPagamento??"—")</MudText></MudItem>
-                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Contrato</MudText><MudText Typo="Typo.body2">@(_selected.ValorContrato?.ToString("C",new System.Globalization.CultureInfo("pt-BR"))??"—")</MudText></MudItem>
-                    <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Nota fiscal</MudText><MudText Typo="Typo.body2">@(_selected.NotaFiscal??"—")</MudText></MudItem>
+                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">R$ Contrato</MudText><MudText Typo="Typo.body2">@(_selected.ValorContrato?.ToString("C",new System.Globalization.CultureInfo("pt-BR"))??"—")</MudText></MudItem>
+                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Data contrato</MudText><MudText Typo="Typo.body2">@(_selected.DataContrato?.ToString("dd/MM/yyyy")??"—")</MudText></MudItem>
+                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Prox. parcela</MudText><MudText Typo="Typo.body2">@(_selected.ProximaParcela?.ToString("dd/MM/yyyy")??_selected.ProximaParcelaTexto??"—")</MudText></MudItem>
+                     <MudItem xs="12" sm="6"><MudText Typo="Typo.caption" Color="Color.Secondary">Nota fiscal</MudText><MudText Typo="Typo.body2">@(_selected.NotaFiscal??"—")</MudText></MudItem>
+                     <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Color="Color.Secondary">A receber</MudText><MudText Typo="Typo.body2">@Money(_selected.AReceber)</MudText></MudItem>
+                     <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Color="Color.Secondary">Recebido</MudText><MudText Typo="Typo.body2">@Money(_selected.Recebido)</MudText></MudItem>
+                     <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Color="Color.Secondary">Custos</MudText><MudText Typo="Typo.body2">@Money(_selected.Custos)</MudText></MudItem>
                 </MudGrid>
             </MudPaper>
             <MudGrid Class="mt-4">
@@ -123,61 +330,289 @@
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_config.Nome" Label="Nome" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_config.Ordem" Label="Ordem" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Inicial" Label="Inicial" /></MudItem><MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Ativo" Label="Ativa" /></MudItem>
+            <MudItem xs="12">
+                <MudColorPicker @bind-Text="_config.Cor" Label="Cor da situação" Variant="Variant.Outlined"
+                                PickerVariant="PickerVariant.Inline" ColorPickerView="ColorPickerView.Grid"
+                                ColorPickerMode="ColorPickerMode.HEX" ShowAlpha="false" ShowModeSwitch="false"
+                                Clearable="true" HelperText="Escolha uma cor para identificar rapidamente esta situação." />
+            </MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_pendingLabels" Label="Pendências automáticas" HelperText="Uma por linha" Lines="5" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
         </MudGrid>
         <MudDivider Class="my-5" />
-        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><MudStack Row="true" Justify="Justify.SpaceBetween" Class="w-100"><MudText Typo="Typo.body2">@TypeLabel(item.Tipo) • @item.Nome</MudText><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></MudStack></MudListItem>}</MudList>
+        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1"><span class="atlas-color-dot" style="background:@SituationColor(item.Tipo,item.Nome,item.Cor)"></span><MudText Typo="Typo.body2">@TypeLabel(item.Tipo) • @item.Nome</MudText></MudStack><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></MudStack></MudListItem>}</MudList>
     </div>
 </MudDrawer>
 
 <MudDrawer @bind-Open="_importOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(820px,100vw)" Elevation="8">
-    <div class="pa-5 position-relative" style="min-height: 450px;">
-        <ImportingAnimationOverlay IsVisible="_importing" />
-        <MudToolBar Class="pa-0 mb-3">
-            <MudStack Spacing="0">
-                <MudText Typo="Typo.h5">Importação em lote</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">Pré-visualização obrigatória antes de persistir.</MudText>
+    <div class="atlas-import-drawer position-relative">
+        <ImportingAnimationOverlay IsVisible="_importing" Title="Importando dados" Subtitle="Aguarde enquanto os dados são gravados com segurança." />
+
+        <div class="atlas-import-header pa-5 pb-3">
+            <MudToolBar Class="pa-0">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.h5">Importação em lote</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Selecione, valide e confirme a planilha.</MudText>
+                </MudStack>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseImportDrawer" Disabled="@(_importing || _parsingImport)" />
+            </MudToolBar>
+        </div>
+
+        <div class="atlas-import-content px-5 pb-5">
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
+                 No XLSX ou XLSB, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.
+            </MudAlert>
+
+            <MudFileUpload T="IBrowserFile"
+                           FilesChanged="ParseImportAsync"
+                             Accept=".xlsx,.xlsb,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.binary.macroEnabled.12,text/csv"
+                           MaxFileSize="@(100L * 1024 * 1024)"
+                           MaximumFileCount="1"
+                           DragAndDrop="true"
+                           Disabled="@(_importing || _parsingImport)">
+                <CustomContent>
+                    <MudPaper Outlined="true" Class="atlas-upload-zone pa-5" @onclick="context.OpenFilePickerAsync">
+                        <MudStack AlignItems="AlignItems.Center" Spacing="1">
+                            <MudAvatar Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Large">
+                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" />
+                            </MudAvatar>
+                            <MudText Typo="Typo.subtitle1" Align="Align.Center">Arraste a planilha aqui ou clique para selecionar</MudText>
+                             <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center">XLSX, XLSB ou CSV • tamanho máximo de 100 MB</MudText>
+                        </MudStack>
+                    </MudPaper>
+                </CustomContent>
+            </MudFileUpload>
+
+            @if (_parsingImport)
+            {
+                <MudPaper Outlined="true" Class="pa-4 mt-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Small" />
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.subtitle2">Lendo e validando a planilha...</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Arquivos maiores podem levar alguns instantes.</MudText>
+                        </MudStack>
+                    </MudStack>
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-3" />
+                </MudPaper>
+            }
+            else if (!string.IsNullOrWhiteSpace(_uploadedFileName))
+            {
+                <MudPaper Outlined="true" Class="pa-3 mt-4">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudAvatar Color="Color.Success" Variant="Variant.Outlined">
+                            <MudIcon Icon="@Icons.Material.Filled.Description" />
+                        </MudAvatar>
+                        <MudStack Spacing="0" Class="atlas-file-info">
+                            <MudText Typo="Typo.subtitle2">@_uploadedFileName</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatFileSize(_uploadedFileSize) • @_preview.Count linha(s) localizada(s)</MudText>
+                        </MudStack>
+                        <MudSpacer />
+                        <MudTooltip Text="Remover arquivo">
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="ClearImportFile" />
+                        </MudTooltip>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @if (_preview.Count > 0)
+            {
+                var invalidCount = _preview.Count(x => !x.Valid);
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-5 mb-2" Spacing="1">
+                    <MudText Typo="Typo.h6">Pré-visualização</MudText>
+                    <MudSpacer />
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success">@(_preview.Count - invalidCount) válida(s)</MudChip>
+                    @if (invalidCount > 0)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">@invalidCount com erro</MudChip>
+                    }
+                </MudStack>
+                <MudTable Items="_preview" Dense="true" Hover="true" FixedHeader="true" Height="min(42vh, 420px)" Breakpoint="Breakpoint.Sm" Class="atlas-import-preview">
+                     <HeaderContent><MudTh>Linha</MudTh><MudTh>Código</MudTh><MudTh>Tipo</MudTh><MudTh>Situação</MudTh><MudTh>Cliente</MudTh><MudTh>Validação</MudTh></HeaderContent>
+                     <RowTemplate><MudTd DataLabel="Linha">@context.Line</MudTd><MudTd DataLabel="Código">@context.Code</MudTd><MudTd DataLabel="Tipo">@context.Type</MudTd><MudTd DataLabel="Situação">@(context.Dto?.Situacao ?? "—")</MudTd><MudTd DataLabel="Cliente">@context.Client</MudTd><MudTd DataLabel="Validação"><MudChip T="string" Size="Size.Small" Color="@(context.Valid ? Color.Success : Color.Error)">@(context.Valid ? "Válida" : context.Error)</MudChip></MudTd></RowTemplate>
+                </MudTable>
+            }
+        </div>
+
+        <div class="atlas-import-footer pa-4 px-5">
+            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                <MudButton OnClick="CloseImportDrawer" Disabled="@(_importing || _parsingImport)">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CheckCircle" Disabled="@(_preview.Count == 0 || _preview.Any(x => !x.Valid) || _importing || _parsingImport)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton>
             </MudStack>
-            <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_importOpen=false)" Disabled="_importing" />
-        </MudToolBar>
-        <MudDivider Class="mb-4" />
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">No XLSX, uma única confirmação preenche Clientes, Serviços, Acompanhamento, Lançamentos e Custos Indiretos. As abas AVCB, CLCB, OBRAS, PROCESSOS ADM, LANÇAMENTOS e CUSTOS INDIRETOS são vinculadas pelo código.</MudAlert>
-        <InputFile OnChange="ParseImportAsync" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
-        @if(_preview.Count>0){<MudTable Items="_preview" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-4"><HeaderContent><MudTh>Linha</MudTh><MudTh>Código</MudTh><MudTh>Tipo</MudTh><MudTh>Cliente</MudTh><MudTh>Validação</MudTh></HeaderContent><RowTemplate><MudTd>@context.Line</MudTd><MudTd>@context.Code</MudTd><MudTd>@context.Type</MudTd><MudTd>@context.Client</MudTd><MudTd><MudChip T="string" Size="Size.Small" Color="@(context.Valid?Color.Success:Color.Error)">@(context.Valid?"Válida":context.Error)</MudChip></MudTd></RowTemplate></MudTable>}
-        <MudDivider Class="mt-5 mb-4" />
-        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(()=>_importOpen=false)" Disabled="_importing">Cancelar</MudButton><MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_preview.Count==0||_preview.Any(x=>!x.Valid)||_importing)" OnClick="ConfirmImportAsync">Confirmar importação</MudButton></MudStack>
+        </div>
     </div>
 </MudDrawer>
+
+<style>
+    .atlas-operational-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+    .atlas-operational-table { min-width: 1280px; }
+    .atlas-operational-table td { vertical-align: middle; }
+    .atlas-operational-table td:nth-child(2), .atlas-operational-table td:nth-child(3), .atlas-operational-table td:nth-child(5), .atlas-operational-table td:nth-child(7) { min-width: 170px; }
+    .atlas-observation-cell { min-width: 260px !important; white-space: normal; line-height: 1.35; }
+    .atlas-status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap; border: 1px solid rgba(15,23,42,.12); }
+    .atlas-color-dot { width: 13px; height: 13px; flex: 0 0 13px; border-radius: 50%; border: 1px solid rgba(15,23,42,.18); }
+    .atlas-import-drawer { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--mud-palette-surface); }
+    .atlas-import-header { flex: 0 0 auto; border-bottom: 1px solid var(--mud-palette-divider); }
+    .atlas-import-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 20px; overscroll-behavior: contain; }
+    .atlas-import-footer { flex: 0 0 auto; background: var(--mud-palette-surface); border-top: 1px solid var(--mud-palette-divider); box-shadow: 0 -8px 20px rgba(15, 23, 42, .05); }
+    .atlas-upload-zone { cursor: pointer; border: 2px dashed var(--mud-palette-primary) !important; background: color-mix(in srgb, var(--mud-palette-primary) 5%, transparent); transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+    .atlas-upload-zone:hover { background: color-mix(in srgb, var(--mud-palette-primary) 10%, transparent); transform: translateY(-1px); }
+    .atlas-file-info { min-width: 0; overflow: hidden; }
+    .atlas-file-info .mud-typography { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .atlas-import-preview { border: 1px solid var(--mud-palette-divider); border-radius: 10px; overflow: hidden; }
+    @@media (max-width: 600px) {
+        .atlas-import-header, .atlas-import-content { padding-left: 16px !important; padding-right: 16px !important; }
+        .atlas-import-footer { padding: 12px 16px !important; }
+        .atlas-import-footer .mud-stack { width: 100%; }
+        .atlas-import-footer .mud-button-root { flex: 1; }
+    }
+</style>
 
 @code {
     private List<AcompanhamentoDto> _items=[]; private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
-        new("codigo","Serviço",x=>x.Codigo),
-        new("cliente","Cliente",x=>x.Cliente),
-        new("telefone","Telefone",x=>x.Telefone),
-        new("situacao","Situação",x=>x.Situacao),
-        new("pendencias","Pendências",x=>$"{x.Concluidas}/{x.Pendencias}"),
-        new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+        new("codigo","Código",x=>x.Codigo,1), new("cliente","Cliente",x=>x.Cliente,2),
+        new("endereco","Endereço",x=>x.Endereco,3), new("telefone","Telefone",x=>x.Telefone,4),
+        new("servico","Serviço",x=>x.Servico,5), new("valorContrato","R$ Contrato",x=>x.ValorContrato,6),
+        new("dataContrato","Data Contrato",x=>x.DataContrato,7), new("nf","NF",x=>x.NotaFiscal,8),
+        new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,9),
+        new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,10),
+        new("situacao","Situação",x=>x.Situacao,11), new("observacoes","Observações",x=>x.Descricao,12),
+        new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,13),
+        new("areceber","A receber",x=>x.AReceber,14), new("recebido","Recebido",x=>x.Recebido,15),
+        new("custos","Custos",x=>x.Custos,15), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),16)
     ];
-    private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing;
+    private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing,_parsingImport;
+    private bool _hideCompleted=true;
     private string? _search,_newStatus,_statusNote,_actor,_pendingLabels,_uploadedFileName;
     private byte[]? _uploadedFileBytes;
-    private AcompanhamentoServicoTipo? RouteType=>Navigation.ToBaseRelativePath(Navigation.Uri).ToLowerInvariant() switch{"avcb"=>AcompanhamentoServicoTipo.AVCB,"clcb"=>AcompanhamentoServicoTipo.CLCB,"obras"=>AcompanhamentoServicoTipo.OBRAS,"processos"=>AcompanhamentoServicoTipo.PROCESSOS_ADM,_=>null};
-    private string Title=>RouteType is null?"Acompanhamento de serviços":$"Painel {TypeLabel(RouteType.Value)}";
-    private IEnumerable<AcompanhamentoDto> Filtered=>_items.Where(x=>RouteType is null||x.Tipo==RouteType).Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Situacao}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    private long _uploadedFileSize;
+    private AcompanhamentoServicoTipo? _tipoFiltro;
+    private ServicoForm _servicoForm = default!;
+    private long? _editStatusId,_editDescId;
+    private string? _editingSituacao,_editingDescricao;
+    private readonly HashSet<long> _selectedIds = [];
+    private string? _bulkSituacao,_bulkDescricao;
+    private bool _bulkApplying;
+    private readonly Dictionary<string, HashSet<string>> _columnFilters = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _hiddenColumns = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _pinnedColumns = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Func<AcompanhamentoDto, object?>> _columnValueGetters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["codigo"] = x => x.Codigo,
+        ["cliente"] = x => x.Cliente,
+        ["endereco"] = x => x.Endereco,
+        ["telefone"] = x => x.Telefone,
+        ["tipo"] = x => TypeLabel(x.Tipo),
+        ["valorContrato"] = x => Money(x.ValorContrato),
+        ["dataContrato"] = x => x.DataContrato?.ToString("dd/MM/yyyy"),
+        ["nf"] = x => x.NotaFiscal,
+        ["condicaoPagamento"] = x => x.CondicaoPagamento,
+        ["proximaParcela"] = x => x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto,
+        ["situacao"] = x => x.Situacao,
+        ["observacoes"] = x => x.Descricao,
+        ["observacaoMudanca"] = x => x.ObservacaoMudanca,
+        ["areceber"] = x => Money(x.AReceber),
+        ["recebido"] = x => Money(x.Recebido),
+        ["custos"] = x => Money(x.Custos),
+        ["atualizacao"] = x => x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+    };
+    private IReadOnlySet<string> GetColumnFilter(string key) => _columnFilters.TryGetValue(key, out var values) ? values : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private void OnColumnFilterChanged(string key, IReadOnlySet<string> values)
+    {
+        if (values.Count == 0) _columnFilters.Remove(key);
+        else _columnFilters[key] = [.. values];
+    }
+    private void OnHiddenColumnsChanged(IReadOnlySet<string> hidden)
+    {
+        _hiddenColumns.Clear();
+        foreach (var key in hidden) _hiddenColumns.Add(key);
+    }
+    private void ToggleHiddenColumn(string key)
+    {
+        if (!_hiddenColumns.Add(key)) _hiddenColumns.Remove(key);
+    }
+    private void TogglePinColumn(string key)
+    {
+        if (!_pinnedColumns.Add(key)) _pinnedColumns.Remove(key);
+    }
+    private IEnumerable<AcompanhamentoDto> Filtered=>_items
+        .Where(x=>_tipoFiltro is null||x.Tipo==_tipoFiltro)
+        .Where(x=>!_hideCompleted||!IsCompleted(x.Situacao))
+        .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase))
+        .Where(x=>_columnFilters.All(f=>!_columnValueGetters.TryGetValue(f.Key,out var getter)||f.Value.Count==0||f.Value.Contains(Text(getter(x)))));
+    private static bool IsCompleted(string? status) =>
+        !string.IsNullOrEmpty(status) &&
+        (status!.StartsWith("Concluído", StringComparison.OrdinalIgnoreCase) ||
+         status!.StartsWith("Concluido", StringComparison.OrdinalIgnoreCase));
+    private static Color StatusColor(string? status)
+    {
+        var value=status??"";
+        if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase))return Color.Success;
+        if(value.Contains("aguard",StringComparison.OrdinalIgnoreCase))return Color.Warning;
+        if(value.Contains("comunic",StringComparison.OrdinalIgnoreCase)||value.Contains("reprov",StringComparison.OrdinalIgnoreCase))return Color.Error;
+        if(value.Contains("vistoria",StringComparison.OrdinalIgnoreCase)||value.Contains("protoc",StringComparison.OrdinalIgnoreCase))return Color.Secondary;
+        return Color.Info;
+    }
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
+    private async Task AbrirFormularioNovo()=>await _servicoForm.Open();
+    private async Task OnServicoSalvoAsync()=>await LoadAsync();
+    private void StartEditSituacao(AcompanhamentoDto item){_editStatusId=item.Id;_editingSituacao=item.Situacao;_editDescId=null;}
+    private async Task SaveSituacaoAsync(AcompanhamentoDto item,string status)
+    {
+        if(string.Equals(item.Situacao,status,StringComparison.OrdinalIgnoreCase)){_editStatusId=null;return;}
+        try{await Service.ChangeStatusAsync(item.Id,status,null,null);Snackbar.Add("Situação atualizada.",Severity.Success);await LoadAsync();}
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_editStatusId=null;}
+    }
+    private void StartEditDescricao(AcompanhamentoDto item){_editDescId=item.Id;_editingDescricao=item.Descricao;_editStatusId=null;}
+    private async Task SaveDescricaoAsync(AcompanhamentoDto item)
+    {
+        if(string.Equals(item.Descricao,_editingDescricao,StringComparison.OrdinalIgnoreCase)){_editDescId=null;return;}
+        try{await Service.UpdateDescricaoAsync(item.Id,_editingDescricao);Snackbar.Add("Observação atualizada.",Severity.Success);await LoadAsync();}
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_editDescId=null;}
+    }
+    private IEnumerable<string> StatusesFor(AcompanhamentoServicoTipo tipo)=>
+        _situations.Where(x=>x.Tipo==tipo&&x.Ativo).Select(x=>x.Nome)
+            .Concat(_items.Where(x=>x.Tipo==tipo).Select(x=>x.Situacao))
+            .Concat(DefaultStatuses(tipo))
+            .Where(x=>!string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x=>x);
+    private void ToggleSelect(AcompanhamentoDto item,bool selected){if(selected)_selectedIds.Add(item.Id);else _selectedIds.Remove(item.Id);}
+    private void ToggleSelectAll(IEnumerable<AcompanhamentoDto> items,bool selected)
+    {
+        foreach(var item in items)
+            if(selected)_selectedIds.Add(item.Id);else _selectedIds.Remove(item.Id);
+    }
+    private async Task AplicarBulkAsync()
+    {
+        if(_selectedIds.Count==0)return;
+        _bulkApplying=true;
+        try
+        {
+            await Service.BulkUpdateAsync(_selectedIds.ToList(),_bulkSituacao,_bulkDescricao,null);
+            Snackbar.Add("Atualização em massa aplicada.",Severity.Success);
+            _selectedIds.Clear();
+            _bulkSituacao=null;
+            _bulkDescricao=null;
+            await LoadAsync();
+        }
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_bulkApplying=false;}
+    }
+    private async Task ExportarExcelAsync()=>await JS.InvokeVoidAsync("downloadUrl","/api/acompanhamentos/export/excel","acompanhamentos.xlsx");
     private Task<IEnumerable<string>> SearchStatusesAsync(string value,CancellationToken cancellationToken)
     {
         if(_selected is null)return Task.FromResult(Enumerable.Empty<string>());
         var statuses=_situations.Where(x=>x.Tipo==_selected.Tipo&&x.Ativo).Select(x=>x.Nome)
             .Concat(_items.Where(x=>x.Tipo==_selected.Tipo).Select(x=>x.Situacao))
-            .Concat(["Em análise","Em andamento","Aguardando cliente","Aguardando documentos",
-                "Aguardando vistoria","Concluído","Cancelado"])
+            .Concat(DefaultStatuses(_selected.Tipo))
             .Where(x=>!string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(x=>string.IsNullOrWhiteSpace(value)||x.Contains(value,StringComparison.OrdinalIgnoreCase))
@@ -185,16 +620,59 @@
             .AsEnumerable();
         return Task.FromResult(statuses);
     }
+    private static IEnumerable<string> DefaultStatuses(AcompanhamentoServicoTipo type) => type == AcompanhamentoServicoTipo.AVCB
+        ? ["Aguar. Contratante", "Aguar. Documentos", "Comunicado", "Concluído", "Concluído - Aguar. Pag.", "Em análise", "Executar"]
+        : ["Em análise", "Em andamento", "Aguardando cliente", "Aguardando documentos", "Aguardando vistoria", "Concluído", "Cancelado"];
     private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);_items=(await Service.ListAsync()).ToList();}
     private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_newStatus))return;await Service.ChangeStatusAsync(_selected.Id,_newStatus,_statusNote,_actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
     private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
-    private void OpenSettings(){_config=new(){Tipo=RouteType??AcompanhamentoServicoTipo.AVCB,Ativo=true};_pendingLabels="";_settingsOpen=true;}
+    private void OpenSettings(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";_settingsOpen=true;}
     private void EditSituation(SituacaoConfigDto item){_config=SituationModel.From(item);_pendingLabels=string.Join(Environment.NewLine,item.Pendencias);}
     private async Task SaveSituationAsync(){var dto=_config.ToDto((_pendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}
-    private async Task ParseImportAsync(InputFileChangeEventArgs e){_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;try{await using var upload=e.File.OpenReadStream(100*1024*1024);await using var buffer=new MemoryStream();await upload.CopyToAsync(buffer);_uploadedFileBytes=buffer.ToArray();_uploadedFileName=e.File.Name;await using var readStream=new MemoryStream(_uploadedFileBytes,false);var rows=await SpreadsheetReader.ReadAsync(readStream,e.File.Name,RouteType);_preview=rows.Select(x=>new ImportRow(x.Linha,x.Codigo,x.Tipo,x.Cliente??"",x.Valido,x.Erro,x.Item)).ToList();Snackbar.Add($"{_preview.Count} linha(s) carregada(s) para validação.",Severity.Info);}catch(Exception ex){Snackbar.Add(ex.Message,Severity.Error);}}
-    private async Task ConfirmImportAsync(){_importing=true;try{if(_uploadedFileBytes is not null&&string.Equals(Path.GetExtension(_uploadedFileName),".xlsx",StringComparison.OrdinalIgnoreCase)){await using var stream=new MemoryStream(_uploadedFileBytes,false);var result=await WorkbookImportService.ImportAsync(stream,_uploadedFileName!);Snackbar.Add($"Importação concluída: {result.ClientesCriados} clientes, {result.CondicoesPagamentoCriadas} condições, {result.ServicosCriados} serviços, {result.AcompanhamentosCriados} acompanhamentos, {result.LancamentosCriados} lançamentos e {result.CustosIndiretosCriados} custos.",Severity.Success);}else{await Service.ImportAsync(_preview.Select(x=>x.Dto!).ToList());Snackbar.Add($"{_preview.Count} serviço(s) importado(s).",Severity.Success);}_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_importOpen=false;await LoadAsync();}catch(Exception e){Snackbar.Add(ImportErrorMessage(e),Severity.Error);}finally{_importing=false;}}
-    private static string ImportErrorMessage(Exception exception){var root=exception.GetBaseException();return root==exception?exception.Message:$"{exception.Message} Causa: {root.Message}";}
+    private async Task ParseImportAsync(IBrowserFile? file)
+    {
+        if (file is null) return;
+        ClearImportFile();
+        _parsingImport = true;
+        try
+        {
+            var extension = Path.GetExtension(file.Name);
+             if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(extension, ".xlsb", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(extension, ".csv", StringComparison.OrdinalIgnoreCase))
+                 throw new InvalidOperationException("Selecione uma planilha no formato XLSX, XLSB ou CSV.");
+
+            await using var upload = file.OpenReadStream(100 * 1024 * 1024);
+            await using var buffer = new MemoryStream();
+            await upload.CopyToAsync(buffer);
+            _uploadedFileBytes = buffer.ToArray();
+            _uploadedFileName = file.Name;
+            _uploadedFileSize = file.Size;
+            await using var readStream = new MemoryStream(_uploadedFileBytes, false);
+            var rows = await SpreadsheetReader.ReadAsync(readStream, file.Name, _tipoFiltro);
+            _preview = rows.Select(x => new ImportRow(x.Linha, x.Codigo, x.Tipo, x.Cliente ?? "", x.Valido, x.Erro, x.Item)).ToList();
+            Snackbar.Add($"{_preview.Count} linha(s) carregada(s) para validação.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            ClearImportFile();
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _parsingImport = false; }
+    }
+     private async Task ConfirmImportAsync(){_importing=true;try{var extension=Path.GetExtension(_uploadedFileName);if(_uploadedFileBytes is not null&&(string.Equals(extension,".xlsx",StringComparison.OrdinalIgnoreCase)||string.Equals(extension,".xlsb",StringComparison.OrdinalIgnoreCase))){await using var stream=new MemoryStream(_uploadedFileBytes,false);var result=await WorkbookImportService.ImportAsync(stream,_uploadedFileName!);Snackbar.Add($"Importação concluída: {result.ClientesCriados} clientes, {result.CondicoesPagamentoCriadas} condições, {result.ServicosCriados} serviços, {result.AcompanhamentosCriados} acompanhamentos, {result.LancamentosCriados} lançamentos e {result.CustosIndiretosCriados} custos.",Severity.Success);}else{await Service.ImportAsync(_preview.Select(x=>x.Dto!).ToList());Snackbar.Add($"{_preview.Count} serviço(s) importado(s).",Severity.Success);}_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_importOpen=false;await LoadAsync();}catch(Exception e){Snackbar.Add(ImportErrorMessage(e),Severity.Error);}finally{_importing=false;}}
+    private void ClearImportFile(){_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_uploadedFileSize=0;}
+    private void CloseImportDrawer(){if(_importing||_parsingImport)return;ClearImportFile();_importOpen=false;}
+     private static string FormatFileSize(long bytes)=>bytes switch{>=1024L*1024L=>$"{bytes/(1024d*1024d):N1} MB",>=1024=>$"{bytes/1024d:N1} KB",_=>$"{bytes} bytes"};
+     private static string Money(decimal? value)=>value?.ToString("C2",new System.Globalization.CultureInfo("pt-BR"))??"—";
+    private static string Text(object? value)=>value?.ToString()?.Trim()??"";
+     private static string ImportErrorMessage(Exception exception){var root=exception.GetBaseException();return root==exception?exception.Message:$"{exception.Message} Causa: {root.Message}";}
     private static string TypeLabel(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.PROCESSOS_ADM=>"Processos administrativos",AcompanhamentoServicoTipo.OBRAS=>"Obras",_=>t.ToString()};
+    private static Color TypeColor(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.AVCB=>Color.Error,AcompanhamentoServicoTipo.CLCB=>Color.Warning,AcompanhamentoServicoTipo.OBRAS=>Color.Info,_=>Color.Secondary};
+    private string SituationStyle(AcompanhamentoDto item){var color=SituationColor(item.Tipo,item.Situacao);return $"background:{color};color:{ContrastColor(color)}";}
+    private string SituationColor(AcompanhamentoServicoTipo type,string status,string? configured=null)=>configured??_situations.FirstOrDefault(x=>x.Tipo==type&&x.Nome.Equals(status,StringComparison.OrdinalIgnoreCase))?.Cor??DefaultSituationColor(status);
+    private static string DefaultSituationColor(string? status){var value=status??"";if(value.Contains("contrat",StringComparison.OrdinalIgnoreCase))return "#FDE68A";if(value.Contains("document",StringComparison.OrdinalIgnoreCase))return "#FDBA74";if(value.Contains("comunic",StringComparison.OrdinalIgnoreCase))return "#FCA5A5";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase)&&value.Contains("pag",StringComparison.OrdinalIgnoreCase))return "#93C5FD";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase))return "#86EFAC";if(value.Contains("análise",StringComparison.OrdinalIgnoreCase)||value.Contains("analise",StringComparison.OrdinalIgnoreCase))return "#D1D5DB";if(value.Contains("execut",StringComparison.OrdinalIgnoreCase))return "#C4B5FD";if(value.Contains("vistoria",StringComparison.OrdinalIgnoreCase))return "#67E8F9";if(value.Contains("agend",StringComparison.OrdinalIgnoreCase))return "#C7D2FE";return "#BFDBFE";}
+    private static string ContrastColor(string color){if(color.Length!=7||!int.TryParse(color[1..3],System.Globalization.NumberStyles.HexNumber,null,out var r)||!int.TryParse(color[3..5],System.Globalization.NumberStyles.HexNumber,null,out var g)||!int.TryParse(color[5..7],System.Globalization.NumberStyles.HexNumber,null,out var b))return "#0F172A";return (r*299+g*587+b*114)/1000>=150?"#0F172A":"#FFFFFF";}
     private sealed record ImportRow(int Line,string Code,string Type,string Client,bool Valid,string? Error,AcompanhamentoImportDto? Dto);
-    private sealed class SituationModel{public long? Id{get;set;}public AcompanhamentoServicoTipo Tipo{get;set;}public string Nome{get;set;}="";public int Ordem{get;set;}public bool Inicial{get;set;}public bool Ativo{get;set;}=true;public static SituationModel From(SituacaoConfigDto x)=>new(){Id=x.Id,Tipo=x.Tipo,Nome=x.Nome,Ordem=x.Ordem,Inicial=x.Inicial,Ativo=x.Ativo};public SituacaoConfigDto ToDto(IEnumerable<string> p)=>new(Id,Tipo,Nome,Ordem,Inicial,Ativo,p.ToList());}
+    private sealed class SituationModel{public long? Id{get;set;}public AcompanhamentoServicoTipo Tipo{get;set;}public string Nome{get;set;}="";public string? Cor{get;set;}="#BFDBFE";public int Ordem{get;set;}public bool Inicial{get;set;}public bool Ativo{get;set;}=true;public static SituationModel From(SituacaoConfigDto x)=>new(){Id=x.Id,Tipo=x.Tipo,Nome=x.Nome,Cor=x.Cor??DefaultSituationColor(x.Nome),Ordem=x.Ordem,Inicial=x.Inicial,Ativo=x.Ativo};public SituacaoConfigDto ToDto(IEnumerable<string> p)=>new(Id,Tipo,Nome,Ordem,Inicial,Ativo,p.ToList(),Cor);}
 }

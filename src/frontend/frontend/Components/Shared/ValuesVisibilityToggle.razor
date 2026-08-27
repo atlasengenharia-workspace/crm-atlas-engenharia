@@ -1,0 +1,44 @@
+@inject IJSRuntime JS
+
+<MudTooltip Text="@(Hidden ? "Mostrar valores" : "Ocultar valores")">
+    <MudIconButton Icon="@(Hidden ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                   Color="Color.Default"
+                   Variant="Variant.Outlined"
+                   Size="Size.Medium"
+                   OnClick="ToggleAsync"
+                   aria-label="@(Hidden ? "Mostrar valores financeiros" : "Ocultar valores financeiros")" />
+</MudTooltip>
+
+@code {
+    private const string StorageKey = "atlas.hide-financial-values";
+
+    [Parameter] public bool Hidden { get; set; }
+    [Parameter] public EventCallback<bool> HiddenChanged { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            if (bool.TryParse(saved, out var hidden) && hidden != Hidden)
+            {
+                Hidden = hidden;
+                await HiddenChanged.InvokeAsync(Hidden);
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // A preferência é opcional; o controle continua funcionando sem armazenamento local.
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        Hidden = !Hidden;
+        await HiddenChanged.InvokeAsync(Hidden);
+        try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, Hidden.ToString()); }
+        catch { }
+    }
+}

@@ -93,6 +93,7 @@ internal sealed class ServicosConfiguration :
             .HasDatabaseName("idx_cadastro_servicos_dashboard");
         builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.EnderecoEmpresa).HasColumnType("text");
+        builder.Property(x => x.EnderecoEmpresaEstado).HasMaxLength(2);
         builder.Property(x => x.EnderecoServico).HasColumnType("text");
         builder.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId);
         builder.HasOne(x => x.Orcamento).WithMany().HasForeignKey(x => x.OrcamentoId);
@@ -169,6 +170,7 @@ internal sealed class AcompanhamentoConfiguration :
             .HasDatabaseName("uk_acompanhamento_situacao_tipo_nome");
         builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Nome).IsRequired();
+        builder.Property(x => x.Cor).HasMaxLength(16);
         builder.HasMany(x => x.Pendencias).WithOne(x => x.SituacaoConfig)
             .HasForeignKey(x => x.SituacaoConfigId).OnDelete(DeleteBehavior.Cascade);
     }

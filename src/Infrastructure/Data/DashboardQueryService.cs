@@ -6,6 +6,25 @@ namespace CrmAtlas.Infrastructure.Data;
 
 internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQueryService
 {
+    // Rotulos amigaveis das linhas de servico. Os graficos do frontend pintam
+    // cada linha por esse nome; quando a consulta devolvia o nome do enum
+    // ("PROCESSOS_ADM"), o mapa de cores nao encontrava a chave e o grafico
+    // saia todo na cor de fallback.
+    private static readonly (string Name, AcompanhamentoServicoTipo Type)[] LineSpecs =
+    [
+        ("AVCB", AcompanhamentoServicoTipo.AVCB),
+        ("CLCB", AcompanhamentoServicoTipo.CLCB),
+        ("Proc. Adm", AcompanhamentoServicoTipo.PROCESSOS_ADM),
+        ("Obras", AcompanhamentoServicoTipo.OBRAS)
+    ];
+
+    private static string LineLabel(AcompanhamentoServicoTipo type)
+    {
+        foreach (var spec in LineSpecs)
+            if (spec.Type == type) return spec.Name;
+        return type.ToString();
+    }
+
     public async Task<DashboardSnapshot> GetAsync(
         DashboardFilter filter,
         CancellationToken cancellationToken = default)
@@ -17,6 +36,9 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var entries = await db.Lancamentos
             .AsNoTracking()
             .Where(x => x.Data >= filter.Start && x.Data <= filter.End)
+            // The executive dashboard is cash-basis: forecasts and items still
+            // awaiting confirmation are not revenue/cost until they are paid.
+            .Where(x => x.Status == LancamentoStatus.PAGO)
             .Where(x => x.CadastroServico == null || types.Contains(x.CadastroServico.TipoServico))
             .Select(x => new
             {
@@ -87,17 +109,27 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             .Select(x => new
             {
                 x.Id, x.Codigo, x.NomeCliente, x.TipoServico, x.Situacao, x.Endereco,
-                x.ValorContrato, x.AReceber, x.UltimaMudancaSituacaoEm, x.CreatedAt,
+                x.ValorContrato, x.Recebido, x.AReceber, x.DataContrato, x.UltimaMudancaSituacaoEm, x.CreatedAt,
                 OpenPendencies = x.Pendencias.Count(p => !p.Concluida)
             })
             .ToListAsync(cancellationToken);
 
+        // Cartao "A receber", ranking de clientes e grafico de recebiveis por
+        // linha passam a sair da MESMA base: acompanhamentos com data de
+        // contrato dentro do periodo. Antes o cartao filtrava por periodo no
+        // banco e o grafico somava o historico inteiro, entao os dois numeros
+        // nunca fechavam na mesma tela. A lista de prioridades continua sem
+        // filtro de data, porque ali o objetivo e o que esta em aberto hoje.
+        var trackingInPeriod = prioritiesRaw
+            .Where(x => x.DataContrato.HasValue
+                && x.DataContrato.Value >= filter.Start
+                && x.DataContrato.Value <= filter.End)
+            .ToList();
+
         var clientCount = await db.Clientes.AsNoTracking().CountAsync(cancellationToken);
         var serviceCount = await db.CadastrosServico.AsNoTracking()
             .CountAsync(x => types.Contains(x.TipoServico), cancellationToken);
-        var receivable = await db.Acompanhamentos.AsNoTracking()
-            .Where(x => types.Contains(x.TipoServico))
-            .SumAsync(x => x.AReceber ?? 0, cancellationToken);
+        var receivable = trackingInPeriod.Sum(x => (x.ValorContrato ?? 0) - (x.Recebido ?? 0));
 
         var revenue = entries.Where(x => x.Tipo == LancamentoTipo.ENTRADA).Sum(x => x.Valor ?? 0);
         var directCosts = entries.Where(x => x.Tipo == LancamentoTipo.SAIDA).Sum(x => x.Valor ?? 0);
@@ -105,30 +137,37 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var result = revenue - directCosts - indirectTotal;
         var closedContractsValue = contracts.Sum(x => x.ValorContrato ?? 0);
 
-        var months = MonthRange(filter.Start, filter.End);
-        var periods = months.Select(month =>
+        var periods = PeriodRange(filter.Start, filter.End, filter.Granularity);
+        var periodPoints = periods.Select(period =>
         {
-            var monthEntries = entries.Where(x => x.Data?.Year == month.Year && x.Data?.Month == month.Month);
-            var monthRevenue = monthEntries.Where(x => x.Tipo == LancamentoTipo.ENTRADA).Sum(x => x.Valor ?? 0);
-            var monthDirect = monthEntries.Where(x => x.Tipo == LancamentoTipo.SAIDA).Sum(x => x.Valor ?? 0);
-            var monthIndirect = indirectCosts
-                .Where(x => x.Data.Year == month.Year && x.Data.Month == month.Month)
+            var periodEntries = entries.Where(x => InPeriod(x.Data, period, filter.Granularity));
+            var periodRevenue = periodEntries.Where(x => x.Tipo == LancamentoTipo.ENTRADA).Sum(x => x.Valor ?? 0);
+            var periodDirect = periodEntries.Where(x => x.Tipo == LancamentoTipo.SAIDA).Sum(x => x.Valor ?? 0);
+            var periodIndirect = indirectCosts
+                .Where(x => InPeriod(x.Data, period, filter.Granularity))
                 .Sum(x => x.Valor);
             return new DashboardPeriodPoint(
-                month.ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR")),
-                monthRevenue, monthDirect, monthIndirect, monthRevenue - monthDirect - monthIndirect);
+                PeriodLabel(period, filter.Granularity),
+                periodRevenue, periodDirect, periodIndirect, periodRevenue - periodDirect - periodIndirect);
         }).ToList();
 
         var revenueByService = entries
             .Where(x => x.Tipo == LancamentoTipo.ENTRADA)
-            .GroupBy(x => x.ServiceType?.ToString() ?? "Sem vínculo")
+            .GroupBy(x => x.ServiceType.HasValue ? LineLabel(x.ServiceType.Value) : "Sem vínculo")
             .Select(x => new DashboardBreakdownPoint(x.Key, x.Sum(y => y.Valor ?? 0), x.Count()))
             .OrderByDescending(x => x.Value)
             .ToList();
 
-        var contractsByService = contracts
-            .GroupBy(x => x.TipoServico.ToString())
-            .Select(x => new DashboardBreakdownPoint(x.Key, x.Sum(y => y.ValorContrato ?? 0), x.Count()))
+        // "Contrato todos os serviços": uma barra por linha ativa, sempre as
+        // quatro, mesmo quando alguma nao teve contrato no periodo — assim o
+        // grafico nao muda de forma a cada filtro e fica igual ao da planilha.
+        var contractsByService = LineSpecs
+            .Where(l => types.Contains(l.Type))
+            .Select(l =>
+            {
+                var items = contracts.Where(x => x.TipoServico == l.Type).ToList();
+                return new DashboardBreakdownPoint(l.Name, items.Sum(x => x.ValorContrato ?? 0), items.Count);
+            })
             .OrderByDescending(x => x.Value)
             .ToList();
 
@@ -139,7 +178,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             .Take(8)
             .ToList();
 
-        var topClients = prioritiesRaw
+        var topClients = trackingInPeriod
             .GroupBy(x => x.NomeCliente ?? "Cliente não informado")
             .Select((g, idx) =>
             {
@@ -155,7 +194,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
                     primaryLine,
                     g.Sum(x => x.ValorContrato ?? 0),
                     g.Count(),
-                    g.Sum(x => x.AReceber ?? 0));
+                    g.Sum(x => (x.ValorContrato ?? 0) - (x.Recebido ?? 0)));
             })
             .OrderByDescending(x => x.TotalContracted)
             .Take(10)
@@ -165,10 +204,10 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var now = DateTime.UtcNow;
         var priorityList = prioritiesRaw
             .OrderByDescending(x => x.OpenPendencies)
-            .ThenBy(x => x.UltimaMudancaSituacaoEm ?? x.CreatedAt)
+            .ThenBy(x => x.DataContrato?.ToDateTime(TimeOnly.MinValue) ?? x.UltimaMudancaSituacaoEm ?? x.CreatedAt)
             .Select(x =>
             {
-                var refDate = x.UltimaMudancaSituacaoEm ?? x.CreatedAt;
+                var refDate = x.DataContrato?.ToDateTime(TimeOnly.MinValue) ?? x.UltimaMudancaSituacaoEm ?? x.CreatedAt;
                 var days = Math.Max(0, (int)(now - refDate).TotalDays);
                 return new DashboardPriorityItem(
                     x.Id,
@@ -180,19 +219,19 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
                     days,
                     x.Endereco,
                     x.ValorContrato ?? 0,
-                    x.AReceber ?? 0);
+                    (x.ValorContrato ?? 0) - (x.Recebido ?? 0));
             })
             .ToList();
 
-        var rawMonthlyContracts = months.Select(month =>
+        var rawMonthlyContracts = periods.Select(period =>
         {
-            var monthContracts = contracts.Where(x => x.DataContrato?.Year == month.Year && x.DataContrato?.Month == month.Month).ToList();
-            var avcb = monthContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.AVCB).Sum(x => x.ValorContrato ?? 0);
-            var clcb = monthContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.CLCB).Sum(x => x.ValorContrato ?? 0);
-            var proc = monthContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.PROCESSOS_ADM).Sum(x => x.ValorContrato ?? 0);
-            var obras = monthContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.OBRAS).Sum(x => x.ValorContrato ?? 0);
+            var periodContracts = contracts.Where(x => InPeriod(x.DataContrato, period, filter.Granularity)).ToList();
+            var avcb = periodContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.AVCB).Sum(x => x.ValorContrato ?? 0);
+            var clcb = periodContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.CLCB).Sum(x => x.ValorContrato ?? 0);
+            var proc = periodContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.PROCESSOS_ADM).Sum(x => x.ValorContrato ?? 0);
+            var obras = periodContracts.Where(x => x.TipoServico == AcompanhamentoServicoTipo.OBRAS).Sum(x => x.ValorContrato ?? 0);
             var total = avcb + clcb + proc + obras;
-            return new { Label = month.ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR")), Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras, Total = total };
+            return new { Label = PeriodLabel(period, filter.Granularity), Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras, Total = total };
         }).ToList();
 
         var monthlyContractPoints = rawMonthlyContracts.Select((m, idx) =>
@@ -201,15 +240,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             return new DashboardMonthlyContractPoint(m.Label, m.Avcb, m.Clcb, m.ProcAdm, m.Obras, m.Total, ma3);
         }).ToList();
 
-        var lineSpecs = new[]
-        {
-            (Name: "AVCB", Type: AcompanhamentoServicoTipo.AVCB),
-            (Name: "CLCB", Type: AcompanhamentoServicoTipo.CLCB),
-            (Name: "Proc. Adm", Type: AcompanhamentoServicoTipo.PROCESSOS_ADM),
-            (Name: "Obras", Type: AcompanhamentoServicoTipo.OBRAS)
-        };
-
-        var quantityComparisons = lineSpecs
+        var quantityComparisons = LineSpecs
             .Where(l => types.Contains(l.Type))
             .Select(l => new DashboardServiceQuantityComparison(
                 l.Name,
@@ -221,25 +252,27 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var prevEntries = await db.Lancamentos
             .AsNoTracking()
             .Where(x => x.Data >= prevStart && x.Data <= prevEnd)
+            .Where(x => x.Status == LancamentoStatus.PAGO)
             .Where(x => x.CadastroServico == null || types.Contains(x.CadastroServico.TipoServico))
             .Select(x => new { x.Data, x.Tipo, x.Valor })
             .ToListAsync(cancellationToken);
 
-        var rawMonthlyRevenues = months.Select(month =>
+        var rawMonthlyRevenues = periods.Select(period =>
         {
-            var mEntries = entries.Where(x => x.Data?.Year == month.Year && x.Data?.Month == month.Month && x.Tipo == LancamentoTipo.ENTRADA).ToList();
+            var mEntries = entries.Where(x => InPeriod(x.Data, period, filter.Granularity) && x.Tipo == LancamentoTipo.ENTRADA).ToList();
             var rev = mEntries.Sum(x => x.Valor ?? 0);
             var avcb = mEntries.Where(x => x.ServiceType == AcompanhamentoServicoTipo.AVCB).Sum(x => x.Valor ?? 0);
             var clcb = mEntries.Where(x => x.ServiceType == AcompanhamentoServicoTipo.CLCB).Sum(x => x.Valor ?? 0);
             var proc = mEntries.Where(x => x.ServiceType == AcompanhamentoServicoTipo.PROCESSOS_ADM).Sum(x => x.Valor ?? 0);
             var obras = mEntries.Where(x => x.ServiceType == AcompanhamentoServicoTipo.OBRAS).Sum(x => x.Valor ?? 0);
 
-            var prevMonthDate = month.AddDays(-periodDays);
+            var prevPeriodDate = period.AddDays(-periodDays);
+            var prevPeriod = PeriodStart(prevPeriodDate, filter.Granularity);
             var prevRev = prevEntries
-                .Where(x => x.Data?.Year == prevMonthDate.Year && x.Data?.Month == prevMonthDate.Month && x.Tipo == LancamentoTipo.ENTRADA)
+                .Where(x => x.Data.HasValue && PeriodStart(x.Data.Value, filter.Granularity) == prevPeriod && x.Tipo == LancamentoTipo.ENTRADA)
                 .Sum(x => x.Valor ?? 0);
 
-            return new { Label = month.ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR")), Revenue = rev, PrevRevenue = prevRev, Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras };
+            return new { Label = PeriodLabel(period, filter.Granularity), Revenue = rev, PrevRevenue = prevRev, Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras };
         }).ToList();
 
         var monthlyRevenues = rawMonthlyRevenues.Select((m, idx) =>
@@ -256,10 +289,10 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             .Select(x => x.Category)
             .ToList();
 
-        var monthlyIndirectCosts = months.Select(month =>
+        var monthlyIndirectCosts = periods.Select(period =>
         {
             var mCosts = indirectCosts
-                .Where(x => x.Data.Year == month.Year && x.Data.Month == month.Month)
+                .Where(x => InPeriod(x.Data, period, filter.Granularity))
                 .ToList();
 
             var catList = new List<DashboardMonthlyIndirectCostCategory>();
@@ -274,16 +307,16 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             catList.Add(new DashboardMonthlyIndirectCostCategory("Outras", outrasVal));
 
             return new DashboardMonthlyIndirectCostPoint(
-                month.ToString("MMM/yy", new System.Globalization.CultureInfo("pt-BR")),
+                PeriodLabel(period, filter.Granularity),
                 catList);
         }).ToList();
 
-        var receivableByService = lineSpecs
+        var receivableByService = LineSpecs
             .Where(l => types.Contains(l.Type))
             .Select(l =>
             {
-                var lineItems = prioritiesRaw.Where(x => x.TipoServico == l.Type).ToList();
-                return new DashboardBreakdownPoint(l.Name, lineItems.Sum(x => x.AReceber ?? 0), lineItems.Count);
+                var lineItems = trackingInPeriod.Where(x => x.TipoServico == l.Type).ToList();
+                return new DashboardBreakdownPoint(l.Name, lineItems.Sum(x => (x.ValorContrato ?? 0) - (x.Recebido ?? 0)), lineItems.Count);
             })
             .ToList();
 
@@ -297,7 +330,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
                 revenue == 0 ? 0 : result / revenue,
                 receivable, closedContractsValue, closedContractsValuePrevious, closedContractsCount,
                 clientCount, serviceCount, priorityList.Sum(x => x.OpenPendencies)),
-            periods,
+            periodPoints,
             revenueByService,
             contractsByService,
             costBreakdown,
@@ -316,13 +349,62 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             receivableByService);
     }
 
-    private static IReadOnlyList<DateOnly> MonthRange(DateOnly start, DateOnly end)
+    // O preset "Tudo" do dashboard vai de 01/01/2020 ate hoje — mais de 70
+    // meses. Com o teto antigo de 36 os graficos de serie temporal paravam em
+    // dezembro/2022 enquanto os cartoes de KPI somavam o periodo inteiro, e as
+    // duas leituras da mesma tela nao fechavam. 120 periodos cobrem 10 anos e
+    // continuam limitando o tamanho da resposta.
+    private const int MaxPeriods = 120;
+
+    private static DateOnly PeriodStart(DateOnly d, DashboardGranularity g)
     {
-        var first = new DateOnly(start.Year, start.Month, 1);
-        var last = new DateOnly(end.Year, end.Month, 1);
+        return g switch
+        {
+            DashboardGranularity.Semana => d.AddDays(-((int)d.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7),
+            DashboardGranularity.Mes => new DateOnly(d.Year, d.Month, 1),
+            DashboardGranularity.Trimestre => new DateOnly(d.Year, ((d.Month - 1) / 3) * 3 + 1, 1),
+            DashboardGranularity.Ano => new DateOnly(d.Year, 1, 1),
+            _ => d
+        };
+    }
+
+    private static DateOnly PeriodNext(DateOnly period, DashboardGranularity g)
+    {
+        return g switch
+        {
+            DashboardGranularity.Semana => period.AddDays(7),
+            DashboardGranularity.Mes => period.AddMonths(1),
+            DashboardGranularity.Trimestre => period.AddMonths(3),
+            DashboardGranularity.Ano => period.AddYears(1),
+            _ => period
+        };
+    }
+
+    private static string PeriodLabel(DateOnly period, DashboardGranularity g)
+    {
+        var ci = new System.Globalization.CultureInfo("pt-BR");
+        return g switch
+        {
+            DashboardGranularity.Semana => period.ToString("dd/MM/yy", ci),
+            DashboardGranularity.Mes => period.ToString("MMM/yy", ci),
+            DashboardGranularity.Trimestre => $"T{((period.Month - 1) / 3) + 1}/{period.Year % 100:00}",
+            DashboardGranularity.Ano => period.Year.ToString(),
+            _ => period.ToString("MMM/yy", ci)
+        };
+    }
+
+    private static bool InPeriod(DateOnly? date, DateOnly period, DashboardGranularity g)
+    {
+        return date.HasValue && PeriodStart(date.Value, g) == period;
+    }
+
+    private static IReadOnlyList<DateOnly> PeriodRange(DateOnly start, DateOnly end, DashboardGranularity g)
+    {
+        var first = PeriodStart(start, g);
+        var last = PeriodStart(end, g);
         var result = new List<DateOnly>();
-        for (var month = first; month <= last && result.Count < 36; month = month.AddMonths(1))
-            result.Add(month);
+        for (var period = first; period <= last && result.Count < MaxPeriods; period = PeriodNext(period, g))
+            result.Add(period);
         return result;
     }
 }

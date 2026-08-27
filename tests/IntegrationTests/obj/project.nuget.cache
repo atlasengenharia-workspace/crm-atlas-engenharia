@@ -1,14 +1,15 @@
 {
   "version": 2,
-  "dgSpecHash": "Wgfpgw+ucDA=",
+  "dgSpecHash": "l0HMIBubbOo=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Vinicius Moreira\\Desktop\\crm-atlas-v2\\crm-atlas-v2\\tests\\IntegrationTests\\IntegrationTests.csproj",
+  "projectFilePath": "C:\\Users\\Vinicius Moreira\\Documents\\GitHub\\projeto-atlas-engenharia-crm\\web-client\\tests\\IntegrationTests\\IntegrationTests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\closedxml\\0.105.0\\closedxml.0.105.0.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\closedxml.parser\\2.0.0\\closedxml.parser.2.0.0.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\coverlet.collector\\6.0.4\\coverlet.collector.6.0.4.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\documentformat.openxml\\3.1.1\\documentformat.openxml.3.1.1.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\documentformat.openxml.framework\\3.1.1\\documentformat.openxml.framework.3.1.1.nupkg.sha512",
+    "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\exceldatareader\\3.9.0\\exceldatareader.3.9.0.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\excelnumberformat\\1.1.0\\excelnumberformat.1.1.0.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\microsoft.codecoverage\\17.14.1\\microsoft.codecoverage.17.14.1.nupkg.sha512",
     "C:\\Users\\Vinicius Moreira\\.nuget\\packages\\microsoft.entityframeworkcore\\10.0.4\\microsoft.entityframeworkcore.10.0.4.nupkg.sha512",

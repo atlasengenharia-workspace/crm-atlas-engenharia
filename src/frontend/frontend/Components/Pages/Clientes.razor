@@ -231,10 +231,9 @@
     private PagedResult<ClienteDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<ClienteDto>> _filterColumns =
     [
-        new("codigo","Código",x=>x.Id),new("cliente","Cliente",x=>x.RazaoSocial),
-        new("documento","Documento",x=>x.CnpjCpf),new("telefone","Telefone",x=>x.Telefone),
-        new("email","E-mail",x=>x.Email),new("cidade","Cidade",x=>x.Cidade),
-        new("estado","Estado",x=>x.Estado)
+        new("codigo","Código",x=>x.Id,1),new("cliente","Cliente",x=>x.RazaoSocial,2),
+        new("documento","Documento",x=>x.CnpjCpf,3),new("telefone","Telefone",x=>x.Telefone,4),
+        new("email","E-mail",x=>x.Email,4),new("cidade","Cidade",x=>x.Cidade,5),new("estado","Estado",x=>x.Estado,5)
     ];
     private ClienteStatistics _statistics = new(0, 0, 0);
     private ClienteEditModel _model = new();
@@ -256,7 +255,7 @@
         try
         {
             _result = await ClienteService.ListAsync(new(
-                null, _search, _search, _search, _search, null, _estado, _page, 20));
+                null, _search, _search, _search, _search, null, _estado, 1, 5000));
             _statistics = await ClienteService.GetStatisticsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }

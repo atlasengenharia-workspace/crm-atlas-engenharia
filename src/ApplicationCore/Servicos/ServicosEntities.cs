@@ -90,6 +90,8 @@ public sealed class Orcamento : Entity
     public string? Descricao { get; set; }
     public string Situacao { get; set; } = string.Empty;
     public string? Telefone { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? Data { get; set; }
     public AcompanhamentoServicoTipo TipoServico { get; set; }
     public decimal? ValorTotal { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -123,6 +125,13 @@ public sealed class CadastroServico : Entity
     public string? Telefone { get; set; }
     public string? Email { get; set; }
     public string? EnderecoEmpresa { get; set; }
+    public string? EnderecoEmpresaRua { get; set; }
+    public string? EnderecoEmpresaNumero { get; set; }
+    public string? EnderecoEmpresaBairro { get; set; }
+    public string? EnderecoEmpresaComplemento { get; set; }
+    public string? EnderecoEmpresaCidade { get; set; }
+    public string? EnderecoEmpresaEstado { get; set; }
+    public string? EnderecoEmpresaCep { get; set; }
     public string? EnderecoServico { get; set; }
     public bool MesmoEnderecoEmpresa { get; set; }
     public decimal? ValorContrato { get; set; }

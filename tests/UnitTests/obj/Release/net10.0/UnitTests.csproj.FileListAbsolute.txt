@@ -98,3 +98,4 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Release\net10.0\UnitTests.pdb
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Release\net10.0\UnitTests.genruntimeconfig.cache
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Release\net10.0\ref\UnitTests.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\UnitTests\obj\Release\net10.0\UnitTests.sourcelink.json

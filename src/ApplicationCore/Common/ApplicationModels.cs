@@ -11,7 +11,10 @@ public sealed record PagedResult<T>(
     public static PagedResult<T> Create(IEnumerable<T> source, int page, int pageSize)
     {
         page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        // Large selectors (for example, linking a financial entry to an older
+        // service) must be able to load the complete catalogue.  The previous
+        // cap of 100 silently hid valid service codes from the UI.
+        pageSize = Math.Clamp(pageSize, 1, 5000);
         var materialized = source.ToList();
         return new(
             materialized.Skip((page - 1) * pageSize).Take(pageSize).ToList(),
@@ -22,4 +25,3 @@ public sealed record PagedResult<T>(
 }
 
 public sealed class NotFoundException(string message) : Exception(message);
-

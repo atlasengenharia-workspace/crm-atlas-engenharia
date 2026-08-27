@@ -10,23 +10,11 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "cnpj_cpf",
-                table: "acompanhamento_servicos",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "endereco",
-                table: "acompanhamento_servicos",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "nota_fiscal",
-                table: "acompanhamento_servicos",
-                type: "text",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS cnpj_cpf text;
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS endereco text;
+                ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS nota_fiscal text;
+                """);
         }
 
         /// <inheritdoc />

@@ -101,6 +101,24 @@
             link.click();
             document.body.removeChild(link);
         };
+        window.downloadUrl = (url, fileName) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+        window.buscarCep = async (cep) => {
+            const clean = (cep || '').replace(/\D/g, '');
+            if (clean.length !== 8) return null;
+            try {
+                const resp = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+                if (!resp.ok) return null;
+                return await resp.json();
+            } catch { return null; }
+        };
     </script>
 </body>
 

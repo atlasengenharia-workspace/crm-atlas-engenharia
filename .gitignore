@@ -10,3 +10,5 @@ appsettings.*.local.json
 .env
 .env.*
 !.env.railway.example
+.idea/
+.vscode/

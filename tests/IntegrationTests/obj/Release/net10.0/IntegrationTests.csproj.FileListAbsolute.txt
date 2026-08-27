@@ -114,3 +114,4 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTes
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\bin\Release\net10.0\RBush.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\bin\Release\net10.0\SixLabors.Fonts.dll
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\bin\Release\net10.0\System.IO.Packaging.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\obj\Release\net10.0\IntegrationTests.sourcelink.json

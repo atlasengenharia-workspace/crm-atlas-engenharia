@@ -7,16 +7,18 @@ namespace CrmAtlas.ApplicationCore.Operacao;
 public sealed record AcompanhamentoHistoricoDto(long Id,string? Anterior,string Nova,string? Descricao,string? Responsavel,DateTime Em);
 public sealed record AcompanhamentoPendenciaDto(long Id,string Label,bool Concluida,DateTime? ConcluidaEm);
 public sealed record AcompanhamentoDto(long Id,long OrigemId,string Codigo,AcompanhamentoServicoTipo Tipo,string? Cliente,
-    string? Endereco,string? Telefone,string? Servico,string Situacao,string? Descricao,decimal? ValorContrato,DateOnly? DataContrato,
+    string? Endereco,string? Telefone,string? Servico,string Situacao,string? Descricao,string? ObservacaoMudanca,decimal? ValorContrato,DateOnly? DataContrato,
     string? NotaFiscal,string? CondicaoPagamento,int Pendencias,int Concluidas,
-    DateTime? AtualizadoEm,IReadOnlyList<AcompanhamentoHistoricoDto> Historicos,IReadOnlyList<AcompanhamentoPendenciaDto> Itens,string? CnpjCpf=null);
+    DateTime? AtualizadoEm,IReadOnlyList<AcompanhamentoHistoricoDto> Historicos,IReadOnlyList<AcompanhamentoPendenciaDto> Itens,string? CnpjCpf=null,
+    decimal? AReceber=null,decimal? Recebido=null,decimal? Custos=null,DateOnly? ProximaParcela=null,string? ProximaParcelaTexto=null);
 public sealed record AcompanhamentoImportDto(long OrigemId,string Codigo,AcompanhamentoServicoTipo Tipo,string? Cliente,
     string? Endereco,string? Telefone,string? Servico,string Situacao,string? Descricao,decimal? ValorContrato,
-    DateOnly? DataContrato,string? NotaFiscal,string? CondicaoPagamento,string? CnpjCpf=null);
+    DateOnly? DataContrato,string? NotaFiscal,string? CondicaoPagamento,string? CnpjCpf=null,
+    decimal? AReceber=null,decimal? Recebido=null,decimal? Custos=null,DateOnly? ProximaParcela=null,string? ProximaParcelaTexto=null);
 public sealed record AcompanhamentoImportPreviewDto(int Linha,string Aba,string Codigo,string Tipo,string? Cliente,
     bool Valido,string? Erro,AcompanhamentoImportDto? Item);
 public sealed record SituacaoConfigDto(long? Id,AcompanhamentoServicoTipo Tipo,string Nome,int Ordem,bool Inicial,bool Ativo,
-    IReadOnlyList<string> Pendencias);
+    IReadOnlyList<string> Pendencias,string? Cor=null);
 
 public interface IAcompanhamentoRepository
 {
@@ -37,6 +39,8 @@ public interface IAcompanhamentoService
     Task<AcompanhamentoDto> GetAsync(long id,CancellationToken ct=default);
     Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows,CancellationToken ct=default);
     Task ChangeStatusAsync(long id,string novaSituacao,string? descricao,string? responsavel,CancellationToken ct=default);
+    Task UpdateDescricaoAsync(long id,string? descricao,CancellationToken ct=default);
+    Task BulkUpdateAsync(IReadOnlyList<long> ids,string? situacao,string? descricao,string? responsavel,CancellationToken ct=default);
     Task TogglePendingAsync(long serviceId,long pendingId,bool completed,CancellationToken ct=default);
     Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo=null,CancellationToken ct=default);
     Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto,CancellationToken ct=default);
@@ -45,6 +49,7 @@ public interface IAcompanhamentoService
 public interface IAcompanhamentoReportService
 {
     byte[] GeneratePdf(AcompanhamentoDto item);
+    byte[] GenerateExcel(IEnumerable<AcompanhamentoDto> items);
     byte[] GenerateGeneralOperationalReport(IEnumerable<AcompanhamentoDto> items);
     byte[] GeneratePurchaseOrderReport(string prestador, string escopo, decimal valor, string condicao);
     byte[] GenerateFinancialSummaryReport(decimal faturamento, decimal custos, decimal lucro, int totalLancamentos);
@@ -79,6 +84,7 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
                 NomeCliente=row.Cliente?.Trim(),CnpjCpf=row.CnpjCpf?.Trim(),Endereco=row.Endereco?.Trim(),Telefone=row.Telefone?.Trim(),Subtipo=row.Servico?.Trim(),
                 Situacao=row.Situacao.Trim(),Descricao=row.Descricao?.Trim(),ValorContrato=row.ValorContrato,DataContrato=row.DataContrato,
                 NotaFiscal=row.NotaFiscal?.Trim(),CondicaoPagamento=row.CondicaoPagamento?.Trim(),
+                AReceber=row.AReceber,Recebido=row.Recebido,Custos=row.Custos,ProximaParcela=row.ProximaParcela,ProximaParcelaTexto=row.ProximaParcelaTexto,
                 CreatedAt=now,UpdatedAt=now,UltimaMudancaSituacaoEm=now};
             item.Historicos.Add(new(){NovaSituacao=item.Situacao,Descricao="Importação em lote",ResponsavelNome="Sistema",CreatedAt=now});
             await repository.AddAsync(item,ct);result.Add(item);
@@ -96,6 +102,35 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
             item.Pendencias.Add(new(){SituacaoConfigId=config.Id,PendenciaConfigId=template.Id,Label=template.Label,CreatedAt=now,UpdatedAt=now});
         repository.Update(item);await repository.SaveChangesAsync(ct);
     }
+    public async Task UpdateDescricaoAsync(long id,string? descricao,CancellationToken ct=default)
+    {
+        var item=await Find(id,ct);
+        item.Descricao=descricao?.Trim();
+        item.UpdatedAt=DateTime.UtcNow;
+        repository.Update(item);await repository.SaveChangesAsync(ct);
+    }
+    public async Task BulkUpdateAsync(IReadOnlyList<long> ids,string? situacao,string? descricao,string? responsavel,CancellationToken ct=default)
+    {
+        if(ids.Count==0)return;
+        var items=(await repository.ListDetailedAsync(ct)).Where(x=>ids.Contains(x.Id)).ToList();
+        var allSituations=await repository.ListSituationsAsync(ct);
+        var now=DateTime.UtcNow;
+        foreach(var item in items)
+        {
+            if(!string.IsNullOrWhiteSpace(situacao)&&!string.Equals(item.Situacao,situacao.Trim(),StringComparison.OrdinalIgnoreCase))
+            {
+                var config=allSituations.FirstOrDefault(x=>x.TipoServico==item.TipoServico&&x.Ativo&&x.Nome.Equals(situacao.Trim(),StringComparison.OrdinalIgnoreCase));
+                item.Historicos.Add(new(){SituacaoAnterior=item.Situacao,NovaSituacao=situacao.Trim(),ResponsavelNome=responsavel?.Trim(),CreatedAt=now});
+                item.Situacao=situacao.Trim();item.UltimaMudancaSituacaoEm=now;
+                if(config is not null)foreach(var template in config.Pendencias.Where(x=>x.Ativo&&item.Pendencias.All(y=>y.PendenciaConfigId!=x.Id)))
+                    item.Pendencias.Add(new(){SituacaoConfigId=config.Id,PendenciaConfigId=template.Id,Label=template.Label,CreatedAt=now,UpdatedAt=now});
+            }
+            if(descricao is not null)item.Descricao=descricao.Trim();
+            item.UpdatedAt=now;
+            repository.Update(item);
+        }
+        await repository.SaveChangesAsync(ct);
+    }
     public async Task TogglePendingAsync(long serviceId,long pendingId,bool completed,CancellationToken ct=default)
     {
         var item=await Find(serviceId,ct);var pending=item.Pendencias.FirstOrDefault(x=>x.Id==pendingId)??throw new NotFoundException("Pendência não encontrada.");
@@ -108,20 +143,30 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
     {
         if(string.IsNullOrWhiteSpace(dto.Nome))throw new ArgumentException("Nome da situação é obrigatório.");
         var entity=dto.Id is null?new AcompanhamentoServicoSituacaoConfig():await repository.GetSituationAsync(dto.Id.Value,ct)??throw new NotFoundException("Situação não encontrada.");
-        entity.TipoServico=dto.Tipo;entity.Nome=dto.Nome.Trim();entity.Ordem=dto.Ordem;entity.SituacaoInicial=dto.Inicial;entity.Ativo=dto.Ativo;entity.Pendencias.Clear();
+        entity.TipoServico=dto.Tipo;entity.Nome=dto.Nome.Trim();entity.Ordem=dto.Ordem;entity.SituacaoInicial=dto.Inicial;entity.Ativo=dto.Ativo;entity.Cor=NormalizeColor(dto.Cor);entity.Pendencias.Clear();
         var now=DateTime.UtcNow;foreach(var label in dto.Pendencias.Where(x=>!string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
             entity.Pendencias.Add(new(){Label=label.Trim(),Ativo=true,CreatedAt=now,UpdatedAt=now});
         if(dto.Id is null)await repository.AddSituationAsync(entity,ct);else repository.UpdateSituation(entity);
         await repository.SaveChangesAsync(ct);return MapSituation(entity);
     }
     private async Task<AcompanhamentoServico> Find(long id,CancellationToken ct)=>await repository.GetDetailedAsync(id,ct)??throw new NotFoundException("Acompanhamento não encontrado.");
-    private static AcompanhamentoDto Map(AcompanhamentoServico x)=>new(x.Id,x.OrigemId,x.Codigo,x.TipoServico,x.NomeCliente,
-        x.Endereco,x.Telefone,x.Subtipo,x.Situacao,x.Descricao,x.ValorContrato,x.DataContrato,x.NotaFiscal,x.CondicaoPagamento,
-        x.Pendencias.Count,x.Pendencias.Count(y=>y.Concluida),x.UltimaMudancaSituacaoEm,
-        x.Historicos.OrderByDescending(y=>y.CreatedAt).Select(y=>new AcompanhamentoHistoricoDto(y.Id,y.SituacaoAnterior,y.NovaSituacao,y.Descricao,y.ResponsavelNome,y.CreatedAt)).ToList(),
-        x.Pendencias.OrderBy(y=>y.Concluida).ThenBy(y=>y.Label).Select(y=>new AcompanhamentoPendenciaDto(y.Id,y.Label,y.Concluida,y.ConcluidaEm)).ToList(),
-        x.CnpjCpf);
+    private static AcompanhamentoDto Map(AcompanhamentoServico x)
+    {
+        var historicos = x.Historicos.OrderByDescending(y => y.CreatedAt).ToList();
+        return new(x.Id, x.OrigemId, x.Codigo, x.TipoServico, x.NomeCliente,
+            x.Endereco, x.Telefone, x.Subtipo, x.Situacao, x.Descricao, historicos.FirstOrDefault()?.Descricao, x.ValorContrato, x.DataContrato, x.NotaFiscal, x.CondicaoPagamento,
+            x.Pendencias.Count, x.Pendencias.Count(y => y.Concluida), x.UltimaMudancaSituacaoEm,
+            historicos.Select(y => new AcompanhamentoHistoricoDto(y.Id, y.SituacaoAnterior, y.NovaSituacao, y.Descricao, y.ResponsavelNome, y.CreatedAt)).ToList(),
+            x.Pendencias.OrderBy(y => y.Concluida).ThenBy(y => y.Label).Select(y => new AcompanhamentoPendenciaDto(y.Id, y.Label, y.Concluida, y.ConcluidaEm)).ToList(),
+            x.CnpjCpf, x.AReceber, x.Recebido, x.Custos, x.ProximaParcela, x.ProximaParcelaTexto);
+    }
     private static SituacaoConfigDto MapSituation(AcompanhamentoServicoSituacaoConfig x)=>new(x.Id,x.TipoServico,x.Nome,x.Ordem??0,x.SituacaoInicial,x.Ativo,
-        x.Pendencias.Where(y=>y.Ativo).OrderBy(y=>y.Ordem).Select(y=>y.Label).ToList());
+        x.Pendencias.Where(y=>y.Ativo).OrderBy(y=>y.Ordem).Select(y=>y.Label).ToList(),x.Cor);
+    private static string? NormalizeColor(string? color)
+    {
+        if(string.IsNullOrWhiteSpace(color))return null;
+        var value=color.Trim();
+        return System.Text.RegularExpressions.Regex.IsMatch(value,"^#[0-9a-fA-F]{6}$")?value.ToUpperInvariant():throw new ArgumentException("Informe uma cor hexadecimal válida.");
+    }
 
 }

@@ -1,0 +1,701 @@
+@inject IJSRuntime JS
+@inject ICadastroServicoService Service
+@inject IClienteService ClienteService
+@inject ICondicaoPagamentoService CondicaoService
+@inject IOrcamentoService OrcamentoService
+@inject IPrestadorService PrestadorService
+@inject IAcompanhamentoService AcompanhamentoService
+@inject ISnackbar Snackbar
+
+<MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
+           Width="min(820px, 100vw)" Elevation="8">
+    <div class="pa-5">
+        <MudToolBar Class="pa-0 mb-3">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo serviço" : $"Editar {_model.Codigo}")</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Preencha contrato e plano financeiro.</MudText>
+            </MudStack>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+        </MudToolBar>
+        <MudDivider Class="mb-4" />
+
+        <MudForm @ref="_form" @bind-IsValid="_valid">
+            <div class="d-flex flex-column gap-4">
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Identificação</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
+                                          Required="true" RequiredError="Informe o código usado pela empresa."
+                                          ReadOnly="@(_model.Id is not null)" Variant="Variant.Outlined"
+                                          HelperText="Ex.: 2.15, 3.209 ou 3141" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="long?" Value="_model.ClienteId" ValueChanged="ClientChanged" Label="Cliente cadastrado"
+                                       Variant="Variant.Outlined" Clearable="true">
+                                @foreach (var cliente in _clientes)
+                                {
+                                    <MudSelectItem T="long?" Value="@cliente.Id">@cliente.RazaoSocial</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.DocumentoEmpresa" Label="CPF ou CNPJ"
+                                          Variant="Variant.Outlined" OnBlur="OnDocumentoBlur" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_model.RazaoSocialEmpresa" Label="Razão social"
+                                          Required="true" RequiredError="Informe a razão social."
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.ContatoEmpresa" Label="Pessoa de contato"
+                                          Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.Email" Label="E-mail" Variant="Variant.Outlined"
+                                          InputType="InputType.Email" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepAsync" />
+                        </MudItem>
+                        <MudItem xs="12" sm="7">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Rua" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="2">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaNumero" Label="Número" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaBairro" Label="Bairro" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaComplemento" Label="Complemento" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaCidade" Label="Cidade" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="1">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudSwitch T="bool" @bind-Value="_model.MesmoEnderecoEmpresa" Color="Color.Primary">
+                                Serviço executado no mesmo endereço
+                            </MudSwitch>
+                        </MudItem>
+                        @if (!_model.MesmoEnderecoEmpresa)
+                        {
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="_model.EnderecoServico" Label="Endereço do serviço"
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Serviço e contrato</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12">
+                            <MudSelect T="long?" Value="_model.OrcamentoId" ValueChanged="BudgetChanged"
+                                       Label="Converter orçamento existente" Clearable="true"
+                                       Variant="Variant.Outlined" HelperText="Tipo, cliente e valor serão aproveitados automaticamente.">
+                                @foreach (var budget in _budgets.Where(x => !ClosedBudget(x.Situacao)))
+                                {
+                                    <MudSelectItem T="long?" Value="@budget.Id">@budget.Codigo — @budget.Nome — @Money(budget.ValorTotal ?? 0)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="AcompanhamentoServicoTipo" Value="_model.TipoServico"
+                                       Label="Tipo de serviço" Required="true" Variant="Variant.Outlined"
+                                       ValueChanged="TypeChanged">
+                                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                                {
+                                    <MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
+                                       Required="true" RequiredError="Informe o subtipo."
+                                       Variant="Variant.Outlined">
+                                @foreach (var subtype in CurrentSubtypes)
+                                {
+                                    <MudSelectItem Value="@subtype">@subtype</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="_model.DataEntrada" Label="Data de entrada"
+                                           Required="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudAutocomplete T="string" @bind-Value="_model.SituacaoInicial"
+                                             Label="Situação" Variant="Variant.Outlined"
+                                             SearchFunc="SearchSituationsAsync"
+                                             CoerceText="true" CoerceValue="true"
+                                             Clearable="true"
+                                             HelperText="Selecione uma situação ou digite uma nova." />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker @bind-Date="_model.DataContrato" Label="Data do contrato"
+                                           Required="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" @bind-Value="_model.ValorContrato"
+                                             Label="Valor do contrato" Required="true" Min="0"
+                                             Format="C2" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="long?" Value="_model.CondicaoPagamentoId" ValueChanged="ConditionChanged"
+                                       Label="Condição de pagamento" Clearable="true"
+                                       Variant="Variant.Outlined">
+                                @foreach (var condition in _conditions)
+                                {
+                                    <MudSelectItem T="long?" Value="@condition.Id">@condition.Nome</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?" @bind-Value="_model.ValorNotaFiscal"
+                                             Label="Desconto / retenção NF" Min="0"
+                                             Format="C2" Variant="Variant.Outlined" />
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Parcelas</MudText>
+                    <div class="d-flex justify-space-between align-center mb-3">
+                        <div>
+                            <MudText Typo="Typo.h6">Plano financeiro</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                Líquido: @Money(NetValue) • Parcelado: @Money(InstallmentTotal)
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="AddInstallment">Adicionar parcela</MudButton>
+                    </div>
+                    @if (_model.Parcelas.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                            Informe ao menos uma parcela.
+                        </MudAlert>
+                    }
+                    @for (var i = 0; i < _model.Parcelas.Count; i++)
+                    {
+                        var index = i;
+                        var installment = _model.Parcelas[index];
+                        <MudPaper @key="installment.Key" Outlined="true" Class="pa-3 mb-3">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="4" sm="2">
+                                    <MudNumericField T="int?" @bind-Value="installment.Numero"
+                                                     Label="Parcela" Min="1" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="8" sm="3">
+                                    <MudNumericField T="decimal?" @bind-Value="installment.Valor"
+                                                     Label="Valor" Min="0" Step="0.01M" Format="C2" Culture="PtBr" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="10" sm="3">
+                                    <MudDatePicker @bind-Date="installment.Vencimento"
+                                                   Label="Vencimento" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="10" sm="3">
+                                    <MudTextField @bind-Value="installment.FormaPagamento"
+                                                  Label="Forma" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="2" sm="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
+                                                   Color="Color.Error" OnClick="@(() => RemoveInstallment(index))" />
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                    @if (_model.Parcelas.Count > 0 && InstallmentTotal != NetValue)
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+                            A soma das parcelas deve ser igual ao valor líquido. Diferença:
+                            @Money(NetValue - InstallmentTotal)
+                        </MudAlert>
+                    }
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Prestadores e custos</MudText>
+                    <div class="d-flex flex-wrap justify-space-between align-center gap-2 mb-4">
+                        <div>
+                            <MudText Typo="Typo.h6">Prestadores vinculados</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Provisionado: @Money(ProviderProvisioned) • Efetivo: @Money(ProviderActual)</MudText>
+                        </div>
+                        <div>
+                            <MudButton Href="/prestadores" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.PersonAdd">Cadastrar prestador</MudButton>
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="AddProvider">Vincular</MudButton>
+                        </div>
+                    </div>
+                    @if (_model.Prestadores.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Nenhum prestador vinculado a este serviço.</MudAlert>
+                    }
+                    @for (var i = 0; i < _model.Prestadores.Count; i++)
+                    {
+                        var index = i;
+                        var provider = _model.Prestadores[index];
+                        <MudPaper Outlined="true" Class="pa-4 mb-3">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" md="5">
+                                    <MudSelect T="long?" Value="provider.PrestadorId" ValueChanged="@((long? value) => ProviderChanged(index, value))"
+                                               Label="Prestador" Variant="Variant.Outlined" Clearable="true">
+                                        @foreach (var item in _providers)
+                                        {
+                                            <MudSelectItem T="long?" Value="@item.Id">@item.Nome</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="6" md="3"><MudNumericField T="decimal?" @bind-Value="provider.ValorProvisionado" Label="Provisionado" Min="0" Format="C2" Variant="Variant.Outlined" /></MudItem>
+                                <MudItem xs="6" md="3"><MudNumericField T="decimal?" @bind-Value="provider.ValorEfetivo" Label="Efetivo" Min="0" Format="C2" Variant="Variant.Outlined" /></MudItem>
+                                <MudItem xs="10" md="4">
+                                    <MudSelect T="PrestadorPagamentoDataTipo" @bind-Value="provider.DataPagamentoTipo" Label="Data de pagamento" Variant="Variant.Outlined">
+                                        <MudSelectItem Value="PrestadorPagamentoDataTipo.A_DEFINIR">A definir</MudSelectItem>
+                                        <MudSelectItem Value="PrestadorPagamentoDataTipo.TERMINO_SERVICO">No término do serviço</MudSelectItem>
+                                        <MudSelectItem Value="PrestadorPagamentoDataTipo.DATA">Data específica</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                                @if (provider.DataPagamentoTipo == PrestadorPagamentoDataTipo.DATA)
+                                {
+                                    <MudItem xs="10" md="4"><MudDatePicker @bind-Date="provider.DataPagamento" Label="Pagamento" Variant="Variant.Outlined" /></MudItem>
+                                }
+                                <MudItem xs="10" md="3" Class="d-flex align-center"><MudSwitch T="bool" @bind-Value="provider.Confirmado" Label="Confirmado" Color="Color.Success" /></MudItem>
+                                <MudItem xs="2" md="1"><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => RemoveProvider(index))" aria-label="Remover prestador" /></MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </div>
+        </MudForm>
+        <MudDivider Class="my-5" />
+        <MudStack Row="true" Justify="Justify.FlexEnd">
+            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving"
+                       StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">Salvar serviço</MudButton>
+        </MudStack>
+    </div>
+</MudDrawer>
+
+@code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private IReadOnlyList<ClienteDto> _clientes = [];
+    private IReadOnlyList<CondicaoPagamentoDto> _conditions = [];
+    private IReadOnlyList<CadastroServicoSubtipoConfigDto> _subtypes = [];
+    private IReadOnlyList<OrcamentoDto> _budgets = [];
+    private IReadOnlyList<PrestadorDto> _providers = [];
+    private IReadOnlyList<SituacaoConfigDto> _situations = [];
+    private ServiceModel _model = new();
+    private MudForm? _form;
+    private bool _valid;
+    private bool _saving;
+    private bool _editorOpen;
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+
+    public async Task Open(string? code = null, long? id = null)
+    {
+        if (id is null && string.IsNullOrWhiteSpace(code))
+        {
+            _model = new();
+            AddInstallment();
+            _editorOpen = true;
+            StateHasChanged();
+        }
+        else
+        {
+            _editorOpen = true;
+            StateHasChanged();
+        }
+
+        await LoadReferencesAsync();
+
+        if (id is not null)
+        {
+            try
+            {
+                var item = await Service.GetAsync(id.Value);
+                _model = ServiceModel.From(item);
+                StateHasChanged();
+            }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); _editorOpen = false; }
+        }
+        else if (!string.IsNullOrWhiteSpace(code))
+        {
+            try
+            {
+                var matches = await Service.ListAsync(new(code, null, null, 1, 5000, null, false));
+                var service = matches.Items.FirstOrDefault(x => string.Equals(x.Codigo, code, StringComparison.OrdinalIgnoreCase));
+                if (service is null)
+                {
+                    Snackbar.Add($"Cadastro de serviço não encontrado para o código {code}.", Severity.Error);
+                    _editorOpen = false;
+                    return;
+                }
+                _model = ServiceModel.From(service);
+                StateHasChanged();
+            }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); _editorOpen = false; }
+        }
+        else
+        {
+            StateHasChanged();
+        }
+    }
+
+    public void Close() => _editorOpen = false;
+
+    private async Task LoadReferencesAsync()
+    {
+        try
+        {
+            var clients = await ClienteService.ListAsync(new(null, null, null, null, null, null, null, 1, 2000));
+            _clientes = clients.Items;
+            _conditions = await CondicaoService.ListAsync();
+            _subtypes = await Service.ListSubtiposAsync();
+            _budgets = await OrcamentoService.ListAsync();
+            _providers = await PrestadorService.ListAsync();
+            _situations = await AcompanhamentoService.ListSituationsAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
+    }
+
+    private void Edit(CadastroServicoDto x) { _model = ServiceModel.From(x); _editorOpen = true; }
+    private void ClientChanged(long? id)
+    {
+        _model.ClienteId = id;
+        var client = _clientes.FirstOrDefault(x => x.Id == id);
+        if (client is null) return;
+        _model.DocumentoEmpresa = client.CnpjCpf;
+        _model.RazaoSocialEmpresa = client.RazaoSocial;
+        _model.ContatoEmpresa = client.NomeContato;
+        _model.Telefone = client.Telefone;
+        _model.Email = client.Email;
+        _model.EnderecoEmpresaRua = client.Rua;
+        _model.EnderecoEmpresaNumero = client.Numero;
+        _model.EnderecoEmpresaBairro = client.Bairro;
+        _model.EnderecoEmpresaComplemento = client.Complemento;
+        _model.EnderecoEmpresaCidade = client.Cidade;
+        _model.EnderecoEmpresaEstado = client.Estado;
+        _model.EnderecoEmpresaCep = client.Cep;
+    }
+    private void TypeChanged(AcompanhamentoServicoTipo value)
+    {
+        _model.TipoServico = value;
+        _model.Subtipo = CurrentSubtypes.FirstOrDefault() ?? "";
+        _model.SituacaoInicial = _situations
+            .Where(x => x.Tipo == value && x.Ativo)
+            .OrderByDescending(x => x.Inicial)
+            .ThenBy(x => x.Ordem)
+            .Select(x => x.Nome)
+            .FirstOrDefault();
+    }
+
+    private Task<IEnumerable<string>> SearchSituationsAsync(string value, CancellationToken cancellationToken) =>
+        Task.FromResult(_situations
+            .Where(x => x.Tipo == _model.TipoServico && x.Ativo)
+            .Select(x => x.Nome)
+            .Where(x => string.IsNullOrWhiteSpace(value)
+                || x.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .AsEnumerable());
+    private void AddInstallment() => _model.Parcelas.Add(new()
+    {
+        Numero = _model.Parcelas.Count + 1,
+        Vencimento = DateTime.Today.AddMonths(_model.Parcelas.Count + 1)
+    });
+    private void RemoveInstallment(int index) => _model.Parcelas.RemoveAt(index);
+    private void ConditionChanged(long? id)
+    {
+        _model.CondicaoPagamentoId = id;
+        GenerateInstallments();
+    }
+    private void GenerateInstallments()
+    {
+        if (_model.CondicaoPagamentoId is null) return;
+        var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
+        if (condition is null) return;
+        var name = condition.Nome ?? "";
+        var (count, interval) = ParseCondition(name);
+        if (count <= 0) return;
+        _model.Parcelas.Clear();
+        var baseDate = _model.DataContrato ?? DateTime.Today;
+        var installmentValue = NetValue / count;
+        for (int i = 0; i < count; i++)
+        {
+            var dueDate = interval switch
+            {
+                "semanal" => baseDate.AddDays(7 * i),
+                "mensal" => baseDate.AddMonths(i),
+                "anual" => baseDate.AddYears(i),
+                _ => baseDate.AddMonths(i)
+            };
+            _model.Parcelas.Add(new()
+            {
+                Numero = i + 1,
+                Valor = i == count - 1 ? NetValue - (installmentValue * (count - 1)) : installmentValue,
+                Vencimento = dueDate,
+                FormaPagamento = "Boleto"
+            });
+        }
+    }
+    private static (int Count, string Interval) ParseCondition(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"(\d+)\s*x", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        int count = match.Success ? int.Parse(match.Groups[1].Value) : 1;
+        if (lower.Contains("entrada")) count += 1;
+        string interval = lower.Contains("semanal") ? "semanal" : lower.Contains("anual") ? "anual" : "mensal";
+        return (count, interval);
+    }
+    private void AddProvider() => _model.Prestadores.Add(new());
+    private void RemoveProvider(int index) => _model.Prestadores.RemoveAt(index);
+    private void ProviderChanged(int index, long? id)
+    {
+        _model.Prestadores[index].PrestadorId = id;
+        _model.Prestadores[index].NomePrestador = _providers.FirstOrDefault(x => x.Id == id)?.Nome;
+    }
+    private void BudgetChanged(long? id)
+    {
+        _model.OrcamentoId = id;
+        var budget = _budgets.FirstOrDefault(x => x.Id == id);
+        if (budget is null) return;
+        _model.TipoServico = budget.TipoServico;
+        _model.Subtipo = CurrentSubtypes.FirstOrDefault() ?? _model.Subtipo;
+        _model.ValorContrato = budget.ValorTotal;
+        if (!string.IsNullOrWhiteSpace(budget.Nome)) _model.RazaoSocialEmpresa = budget.Nome;
+        if (!string.IsNullOrWhiteSpace(budget.Telefone)) _model.Telefone = budget.Telefone;
+        if (!string.IsNullOrWhiteSpace(budget.Email)) _model.Email = budget.Email;
+    }
+
+    private async Task SaveAsync()
+    {
+        await (_form?.ValidateAsync() ?? Task.CompletedTask);
+        if (!_valid) return;
+        if (InstallmentTotal != NetValue)
+        {
+            Snackbar.Add("A soma das parcelas deve fechar com o valor líquido.", Severity.Warning);
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var dto = _model.ToDto();
+            if (_model.Id is null) await Service.CreateAsync(dto);
+            else await Service.UpdateAsync(_model.Id.Value, dto);
+            _editorOpen = false;
+            Snackbar.Add("Serviço salvo com sucesso.", Severity.Success);
+            if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private IEnumerable<string> CurrentSubtypes =>
+        _subtypes.FirstOrDefault(x => x.TipoServico == _model.TipoServico)?.Subtipos ?? [];
+    private decimal NetValue => Math.Max(0, (_model.ValorContrato ?? 0) - (_model.ValorNotaFiscal ?? 0));
+    private decimal InstallmentTotal => _model.Parcelas.Sum(x => x.Valor ?? 0);
+    private decimal ProviderProvisioned => _model.Prestadores.Sum(x => x.ValorProvisionado ?? 0);
+    private decimal ProviderActual => _model.Prestadores.Sum(x => x.ValorEfetivo ?? 0);
+
+    private static string TypeLabel(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Processo administrativo",
+        AcompanhamentoServicoTipo.OBRAS => "Obras",
+        _ => type.ToString()
+    };
+    private static Color TypeColor(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.AVCB => Color.Error,
+        AcompanhamentoServicoTipo.CLCB => Color.Warning,
+        AcompanhamentoServicoTipo.OBRAS => Color.Info,
+        _ => Color.Secondary
+    };
+    private static string Money(decimal value) => value.ToString("C2", PtBr);
+    private static string ServiceSaveError(Exception exception, string? code)
+    {
+        var detail = exception.GetBaseException().Message;
+        if (detail.Contains("IX_cadastro_servicos_codigo", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
+            return $"Já existe um serviço com o código {code?.Trim()}. Informe outro código ou edite o cadastro existente.";
+        return exception.Message;
+    }
+    private static int WeeksSince(DateOnly start) => Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.DayNumber) / 7);
+    private static bool ClosedBudget(string status) =>
+        status.Contains("fech", StringComparison.OrdinalIgnoreCase)
+        || status.Contains("recus", StringComparison.OrdinalIgnoreCase);
+    private async Task BuscarCepAsync()
+    {
+        var cep = _model.EnderecoEmpresaCep;
+        if (string.IsNullOrWhiteSpace(cep)) return;
+        try
+        {
+            var result = await JS.InvokeAsync<ViaCepResult?>("buscarCep", cep);
+            if (result is null) return;
+            if (result.erro is true) { Snackbar.Add("CEP não encontrado.", Severity.Warning); return; }
+            _model.EnderecoEmpresaRua = result.logradouro;
+            _model.EnderecoEmpresaBairro = result.bairro;
+            _model.EnderecoEmpresaCidade = result.localidade;
+            _model.EnderecoEmpresaEstado = result.uf;
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao consultar CEP: {ex.Message}", Severity.Error); }
+    }
+    private void OnDocumentoBlur()
+    {
+        _model.DocumentoEmpresa = FormatCpfCnpj(_model.DocumentoEmpresa);
+        if (!string.IsNullOrWhiteSpace(_model.DocumentoEmpresa) && !IsCpfOrCnpjValid(_model.DocumentoEmpresa))
+            Snackbar.Add("CPF/CNPJ inválido.", Severity.Warning);
+    }
+    private static bool IsCpfOrCnpjValid(string? value)
+    {
+        var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length != 11 && digits.Length != 14) return false;
+        if (new HashSet<char>(digits).Count == 1) return false;
+        if (digits.Length == 11)
+        {
+            int[] w1 = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+            int[] w2 = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+            var baseCpf = digits[..9];
+            int calc(string input, int[] weights)
+            {
+                int s = 0;
+                for (int i = 0; i < weights.Length; i++) s += (input[i] - '0') * weights[i];
+                int r = s % 11;
+                return r < 2 ? 0 : 11 - r;
+            }
+            int d1 = calc(baseCpf, w1);
+            int d2 = calc(baseCpf + d1, w2);
+            return digits[9] - '0' == d1 && digits[10] - '0' == d2;
+        }
+        else
+        {
+            int[] w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+            int[] w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+            var baseCnpj = digits[..12];
+            int calc(string input, int[] weights)
+            {
+                int s = 0;
+                for (int i = 0; i < weights.Length; i++) s += (input[i] - '0') * weights[i];
+                int r = s % 11;
+                return r < 2 ? 0 : 11 - r;
+            }
+            int d1 = calc(baseCnpj, w1);
+            int d2 = calc(baseCnpj + d1, w2);
+            return digits[12] - '0' == d1 && digits[13] - '0' == d2;
+        }
+    }
+    private static string FormatCpfCnpj(string? value)
+    {
+        var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length == 11)
+            return $"{digits[..3]}.{digits[3..6]}.{digits[6..9]}-{digits[9..]}";
+        if (digits.Length == 14)
+            return $"{digits[..2]}.{digits[2..5]}.{digits[5..8]}/{digits[8..12]}-{digits[12..]}";
+        return value ?? "";
+    }
+    private sealed record ViaCepResult(string? logradouro, string? bairro, string? localidade, string? uf, bool? erro);
+
+    private sealed class ServiceModel
+    {
+        public long? Id { get; set; }
+        public string? Codigo { get; set; }
+        public long? ClienteId { get; set; }
+        public long? OrcamentoId { get; set; }
+        public long? CondicaoPagamentoId { get; set; }
+        public AcompanhamentoServicoTipo TipoServico { get; set; } = AcompanhamentoServicoTipo.AVCB;
+        public string Subtipo { get; set; } = "Projeto";
+        public DateTime? DataEntrada { get; set; } = DateTime.Today;
+        public string? SituacaoInicial { get; set; }
+        public string DocumentoEmpresa { get; set; } = "";
+        public string RazaoSocialEmpresa { get; set; } = "";
+        public string? ContatoEmpresa { get; set; }
+        public string? Telefone { get; set; }
+        public string? Email { get; set; }
+        public string? EnderecoEmpresa { get; set; }
+        public string? EnderecoEmpresaRua { get; set; }
+        public string? EnderecoEmpresaNumero { get; set; }
+        public string? EnderecoEmpresaBairro { get; set; }
+        public string? EnderecoEmpresaComplemento { get; set; }
+        public string? EnderecoEmpresaCidade { get; set; }
+        public string? EnderecoEmpresaEstado { get; set; }
+        public string? EnderecoEmpresaCep { get; set; }
+        public string? EnderecoServico { get; set; }
+        public bool MesmoEnderecoEmpresa { get; set; } = true;
+        public decimal? ValorContrato { get; set; }
+        public DateTime? DataContrato { get; set; } = DateTime.Today;
+        public decimal? ValorNotaFiscal { get; set; }
+        public List<InstallmentModel> Parcelas { get; set; } = [];
+        public List<ProviderModel> Prestadores { get; set; } = [];
+
+        public static ServiceModel From(CadastroServicoDto x) => new()
+        {
+            Id = x.Id, Codigo = x.Codigo, ClienteId = x.ClienteId, OrcamentoId = x.OrcamentoId,
+            CondicaoPagamentoId = x.CondicaoPagamentoId, TipoServico = x.TipoServico,
+            Subtipo = x.Subtipo, DataEntrada = x.DataEntrada.ToDateTime(TimeOnly.MinValue),
+            SituacaoInicial = x.SituacaoInicial, DocumentoEmpresa = x.DocumentoEmpresa,
+            RazaoSocialEmpresa = x.RazaoSocialEmpresa, ContatoEmpresa = x.ContatoEmpresa,
+            Telefone = x.Telefone, Email = x.Email, EnderecoEmpresa = x.EnderecoEmpresa,
+            EnderecoEmpresaRua = x.EnderecoEmpresaRua ?? x.EnderecoEmpresa, EnderecoEmpresaNumero = x.EnderecoEmpresaNumero,
+            EnderecoEmpresaBairro = x.EnderecoEmpresaBairro, EnderecoEmpresaComplemento = x.EnderecoEmpresaComplemento,
+            EnderecoEmpresaCidade = x.EnderecoEmpresaCidade, EnderecoEmpresaEstado = x.EnderecoEmpresaEstado,
+            EnderecoEmpresaCep = x.EnderecoEmpresaCep,
+            EnderecoServico = x.EnderecoServico, MesmoEnderecoEmpresa = x.MesmoEnderecoEmpresa,
+            ValorContrato = x.ValorContrato,
+            DataContrato = x.DataContrato?.ToDateTime(TimeOnly.MinValue),
+            ValorNotaFiscal = x.ValorNotaFiscal,
+            Parcelas = x.Parcelas.Select(p => new InstallmentModel
+            {
+                Id = p.Id, Numero = p.NumeroParcela, Valor = p.Valor,
+                Vencimento = p.DataVencimento?.ToDateTime(TimeOnly.MinValue),
+                FormaPagamento = p.FormaPagamento
+            }).ToList(),
+            Prestadores = x.Prestadores.Select(p => new ProviderModel
+            {
+                Id = p.Id, PrestadorId = p.PrestadorId, NomePrestador = p.NomePrestador,
+                ValorProvisionado = p.ValorProvisionado, ValorEfetivo = p.ValorEfetivo,
+                Confirmado = p.Confirmado ?? false, DataPagamentoTipo = p.DataPagamentoTipo,
+                DataPagamento = p.DataPagamento?.ToDateTime(TimeOnly.MinValue)
+            }).ToList()
+        };
+
+        public CadastroServicoDto ToDto() => new(
+            Id, Codigo, ClienteId, OrcamentoId, null, CondicaoPagamentoId, TipoServico, Subtipo,
+            DateOnly.FromDateTime(DataEntrada!.Value), SituacaoInicial, DocumentoEmpresa,
+            RazaoSocialEmpresa, ContatoEmpresa, Telefone, Email, EnderecoEmpresa,
+            EnderecoEmpresaRua, EnderecoEmpresaNumero, EnderecoEmpresaBairro, EnderecoEmpresaComplemento,
+            EnderecoEmpresaCidade, EnderecoEmpresaEstado, EnderecoEmpresaCep, EnderecoServico,
+            MesmoEnderecoEmpresa, ValorContrato, DateOnly.FromDateTime(DataContrato!.Value),
+            null, ValorNotaFiscal,
+            Parcelas.Select(p => new CadastroServicoParcelaDto(
+                p.Id, p.Numero, p.Valor,
+                p.Vencimento is null ? null : DateOnly.FromDateTime(p.Vencimento.Value),
+                p.FormaPagamento)).ToList(),
+            Prestadores.Select(p => new CadastroServicoPrestadorDto(
+                p.Id, p.PrestadorId, p.NomePrestador, p.ValorProvisionado, p.ValorEfetivo,
+                p.Confirmado, p.DataPagamento is null ? null : DateOnly.FromDateTime(p.DataPagamento.Value),
+                p.DataPagamentoTipo)).ToList(), null);
+    }
+
+    private sealed class InstallmentModel
+    {
+        public Guid Key { get; } = Guid.NewGuid();
+        public long? Id { get; set; }
+        public int? Numero { get; set; }
+        public decimal? Valor { get; set; }
+        public DateTime? Vencimento { get; set; }
+        public string? FormaPagamento { get; set; }
+    }
+
+    private sealed class ProviderModel
+    {
+        public long? Id { get; set; }
+        public long? PrestadorId { get; set; }
+        public string? NomePrestador { get; set; }
+        public decimal? ValorProvisionado { get; set; }
+        public decimal? ValorEfetivo { get; set; }
+        public bool Confirmado { get; set; }
+        public DateTime? DataPagamento { get; set; }
+        public PrestadorPagamentoDataTipo DataPagamentoTipo { get; set; } = PrestadorPagamentoDataTipo.A_DEFINIR;
+    }
+}

@@ -29,6 +29,7 @@ public sealed class AtlasDbContextFactory : IDesignTimeDbContextFactory<AtlasDbC
             .UseNpgsql(
                 connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
 
         return new AtlasDbContext(options);

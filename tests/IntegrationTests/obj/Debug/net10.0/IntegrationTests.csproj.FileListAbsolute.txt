@@ -115,3 +115,4 @@ C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTes
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\obj\Debug\net10.0\IntegrationTests.pdb
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\obj\Debug\net10.0\IntegrationTests.genruntimeconfig.cache
 C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\obj\Debug\net10.0\ref\IntegrationTests.dll
+C:\Users\Vinicius Moreira\Desktop\crm-atlas-v2\crm-atlas-v2\tests\IntegrationTests\bin\Debug\net10.0\ExcelDataReader.dll

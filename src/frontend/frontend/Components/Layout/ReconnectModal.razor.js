@@ -2,6 +2,12 @@
 const reconnectModal = document.getElementById("components-reconnect-modal");
 reconnectModal.addEventListener("components-reconnect-state-changed", handleReconnectStateChanged);
 
+window.crmAtlas = window.crmAtlas || {};
+window.crmAtlas.beginLogout = function () {
+    document.documentElement.dataset.loggingOut = "true";
+    if (reconnectModal.open) reconnectModal.close();
+};
+
 const retryButton = document.getElementById("components-reconnect-button");
 retryButton.addEventListener("click", retry);
 
@@ -9,6 +15,11 @@ const resumeButton = document.getElementById("components-resume-button");
 resumeButton.addEventListener("click", resume);
 
 function handleReconnectStateChanged(event) {
+    if (document.documentElement.dataset.loggingOut === "true") {
+        if (reconnectModal.open) reconnectModal.close();
+        return;
+    }
+
     if (event.detail.state === "show") {
         reconnectModal.showModal();
     } else if (event.detail.state === "hide") {

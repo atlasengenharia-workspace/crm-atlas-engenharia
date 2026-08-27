@@ -1,0 +1,75 @@
+@typeparam TItem
+
+<MudTooltip Text="@($"Filtrar {Label}")" Placement="Placement.Top">
+    <MudMenu Icon="@Icons.Material.Filled.FilterAlt" Color="@Color" Dense="true" Size="Size.Medium"
+             AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Label="@Label">
+        <div class="pa-2" style="min-width: 220px;">
+        <MudStack Row="true" Spacing="2" Class="mb-2">
+            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.PushPin" OnClick="Pin">Fixar</MudButton>
+            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.VisibilityOff" OnClick="Hide">Esconder</MudButton>
+        </MudStack>
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Pesquisar..." Immediate="true"
+                      Margin="Margin.Dense" Variant="Variant.Outlined" FullWidth="true" Class="mb-2" />
+        <MudStack Row="true" Spacing="2" Class="mb-2">
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectAll">Marcar todos</MudButton>
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="Clear">Limpar</MudButton>
+        </MudStack>
+        <MudDivider Class="mb-1" />
+        <div style="max-height: 220px; overflow-y: auto;">
+            @foreach (var value in FilteredValues)
+            {
+                <MudMenuItem OnClick="@(() => Toggle(value))">
+                    <MudCheckBox T="bool" Value="@Selected.Contains(value, _comparer)" ReadOnly="true" Label="@value" Dense="true" />
+                </MudMenuItem>
+            }
+        </div>
+    </div>
+</MudMenu>
+</MudTooltip>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = [];
+    [Parameter, EditorRequired] public Func<TItem, object?> GetValue { get; set; } = default!;
+    [Parameter] public IReadOnlySet<string> Selected { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    [Parameter] public EventCallback<IReadOnlySet<string>> SelectedChanged { get; set; }
+    [Parameter] public EventCallback<string> OnHide { get; set; }
+    [Parameter] public EventCallback<string> OnPin { get; set; }
+
+    private string? _search;
+    private readonly StringComparer _comparer = StringComparer.OrdinalIgnoreCase;
+
+    private Color Color => Selected.Count > 0 ? Color.Primary : Color.Default;
+
+    private IEnumerable<string> DistinctValues =>
+        Items.Select(GetValue)
+             .Select(Text)
+             .Where(x => !string.IsNullOrWhiteSpace(x))
+             .Distinct(_comparer)
+             .OrderBy(x => x);
+
+    private IEnumerable<string> FilteredValues =>
+        string.IsNullOrWhiteSpace(_search)
+            ? DistinctValues
+            : DistinctValues.Where(x => x.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private void Toggle(string value)
+    {
+        var updated = new HashSet<string>(Selected, _comparer);
+        if (updated.Contains(value)) updated.Remove(value);
+        else updated.Add(value);
+        SelectedChanged.InvokeAsync(updated);
+    }
+
+    private void SelectAll()
+    {
+        var updated = new HashSet<string>(FilteredValues, _comparer);
+        SelectedChanged.InvokeAsync(updated);
+    }
+
+    private void Clear() => SelectedChanged.InvokeAsync(new HashSet<string>(_comparer));
+    private async Task Pin() => await OnPin.InvokeAsync(Label);
+    private async Task Hide() => await OnHide.InvokeAsync(Label);
+
+    private static string Text(object? value) => value?.ToString()?.Trim() ?? "";
+}

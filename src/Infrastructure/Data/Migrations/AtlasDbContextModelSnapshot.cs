@@ -35,6 +35,11 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                         .HasColumnType("numeric")
                         .HasColumnName("a_receber");
 
+                    b.Property<string>("CnpjCpf")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("cnpj_cpf");
+
                     b.Property<string>("Codigo")
                         .IsRequired()
                         .HasColumnType("text")
@@ -79,6 +84,14 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                     b.Property<long>("OrigemId")
                         .HasColumnType("bigint")
                         .HasColumnName("origem_id");
+
+                    b.Property<DateOnly?>("ProximaParcela")
+                        .HasColumnType("date")
+                        .HasColumnName("proxima_parcela");
+
+                    b.Property<string>("ProximaParcelaTexto")
+                        .HasColumnType("text")
+                        .HasColumnName("proxima_parcela_texto");
 
                     b.Property<decimal?>("Recebido")
                         .HasColumnType("numeric")
@@ -244,6 +257,11 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                     b.Property<bool>("Ativo")
                         .HasColumnType("boolean")
                         .HasColumnName("ativo");
+
+                    b.Property<string>("Cor")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("cor");
 
                     b.Property<string>("Nome")
                         .IsRequired()
@@ -1258,6 +1276,35 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("endereco_empresa");
 
+                    b.Property<string>("EnderecoEmpresaBairro")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_bairro");
+
+                    b.Property<string>("EnderecoEmpresaCep")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_cep");
+
+                    b.Property<string>("EnderecoEmpresaCidade")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_cidade");
+
+                    b.Property<string>("EnderecoEmpresaComplemento")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_complemento");
+
+                    b.Property<string>("EnderecoEmpresaEstado")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("endereco_empresa_estado");
+
+                    b.Property<string>("EnderecoEmpresaNumero")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_numero");
+
+                    b.Property<string>("EnderecoEmpresaRua")
+                        .HasColumnType("text")
+                        .HasColumnName("endereco_empresa_rua");
+
                     b.Property<string>("EnderecoServico")
                         .HasColumnType("text")
                         .HasColumnName("endereco_servico");
@@ -1613,10 +1660,18 @@ namespace CrmAtlas.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateOnly?>("Data")
+                        .HasColumnType("date")
+                        .HasColumnName("data");
+
                     b.Property<string>("Descricao")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("descricao");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text")
+                        .HasColumnName("email");
 
                     b.Property<string>("Nome")
                         .HasColumnType("text")

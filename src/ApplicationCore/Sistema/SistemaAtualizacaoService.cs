@@ -5,6 +5,23 @@ public sealed class SistemaAtualizacaoService : ISistemaAtualizacaoService
     private static readonly List<SistemaAtualizacao> History =
     [
         new(
+            "v2.5.0",
+            new DateOnly(2026, 8, 3),
+            "Serviços, Financeiro e Desempenho do Painel Executivo",
+            "Atualização focada na confiabilidade dos cadastros de serviços, consistência dos valores financeiros e maior velocidade de navegação no dashboard.",
+            CategoriaAtualizacao.Correcao,
+            [
+                new("Endereço empresarial estruturado", "Endereço separado em CEP, rua, número, bairro, complemento, cidade e UF, com preenchimento a partir do cliente cadastrado."),
+                new("Edição de serviços e parcelas", "Correção dos conflitos de rastreamento ao editar serviços importados e estabilização da inclusão e remoção de parcelas."),
+                new("Valores monetários importados", "Tratamento consistente dos separadores decimal e de milhar para impedir valores multiplicados por 10 ou 100."),
+                new("Lançamentos financeiros", "Pesquisa de serviços por código ou cliente e exibição de todos os lançamentos ao abrir a página, mantendo o período como filtro opcional."),
+                new("Contagem semanal de serviços", "Nova coluna de semanas decorridas desde a data de entrada para facilitar o acompanhamento operacional."),
+                new("Dashboard mais rápido", "Troca otimizada entre as abas Financeiro e Gerencial, eliminando redesenhos duplicados dos nove gráficos."),
+                new("Banco de dados atualizado", "Migração aplicada em produção para persistir os novos campos estruturados de endereço.")
+            ],
+            DestaquePrincipal: true
+        ),
+        new(
             "v2.4.0",
             new DateOnly(2026, 7, 25),
             "Autenticação Auth0, Módulo de Atualizações & Design Responsivo Mobile/Tablet",
@@ -16,7 +33,7 @@ public sealed class SistemaAtualizacaoService : ISistemaAtualizacaoService
                 new("Interface Totalmente Responsiva", "Adaptabilidade completa para Android, iOS e tablets com barra lateral retrátil, botões de toque otimizados e tabelas flexíveis."),
                 new("Otimização de Carregamentos", "Skeletons e estados de carregamento suaves em todas as páginas para navegação instantânea.")
             ],
-            DestaquePrincipal: true
+            DestaquePrincipal: false
         ),
         new(
             "v2.3.5",

@@ -95,8 +95,8 @@
     private IReadOnlyList<CondicaoPagamentoDto> _items = [];
     private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
     [
-        new("nome","Nome",x=>x.Nome),new("parcelas","Parcelas",x=>x.QuantidadeParcelas),
-        new("intervalo","Intervalo",x=>x.Indefinido?"A definir":$"{x.IntervaloDias} dias")
+        new("nome","Nome",x=>x.Nome,1),new("parcelas","Parcelas",x=>x.QuantidadeParcelas,2,true),
+        new("intervalo","Intervalo",x=>x.Indefinido?"A definir":$"{x.IntervaloDias} dias",3)
     ];
     private ConditionModel _model = new();
     private MudForm? _form;

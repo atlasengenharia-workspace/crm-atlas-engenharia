@@ -14,6 +14,7 @@ using CrmAtlas.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CrmAtlas.Infrastructure;
 
@@ -30,6 +31,9 @@ public static class DependencyInjection
             ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
             ?? Environment.GetEnvironmentVariable("DATABASE_URL");
 
+        services.TryAddSingleton<IRealtimeNotifier, NullRealtimeNotifier>();
+        services.AddSingleton<RealtimeSaveChangesInterceptor>();
+
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
             if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
@@ -39,16 +43,20 @@ public static class DependencyInjection
             }
 
             services.AddDbContext<AtlasDbContext>(
-                options => options.UseNpgsql(connectionString, npgsql =>
-                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName)),
+                (provider, options) => options.UseNpgsql(connectionString, npgsql =>
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+                    .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+                    .AddInterceptors(provider.GetRequiredService<RealtimeSaveChangesInterceptor>()),
                 contextLifetime: ServiceLifetime.Transient,
                 optionsLifetime: ServiceLifetime.Singleton);
         }
         else
         {
             services.AddDbContext<AtlasDbContext>(
-                options => options.UseNpgsql("Host=localhost;Database=atlas_dummy", npgsql =>
-                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName)),
+                (provider, options) => options.UseNpgsql("Host=localhost;Database=atlas_dummy", npgsql =>
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+                    .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+                    .AddInterceptors(provider.GetRequiredService<RealtimeSaveChangesInterceptor>()),
                 contextLifetime: ServiceLifetime.Transient,
                 optionsLifetime: ServiceLifetime.Singleton);
         }

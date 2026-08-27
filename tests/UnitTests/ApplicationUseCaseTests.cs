@@ -1,6 +1,8 @@
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
+using CrmAtlas.ApplicationCore.Enums;
 using CrmAtlas.ApplicationCore.Financeiro;
+using CrmAtlas.ApplicationCore.Servicos;
 
 namespace CrmAtlas.UnitTests;
 
@@ -60,6 +62,46 @@ public sealed class ApplicationUseCaseTests
         Assert.Equal(1, result.TotalItems);
     }
 
+    [Theory]
+    [InlineData("Licenciamento", 1)]
+    [InlineData("SRV-002", 2)]
+    public async Task LancamentoService_PageSearchMatchesDescriptionOrServiceCode(
+        string search,
+        long expectedId)
+    {
+        var repository = new MemoryRepository<Lancamento>(
+        [
+            new Lancamento
+            {
+                Id = 1,
+                Descricao = "Taxa de licenciamento",
+                CodigoServico = "SRV-001",
+                Data = new DateOnly(2026, 7, 1),
+                Valor = 100,
+                Tipo = LancamentoTipo.SAIDA
+            },
+            new Lancamento
+            {
+                Id = 2,
+                Descricao = "Honorários",
+                CodigoServico = "SRV-002",
+                Data = new DateOnly(2026, 7, 2),
+                Valor = 200,
+                Tipo = LancamentoTipo.ENTRADA
+            }
+        ]);
+        var service = new LancamentoService(
+            repository,
+            new MemoryRepository<CadastroServico>(),
+            new MemoryRepository<Prestador>());
+
+        var result = await service.ListAsync(new(
+            null, null, null, null, search, search, Page: 1, PageSize: 20));
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(expectedId, item.Id);
+    }
+
     private sealed class MemoryRepository<TEntity>(IEnumerable<TEntity>? seed = null)
         : IRepository<TEntity> where TEntity : Entity
     {
@@ -87,4 +129,3 @@ public sealed class ApplicationUseCaseTests
             Task.FromResult(1);
     }
 }
-

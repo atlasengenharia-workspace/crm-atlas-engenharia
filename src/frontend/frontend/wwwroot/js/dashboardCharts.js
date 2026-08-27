@@ -1,5 +1,6 @@
 window.dashboardCharts = {
     masterChart: null,
+    operationalResultChart: null,
     vendasChart: null,
     qtdChart: null,
     evoChart: null,
@@ -64,15 +65,12 @@ window.dashboardCharts = {
                         stack: 'c'
                     },
                     {
-                        type: 'line',
+                        type: 'bar',
                         label: 'Resultado',
                         data: resultado,
-                        borderColor: '#1F9D66',
                         backgroundColor: '#1F9D66',
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                        tension: 0.35
+                        borderRadius: 4,
+                        stack: 'r'
                     }
                 ]
             },
@@ -144,6 +142,102 @@ window.dashboardCharts = {
         if (canvasId === 'masterChartCanvas') {
             this.masterChart = newChart;
         }
+
+        return true;
+    },
+
+    renderOperationalResultChart: function (canvasId, labels, revenue, directCosts, indirectCosts, result) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return false;
+
+        if (this.operationalResultChart) {
+            this.operationalResultChart.destroy();
+            this.operationalResultChart = null;
+        }
+
+        const compact = function (value) {
+            const abs = Math.abs(value || 0);
+            if (abs >= 1000000) return 'R$ ' + (value / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
+            if (abs >= 1000) return 'R$ ' + (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' mil';
+            return 'R$ ' + (value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        };
+        const full = value => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        this.operationalResultChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        type: 'bar', label: 'Custo direto', data: directCosts,
+                        backgroundColor: 'rgba(239, 68, 68, 0.78)', borderColor: '#DC2626',
+                        borderWidth: 0, borderRadius: 5, stack: 'costs', order: 3,
+                        maxBarThickness: 34
+                    },
+                    {
+                        type: 'bar', label: 'Custo indireto', data: indirectCosts,
+                        backgroundColor: 'rgba(245, 158, 11, 0.78)', borderColor: '#D97706',
+                        borderWidth: 0, borderRadius: 5, stack: 'costs', order: 3,
+                        maxBarThickness: 34
+                    },
+                    {
+                        type: 'line', label: 'Faturamento', data: revenue,
+                        borderColor: '#2563EB', backgroundColor: 'rgba(37, 99, 235, 0.10)',
+                        borderWidth: 3, pointRadius: 3, pointHoverRadius: 6,
+                        pointStyle: 'circle', pointBackgroundColor: '#2563EB', pointBorderColor: '#2563EB', pointBorderWidth: 2,
+                        tension: 0.35, fill: true, stack: 'revenue', order: 1
+                    },
+                    {
+                        type: 'line', label: 'Lucro da empresa', data: result,
+                        borderColor: '#059669', backgroundColor: '#059669',
+                        borderWidth: 2, pointRadius: 3, pointHoverRadius: 6,
+                        pointStyle: 'circle', pointBackgroundColor: '#059669', tension: 0.35,
+                        borderDash: [7, 5], fill: false, stack: 'result', order: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                animation: { duration: 450, easing: 'easeOutQuart' },
+                plugins: {
+                    legend: {
+                        position: 'bottom', align: 'start',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            pointStyleWidth: 10,
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 20,
+                            font: { family: 'Inter', size: 12, weight: '500' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0F172A', padding: 13, cornerRadius: 10,
+                        titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        callbacks: {
+                            label: context => ' ' + context.dataset.label + ': ' + full(context.parsed.y),
+                            footer: items => {
+                                if (!items || !items.length) return '';
+                                const i = items[0].dataIndex;
+                                return revenue[i] > 0 ? 'Margem: ' + ((result[i] / revenue[i]) * 100).toFixed(1).replace('.', ',') + '%' : '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, border: { display: false }, ticks: { color: '#64748B', font: { family: 'Inter', size: 11 } } },
+                    y: {
+                        stacked: true, beginAtZero: true, border: { display: false },
+                        grid: { color: 'rgba(148, 163, 184, 0.16)' },
+                        ticks: { color: '#64748B', padding: 10, callback: value => compact(value), font: { family: 'Inter', size: 11 } }
+                    }
+                }
+            }
+        });
 
         return true;
     },
@@ -810,6 +904,122 @@ window.dashboardCharts = {
 
         if (canvasId === 'donutChartCanvas') {
             this.donutChart = newChart;
+        }
+        return true;
+    },
+
+    // "Contrato todos os serviços": total contratado por linha no período,
+    // com o valor escrito acima de cada barra, como no gráfico da planilha.
+    renderContratoChart: function (canvasId, labels, values, counts) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return false;
+
+        if (this.contratoChart && canvasId === 'contratoChartCanvas') {
+            this.contratoChart.destroy();
+            this.contratoChart = null;
+        }
+
+        const lineColors = {
+            'AVCB': '#C8432F',
+            'CLCB': '#DE9427',
+            'Proc. Adm': '#6B46C1',
+            'Obras': '#2B6CB0'
+        };
+
+        const backgroundColors = labels.map(l => lineColors[l] || '#2563EB');
+        const total = values.reduce((a, b) => a + (b || 0), 0);
+
+        const fmtCurrency = function (value) {
+            if (value === null || value === undefined) return 'R$ 0';
+            if (Math.abs(value) >= 1000000) {
+                return 'R$ ' + (value / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' Mi';
+            }
+            if (Math.abs(value) >= 1000) {
+                return 'R$ ' + Math.round(value / 1000).toLocaleString('pt-BR') + ' mil';
+            }
+            return 'R$ ' + Math.round(value).toLocaleString('pt-BR');
+        };
+
+        const fmtFull = function (value) {
+            if (value === null || value === undefined) return 'R$ 0,00';
+            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        const valueLabels = {
+            id: 'contratoValueLabels',
+            afterDatasetsDraw: function (chart) {
+                const c = chart.ctx;
+                c.save();
+                c.font = 'bold 12px Inter, sans-serif';
+                c.fillStyle = '#2D3748';
+                c.textAlign = 'center';
+                c.textBaseline = 'bottom';
+                chart.getDatasetMeta(0).data.forEach(function (bar, index) {
+                    const raw = values[index] || 0;
+                    if (raw === 0) return;
+                    c.fillText(fmtCurrency(raw), bar.x, bar.y - 6);
+                });
+                c.restore();
+            }
+        };
+
+        const newChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Contratado',
+                    data: values,
+                    backgroundColor: backgroundColors,
+                    borderRadius: 4,
+                    maxBarThickness: 120
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 24 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(23, 30, 50, 0.95)',
+                        titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function (context) {
+                                const val = context.parsed.y || 0;
+                                const qtd = (counts && counts[context.dataIndex]) || 0;
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+                                return [
+                                    ' Contratado: ' + fmtFull(val) + ' (' + pct + '%)',
+                                    ' Contratos: ' + qtd
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#EEF0F4' },
+                        ticks: {
+                            font: { family: 'Inter', size: 11 },
+                            callback: function (value) { return fmtCurrency(value); }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 12, weight: 'bold' } }
+                    }
+                }
+            },
+            plugins: [valueLabels]
+        });
+
+        if (canvasId === 'contratoChartCanvas') {
+            this.contratoChart = newChart;
         }
         return true;
     }

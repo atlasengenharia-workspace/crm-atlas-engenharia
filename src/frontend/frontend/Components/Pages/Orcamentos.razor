@@ -23,9 +23,11 @@
         <SmartTableFilter TItem="OrcamentoDto" Items="Filtered" Columns="_filterColumns">
         <ChildContent Context="smartItems">
         <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading">
-            <HeaderContent><MudTh>Código</MudTh><MudTh>Cliente</MudTh><MudTh>Tipo</MudTh><MudTh>Situação</MudTh><MudTh>Valor</MudTh><MudTh>Ações</MudTh></HeaderContent>
+            <HeaderContent><MudTh>Código</MudTh><MudTh>Cliente</MudTh><MudTh>Contato</MudTh><MudTh>Data</MudTh><MudTh>Tipo</MudTh><MudTh>Situação</MudTh><MudTh>Valor</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd><MudTd DataLabel="Cliente">@context.Nome</MudTd>
+                <MudTd DataLabel="Contato"><MudText Typo="Typo.body2">@(context.Telefone ?? "—")</MudText><MudText Typo="Typo.caption">@(context.Email ?? "—")</MudText></MudTd>
+                <MudTd DataLabel="Data">@context.Data?.ToString("dd/MM/yyyy")</MudTd>
                 <MudTd DataLabel="Tipo">@context.TipoServico</MudTd><MudTd DataLabel="Situação"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.Situacao</MudChip></MudTd>
                 <MudTd DataLabel="Valor">@Money(context.ValorTotal ?? 0)</MudTd>
                 <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => Edit(context))" aria-label="@($"Editar orçamento {context.Codigo}")" />
@@ -51,6 +53,8 @@
             <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_model.TipoServico" Label="Tipo" Variant="Variant.Outlined">@foreach(var t in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@t">@t</MudSelectItem>}</MudSelect></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Nome" Label="Cliente / nome da proposta" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudDatePicker @bind-Date="_model.Data" Label="Data do orçamento" Required="true" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_model.Situacao" Label="Situação" Required="true" Variant="Variant.Outlined"><MudSelectItem Value="@("Em análise")">Em análise</MudSelectItem><MudSelectItem Value="@("Aguardando cliente")">Aguardando cliente</MudSelectItem><MudSelectItem Value="@("Aprovado")">Aprovado</MudSelectItem><MudSelectItem Value="@("Recusado")">Recusado</MudSelectItem></MudSelect></MudItem>
             <MudItem xs="12"><MudNumericField T="decimal?" @bind-Value="_model.ValorTotal" Label="Valor total" Variant="Variant.Outlined" Format="C2" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Descricao" Label="Descrição" Variant="Variant.Outlined" Lines="4" /></MudItem>
@@ -64,22 +68,23 @@
     private List<OrcamentoDto> _items=[]; private BudgetModel _model=new(); private MudForm? _form;
     private readonly IReadOnlyList<SmartFilterColumn<OrcamentoDto>> _filterColumns =
     [
-        new("codigo","Código",x=>x.Codigo),new("cliente","Cliente",x=>x.Nome),
-        new("tipo","Tipo",x=>x.TipoServico),new("situacao","Situação",x=>x.Situacao),
-        new("valor","Valor",x=>x.ValorTotal)
+        new("codigo","Código",x=>x.Codigo,1),new("cliente","Cliente",x=>x.Nome,2),
+        new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("data","Data",x=>x.Data,4),
+        new("tipo","Tipo",x=>x.TipoServico,5),new("situacao","Situação",x=>x.Situacao,6),new("valor","Valor",x=>x.ValorTotal,7,true)
     ];
     private bool _loading,_open,_saving,_valid; private string? _search;
-    private IEnumerable<OrcamentoDto> Filtered => string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Codigo} {x.Nome} {x.Descricao}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<OrcamentoDto> Filtered => string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Codigo} {x.Nome} {x.Descricao} {x.Telefone} {x.Email} {x.Data:dd/MM/yyyy}".Contains(_search,StringComparison.OrdinalIgnoreCase));
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync(){_loading=true;try{_items=(await Service.ListAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
-    private void New(){_model=new(){Codigo=$"ORC-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise"};_open=true;}
+    private void New(){_model=new(){Codigo=$"ORC-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
     private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
-    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_saving=false;}}
+    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
+    private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
     private async Task DeleteAsync(OrcamentoDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir orçamento",$"Excluir {x.Codigo}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
     private static bool Closed(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)||s.Contains("recus",StringComparison.OrdinalIgnoreCase);
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
-    private sealed class BudgetModel{public long? Id{get;set;}public string Codigo{get;set;}="";public string? Nome{get;set;}public string? Descricao{get;set;}public string Situacao{get;set;}="Em análise";public string? Telefone{get;set;}public AcompanhamentoServicoTipo TipoServico{get;set;}public decimal? ValorTotal{get;set;}
-        public static BudgetModel From(OrcamentoDto x)=>new(){Id=x.Id,Codigo=x.Codigo,Nome=x.Nome,Descricao=x.Descricao,Situacao=x.Situacao,Telefone=x.Telefone,TipoServico=x.TipoServico,ValorTotal=x.ValorTotal};
-        public OrcamentoDto ToDto()=>new(Id,Codigo,Nome,Descricao,Situacao,Telefone,TipoServico,ValorTotal);}
+    private sealed class BudgetModel{public long? Id{get;set;}public string Codigo{get;set;}="";public string? Nome{get;set;}public string? Descricao{get;set;}public string Situacao{get;set;}="Em análise";public string? Telefone{get;set;}public string? Email{get;set;}public DateTime? Data{get;set;}=DateTime.Today;public AcompanhamentoServicoTipo TipoServico{get;set;}public decimal? ValorTotal{get;set;}
+        public static BudgetModel From(OrcamentoDto x)=>new(){Id=x.Id,Codigo=x.Codigo,Nome=x.Nome,Descricao=x.Descricao,Situacao=x.Situacao,Telefone=x.Telefone,Email=x.Email,Data=x.Data?.ToDateTime(TimeOnly.MinValue),TipoServico=x.TipoServico,ValorTotal=x.ValorTotal};
+        public OrcamentoDto ToDto()=>new(Id,Codigo,Nome,Descricao,Situacao,Telefone,TipoServico,ValorTotal,Data is null?null:DateOnly.FromDateTime(Data.Value),Email);}
 }

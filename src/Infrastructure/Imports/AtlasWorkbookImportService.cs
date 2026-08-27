@@ -14,23 +14,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CrmAtlas.Infrastructure.Imports;
 
-public sealed partial class AtlasWorkbookImportService(
-    AtlasDbContext db,
-    IAcompanhamentoSpreadsheetReader operationalReader) : IAtlasWorkbookImportService
+public sealed partial class AtlasWorkbookImportService(AtlasDbContext db) : IAtlasWorkbookImportService
 {
     private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
 
     public async Task<AtlasWorkbookImportResult> ImportAsync(
         Stream stream, string fileName, CancellationToken cancellationToken = default)
     {
-        if (!Path.GetExtension(fileName).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("A importação integrada requer um arquivo .xlsx.");
+        var extension = Path.GetExtension(fileName);
+        if (!extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) &&
+            !extension.Equals(".xlsb", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("A importação integrada requer um arquivo .xlsx ou .xlsb.");
 
         await using var bytes = new MemoryStream();
         await stream.CopyToAsync(bytes, cancellationToken);
         var content = bytes.ToArray();
-        var operational = await operationalReader.ReadAsync(
-            new MemoryStream(content, writable: false), fileName, null, cancellationToken);
+
+        // O arquivo e convertido uma unica vez. Antes o workbook era montado
+        // duas vezes (leitor operacional + abas financeiras), o que dobrava o
+        // custo de memoria de uma planilha grande.
+        using var workbook = SpreadsheetWorkbookLoader.Load(
+            new MemoryStream(content, writable: false), fileName);
+
+        var operational = AcompanhamentoSpreadsheetReader.ReadWorkbook(workbook, null);
         var validOperational = operational.Where(x => x.Valido && x.Item != null).ToList();
         if (validOperational.Count == 0)
             throw new ArgumentException("A planilha não contém nenhuma linha operacional válida.");
@@ -48,7 +54,9 @@ public sealed partial class AtlasWorkbookImportService(
         var costCount = 0;
 
         var clients = await db.Clientes.ToListAsync(cancellationToken);
-        var services = await db.CadastrosServico.ToListAsync(cancellationToken);
+        var services = await db.CadastrosServico
+            .Include(x => x.Parcelas)
+            .ToListAsync(cancellationToken);
         var paymentConditions = await db.CondicoesPagamento.ToListAsync(cancellationToken);
         var trackings = await db.Acompanhamentos.ToListAsync(cancellationToken);
         var entries = await db.Lancamentos.ToListAsync(cancellationToken);
@@ -57,9 +65,22 @@ public sealed partial class AtlasWorkbookImportService(
         var clientByKey = clients
             .GroupBy(x => ClientKey(x.RazaoSocial, x.Telefone))
             .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
-        var serviceByCode = services.ToDictionary(x => x.Codigo, StringComparer.OrdinalIgnoreCase);
+
+        // Segundo indice, por documento. O indice unico IX_clientes_cnpj_cpf
+        // e a fonte da verdade no banco: se o CNPJ/CPF (ou o documento LEG-
+        // gerado para cliente sem documento) ja existe, e o mesmo cliente,
+        // ainda que nome ou telefone tenham mudado desde a ultima importacao.
+        var clientByDocument = clients
+            .Where(x => !string.IsNullOrWhiteSpace(x.CnpjCpf))
+            .GroupBy(x => x.CnpjCpf, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+        var serviceByCode = services
+            .GroupBy(x => CodeKey(x.Codigo), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
         var conditionByName = paymentConditions.ToDictionary(x => x.Nome, StringComparer.OrdinalIgnoreCase);
-        var trackingByCode = trackings.ToDictionary(x => x.Codigo, StringComparer.OrdinalIgnoreCase);
+        var trackingByCode = trackings
+            .GroupBy(x => CodeKey(x.Codigo), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var preview in validOperational)
         {
@@ -69,26 +90,39 @@ public sealed partial class AtlasWorkbookImportService(
             // 1. Process / Update Client
             if (!clientByKey.TryGetValue(clientKey, out var client))
             {
-                client = new Cliente
+                var document = !string.IsNullOrWhiteSpace(row.CnpjCpf)
+                    ? CleanCnpjCpf(row.CnpjCpf)
+                    : LegacyDocument(clientKey);
+
+                // Linhas sem nome de cliente eram gravadas com RazaoSocial
+                // "Cliente do serviço X". Na reimportacao a chave nome|telefone
+                // deixava de bater, um segundo cliente era criado com o mesmo
+                // documento LEG- e o banco recusava com IX_clientes_cnpj_cpf.
+                // Procurar pelo documento antes de inserir resolve esse caso e
+                // qualquer outro em que o nome tenha sido editado no CRM.
+                if (string.IsNullOrWhiteSpace(document)
+                    || !clientByDocument.TryGetValue(document, out client))
                 {
-                    CnpjCpf = !string.IsNullOrWhiteSpace(row.CnpjCpf) ? CleanCnpjCpf(row.CnpjCpf) : LegacyDocument(clientKey),
-                    RazaoSocial = Text(row.Cliente) ?? $"Cliente do serviço {row.Codigo}",
-                    NomeContato = Text(row.Cliente),
-                    Telefone = Text(row.Telefone),
-                    Cidade = Text(row.Endereco)
-                };
-                db.Clientes.Add(client);
+                    client = new Cliente
+                    {
+                        CnpjCpf = document,
+                        RazaoSocial = Text(row.Cliente) ?? $"Cliente do serviço {row.Codigo}",
+                        NomeContato = Text(row.Cliente),
+                        Telefone = Text(row.Telefone),
+                        Cidade = Text(row.Endereco)
+                    };
+                    db.Clientes.Add(client);
+                    if (!string.IsNullOrWhiteSpace(document)) clientByDocument[document] = client;
+                    clientCount++;
+                }
                 clientByKey[clientKey] = client;
-                clientCount++;
             }
             else if (!string.IsNullOrWhiteSpace(row.CnpjCpf))
             {
-                var cleaned = CleanCnpjCpf(row.CnpjCpf);
-                if (string.IsNullOrWhiteSpace(client.CnpjCpf) || client.CnpjCpf.StartsWith("LEG-", StringComparison.OrdinalIgnoreCase))
-                {
-                    client.CnpjCpf = cleaned;
-                }
+                TrySetDocument(client, CleanCnpjCpf(row.CnpjCpf), clientByDocument);
             }
+            if (!string.IsNullOrWhiteSpace(row.Telefone)) client.Telefone = Text(row.Telefone);
+            if (!string.IsNullOrWhiteSpace(row.Endereco)) client.Cidade = Text(row.Endereco);
 
             // 2. Process Payment Condition
             if (Text(row.CondicaoPagamento) is { } paymentName && !conditionByName.ContainsKey(paymentName))
@@ -110,7 +144,7 @@ public sealed partial class AtlasWorkbookImportService(
             }
 
             // 3. Process / Update Service
-            if (!serviceByCode.TryGetValue(row.Codigo, out var service))
+            if (!serviceByCode.TryGetValue(CodeKey(row.Codigo), out var service))
             {
                 conditionByName.TryGetValue(Text(row.CondicaoPagamento) ?? "", out var paymentCondition);
                 service = new CadastroServico
@@ -137,19 +171,47 @@ public sealed partial class AtlasWorkbookImportService(
                 };
                 AddInstallments(service, row.ValorContrato, row.DataContrato, row.CondicaoPagamento);
                 db.CadastrosServico.Add(service);
-                serviceByCode[row.Codigo] = service;
+                serviceByCode[CodeKey(row.Codigo)] = service;
                 serviceCount++;
             }
             else
             {
-                if (!string.IsNullOrWhiteSpace(client.CnpjCpf) && (string.IsNullOrWhiteSpace(service.DocumentoEmpresa) || service.DocumentoEmpresa.StartsWith("LEG-")))
-                {
-                    service.DocumentoEmpresa = client.CnpjCpf;
-                }
+                conditionByName.TryGetValue(Text(row.CondicaoPagamento) ?? "", out var paymentCondition);
+                service.Cliente = client;
+                service.CondicaoPagamento = paymentCondition;
+                service.TipoServico = row.Tipo;
+                service.Subtipo = Text(row.Servico) ?? row.Tipo.ToString();
+                service.DataEntrada = row.DataContrato ?? service.DataEntrada;
+                service.SituacaoInicial = row.Situacao;
+                service.DocumentoEmpresa = client.CnpjCpf;
+                service.RazaoSocialEmpresa = client.RazaoSocial;
+                service.ContatoEmpresa = client.NomeContato;
+                service.Telefone = row.Telefone;
+                service.EnderecoEmpresa = row.Endereco;
+                service.EnderecoServico = row.Endereco;
+                service.ValorContrato = row.ValorContrato;
+                service.DataContrato = row.DataContrato;
+                service.NomeCondicaoPagamento = row.CondicaoPagamento;
+                if (service.Parcelas.Count == 0)
+                    AddInstallments(service, row.ValorContrato, row.DataContrato, row.CondicaoPagamento);
+                service.UpdatedAt = now;
             }
 
+            // Na planilha a coluna "Prox. Parcela" existe so na aba de
+            // Processos Adm e guarda anotacao de tarefa ("Finalizar",
+            // "Protocolar"), nunca uma data — por isso a coluna chegava sempre
+            // vazia no CRM. Quando a planilha nao traz data, deduzimos o
+            // proximo vencimento pelo parcelamento gerado do contrato.
+            // A dedução só entra quando a planilha não trouxe nada na coluna —
+            // nem data, nem anotação. Assim a coluna nunca fica ambígua: ou
+            // mostra o que está na planilha, ou o vencimento em aberto.
+            var proximaParcela = row.ProximaParcela
+                ?? (string.IsNullOrWhiteSpace(row.ProximaParcelaTexto)
+                    ? NextInstallmentDate(service, row.Recebido)
+                    : null);
+
             // 4. Process / Update Tracking
-            if (!trackingByCode.TryGetValue(row.Codigo, out var tracking))
+            if (!trackingByCode.TryGetValue(CodeKey(row.Codigo), out var tracking))
             {
                 tracking = new AcompanhamentoServico
                 {
@@ -167,6 +229,11 @@ public sealed partial class AtlasWorkbookImportService(
                     DataContrato = row.DataContrato,
                     NotaFiscal = row.NotaFiscal,
                     CondicaoPagamento = row.CondicaoPagamento,
+                    AReceber = row.AReceber,
+                    Recebido = row.Recebido,
+                    Custos = row.Custos,
+                    ProximaParcela = proximaParcela,
+                    ProximaParcelaTexto = row.ProximaParcelaTexto,
                     UltimaMudancaSituacaoEm = now,
                     CreatedAt = now,
                     UpdatedAt = now
@@ -179,25 +246,48 @@ public sealed partial class AtlasWorkbookImportService(
                     CreatedAt = now
                 });
                 db.Acompanhamentos.Add(tracking);
-                trackingByCode[row.Codigo] = tracking;
+                trackingByCode[CodeKey(row.Codigo)] = tracking;
                 trackingCount++;
             }
             else
             {
-                if (!string.IsNullOrWhiteSpace(row.CnpjCpf) && (string.IsNullOrWhiteSpace(tracking.CnpjCpf) || tracking.CnpjCpf.StartsWith("LEG-")))
-                {
-                    tracking.CnpjCpf = CleanCnpjCpf(row.CnpjCpf);
-                }
+                var statusChanged = !string.Equals(tracking.Situacao, row.Situacao, StringComparison.OrdinalIgnoreCase);
+                if (statusChanged)
+                    tracking.Historicos.Add(new AcompanhamentoServicoHistorico
+                    {
+                        SituacaoAnterior = tracking.Situacao,
+                        NovaSituacao = row.Situacao,
+                        Descricao = "Atualização pela planilha integrada",
+                        ResponsavelNome = "Sistema",
+                        CreatedAt = now
+                    });
+                tracking.TipoServico = row.Tipo;
+                tracking.NomeCliente = row.Cliente;
+                tracking.CnpjCpf = !string.IsNullOrWhiteSpace(row.CnpjCpf) ? CleanCnpjCpf(row.CnpjCpf) : client.CnpjCpf;
+                tracking.Endereco = row.Endereco;
+                tracking.Telefone = row.Telefone;
+                tracking.Subtipo = row.Servico;
+                tracking.Situacao = row.Situacao;
+                tracking.Descricao = row.Descricao;
+                tracking.ValorContrato = row.ValorContrato;
+                tracking.DataContrato = row.DataContrato;
+                tracking.NotaFiscal = row.NotaFiscal;
+                tracking.CondicaoPagamento = row.CondicaoPagamento;
+                tracking.AReceber = row.AReceber;
+                tracking.Recebido = row.Recebido;
+                tracking.Custos = row.Custos;
+                tracking.ProximaParcela = proximaParcela;
+                tracking.ProximaParcelaTexto = row.ProximaParcelaTexto;
+                if (statusChanged) tracking.UltimaMudancaSituacaoEm = now;
+                tracking.UpdatedAt = now;
             }
         }
-
-        using var workbook = new XLWorkbook(new MemoryStream(content, writable: false));
 
         if (FindWorksheet(workbook, "condicoespagamento", "condicaopagamento", "condicoes", "formaspagamento") is { } condSheet)
             ImportPaymentConditions(condSheet, conditionByName, now, ref paymentConditionCount);
 
         if (FindWorksheet(workbook, "clientes", "cliente", "empresas", "pessoas") is { } clientSheet)
-            ImportClientsSheet(clientSheet, clientByKey, ref clientCount);
+            ImportClientsSheet(clientSheet, clientByKey, clientByDocument, ref clientCount);
 
         if (FindWorksheet(workbook, "lancamentos", "lancamento", "entradas", "financeiro", "caixa") is { } launchSheet)
             ImportEntries(launchSheet, serviceByCode, entries, now, ref entryCount, ref ignored);
@@ -205,6 +295,7 @@ public sealed partial class AtlasWorkbookImportService(
         if (FindWorksheet(workbook, "custosindiretos", "custos", "despesas", "custoindireto", "gastos") is { } costSheet)
             ImportCosts(costSheet, costs, ref costCount, ref ignored);
 
+        EnsureUniqueClientDocuments();
         await db.SaveChangesAsync(cancellationToken);
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
@@ -273,6 +364,7 @@ public sealed partial class AtlasWorkbookImportService(
     private void ImportClientsSheet(
         IXLWorksheet sheet,
         IDictionary<string, Cliente> clientByKey,
+        IDictionary<string, Cliente> clientByDocument,
         ref int created)
     {
         var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
@@ -295,21 +387,27 @@ public sealed partial class AtlasWorkbookImportService(
             var key = ClientKey(name, phone);
             if (!clientByKey.TryGetValue(key, out var client))
             {
-                client = new Cliente
+                var document = !string.IsNullOrWhiteSpace(cnpjCpf) ? CleanCnpjCpf(cnpjCpf) : LegacyDocument(key);
+                if (string.IsNullOrWhiteSpace(document)
+                    || !clientByDocument.TryGetValue(document, out client))
                 {
-                    CnpjCpf = !string.IsNullOrWhiteSpace(cnpjCpf) ? CleanCnpjCpf(cnpjCpf) : LegacyDocument(key),
-                    RazaoSocial = Text(name) ?? "Cliente sem nome",
-                    NomeContato = Text(name),
-                    Telefone = Text(phone),
-                    Cidade = Text(address)
-                };
-                db.Clientes.Add(client);
+                    client = new Cliente
+                    {
+                        CnpjCpf = document,
+                        RazaoSocial = Text(name) ?? "Cliente sem nome",
+                        NomeContato = Text(name),
+                        Telefone = Text(phone),
+                        Cidade = Text(address)
+                    };
+                    db.Clientes.Add(client);
+                    if (!string.IsNullOrWhiteSpace(document)) clientByDocument[document] = client;
+                    created++;
+                }
                 clientByKey[key] = client;
-                created++;
             }
             else if (!string.IsNullOrWhiteSpace(cnpjCpf))
             {
-                client.CnpjCpf = CleanCnpjCpf(cnpjCpf);
+                TrySetDocument(client, CleanCnpjCpf(cnpjCpf), clientByDocument);
             }
         }
     }
@@ -329,6 +427,12 @@ public sealed partial class AtlasWorkbookImportService(
 
         var createdLocal = created;
         var ignoredLocal = ignored;
+
+        // Antes a checagem de duplicidade varria a lista inteira por linha
+        // (O(n^2)); com ~2.000 lancamentos isso dominava o tempo de importacao.
+        var knownCodes = new HashSet<string>(existing.Select(x => x.Codigo), StringComparer.OrdinalIgnoreCase);
+        foreach (var local in db.Lancamentos.Local) knownCodes.Add(local.Codigo);
+
         for (var rowNumber = startRow; rowNumber <= last; rowNumber++)
         {
             var row = sheet.Row(rowNumber);
@@ -338,27 +442,35 @@ public sealed partial class AtlasWorkbookImportService(
             var description = GetCellText(row, headers, ["descricao", "historico", "item"]) ?? CellText(row.Cell(2));
             var date = GetCellDate(row, headers, ["data", "dataemissao", "vencimento"]) ?? CellDate(row.Cell(4));
 
-            if (string.IsNullOrWhiteSpace(serviceCode) || string.IsNullOrWhiteSpace(description) || date is null)
+            services.TryGetValue(CodeKey(serviceCode), out var service);
+            var entryValueCell = GetCellByHeaderNames(row, headers, ["entrada", "receita", "faturamento", "credito"]) ?? row.Cell(3);
+            var exitValueCell = GetCellByHeaderNames(row, headers, ["saida", "despesa", "custodireto", "debito"]) ?? row.Cell(5);
+            var obsCell = GetCellByHeaderNames(row, headers, ["observacao", "obs", "nota"]) ?? row.Cell(7);
+
+            var entryValue = CellDecimal(entryValueCell);
+            var exitValue = CellDecimal(exitValueCell);
+
+            // So descartamos a linha quando nao ha data ou nao ha valor algum.
+            // Descricao em branco nao e motivo para perder um lancamento de
+            // dinheiro: a planilha tem linhas com valor e sem texto.
+            if (date is null || (entryValue is null or <= 0 && exitValue is null or <= 0))
             {
                 ignoredLocal++;
                 continue;
             }
+            if (string.IsNullOrWhiteSpace(description))
+                description = string.IsNullOrWhiteSpace(serviceCode)
+                    ? $"Lançamento importado (linha {rowNumber})"
+                    : $"Lançamento do serviço {serviceCode.Trim()}";
 
-            services.TryGetValue(serviceCode, out var service);
-            var entryValueCell = GetCellByHeaderNames(row, headers, ["entrada", "receita", "credito"]) ?? row.Cell(3);
-            var exitValueCell = GetCellByHeaderNames(row, headers, ["saida", "despesa", "debito"]) ?? row.Cell(5);
-            var obsCell = GetCellByHeaderNames(row, headers, ["observacao", "obs", "nota"]) ?? row.Cell(7);
+            AddEntry("E", entryValue, LancamentoTipo.ENTRADA, CellText(obsCell));
+            AddEntry("S", exitValue, LancamentoTipo.SAIDA, CellText(obsCell));
 
-            AddEntry("E", entryValueCell, LancamentoTipo.ENTRADA, CellText(obsCell));
-            AddEntry("S", exitValueCell, LancamentoTipo.SAIDA, CellText(obsCell));
-
-            void AddEntry(string suffix, IXLCell valueCell, LancamentoTipo type, string obs)
+            void AddEntry(string suffix, decimal? value, LancamentoTipo type, string obs)
             {
-                var value = CellDecimal(valueCell);
                 if (value is null or <= 0) return;
                 var importCode = $"IMP-L-{rowNumber:000000}-{suffix}";
-                if (existing.Any(x => x.Codigo.Equals(importCode, StringComparison.OrdinalIgnoreCase))
-                    || db.Lancamentos.Local.Any(x => x.Codigo.Equals(importCode, StringComparison.OrdinalIgnoreCase)))
+                if (!knownCodes.Add(importCode))
                 {
                     ignoredLocal++;
                     return;
@@ -397,6 +509,18 @@ public sealed partial class AtlasWorkbookImportService(
         var headers = headerRow != null ? BuildHeaderMapFromRow(headerRow) : new Dictionary<string, int>();
         var startRow = (headerRow?.RowNumber() ?? 1) + 1;
 
+        // A planilha repete legitimamente a mesma despesa no mesmo dia (mesma
+        // data, descricao, valor e categoria). A checagem antiga descartava
+        // essas repeticoes como duplicidade e perdia dinheiro real. Agora
+        // contamos quantas vezes cada combinacao ja existe no banco e so
+        // ignoramos o excedente — a reimportacao continua sendo idempotente.
+        var alreadyStored = new Dictionary<(DateOnly, decimal, string, string), int>();
+        foreach (var cost in existing)
+        {
+            var key = CustoKey(cost.Data, cost.Valor, cost.Descricao, cost.Categoria);
+            alreadyStored[key] = alreadyStored.GetValueOrDefault(key) + 1;
+        }
+
         for (var rowNumber = startRow; rowNumber <= last; rowNumber++)
         {
             var row = sheet.Row(rowNumber);
@@ -413,26 +537,30 @@ public sealed partial class AtlasWorkbookImportService(
                 continue;
             }
             category = Text(category) ?? "Não informado";
-            if (existing.Any(x => x.Data == date && x.Valor == value
-                && x.Descricao.Equals(description, StringComparison.OrdinalIgnoreCase)
-                && x.Categoria.Equals(category, StringComparison.OrdinalIgnoreCase))
-                || db.CustosIndiretos.Local.Any(x => x.Data == date && x.Valor == value
-                && x.Descricao.Equals(description, StringComparison.OrdinalIgnoreCase)
-                && x.Categoria.Equals(category, StringComparison.OrdinalIgnoreCase)))
+            description = description.Trim();
+
+            var rowKey = CustoKey(date.Value, value.Value, description, category);
+            var pending = alreadyStored.GetValueOrDefault(rowKey);
+            if (pending > 0)
             {
+                alreadyStored[rowKey] = pending - 1;
                 ignored++;
                 continue;
             }
             db.CustosIndiretos.Add(new CustoIndireto
             {
                 Data = date.Value,
-                Descricao = description.Trim(),
+                Descricao = description,
                 Valor = value.Value,
                 Categoria = category
             });
             created++;
         }
     }
+
+    private static (DateOnly, decimal, string, string) CustoKey(
+        DateOnly data, decimal valor, string descricao, string categoria) =>
+        (data, valor, descricao.Trim().ToUpperInvariant(), categoria.Trim().ToUpperInvariant());
 
     private static IXLRow? FindHeaderRowInSheet(IXLWorksheet sheet, string[] requiredKeywords)
     {
@@ -489,6 +617,27 @@ public sealed partial class AtlasWorkbookImportService(
         return cell != null ? CellDate(cell) : null;
     }
 
+    // Primeira parcela cujo acumulado ainda nao foi coberto pelo valor
+    // recebido — ou seja, o proximo vencimento em aberto. Devolve null quando
+    // o contrato ja esta quitado ou nao tem parcelamento.
+    private static DateOnly? NextInstallmentDate(CadastroServico service, decimal? received)
+    {
+        var paid = received ?? 0m;
+        var installments = service.Parcelas
+            .Where(x => x.DataVencimento.HasValue)
+            .OrderBy(x => x.NumeroParcela ?? int.MaxValue)
+            .ThenBy(x => x.DataVencimento!.Value)
+            .ToList();
+
+        var accumulated = 0m;
+        foreach (var installment in installments)
+        {
+            accumulated += installment.Valor ?? 0m;
+            if (accumulated > paid) return installment.DataVencimento;
+        }
+        return null;
+    }
+
     private static void AddInstallments(
         CadastroServico service, decimal? contractValue, DateOnly? contractDate, string? condition)
     {
@@ -505,6 +654,43 @@ public sealed partial class AtlasWorkbookImportService(
                 DataVencimento = contractDate?.AddMonths(index - 1),
                 FormaPagamento = condition
             });
+    }
+
+    // Rede de seguranca antes do SaveChanges. O PostgreSQL rejeita a colisao
+    // com "23505 IX_clientes_cnpj_cpf" e esconde o valor duplicado, o que torna
+    // o diagnostico impossivel. Aqui a comparacao e Ordinal, igual a do indice,
+    // e a mensagem diz exatamente quais clientes colidiram.
+    private void EnsureUniqueClientDocuments()
+    {
+        var seen = new Dictionary<string, Cliente>(StringComparer.Ordinal);
+        foreach (var entry in db.ChangeTracker.Entries<Cliente>())
+        {
+            if (entry.State is EntityState.Deleted or EntityState.Detached) continue;
+            var document = entry.Entity.CnpjCpf;
+            if (string.IsNullOrWhiteSpace(document)) continue;
+            if (seen.TryGetValue(document, out var other))
+                throw new InvalidOperationException(
+                    $"A importação geraria dois clientes com o mesmo CNPJ/CPF \"{document}\": " +
+                    $"\"{other.RazaoSocial}\" (id {other.Id}) e \"{entry.Entity.RazaoSocial}\" (id {entry.Entity.Id}). " +
+                    "Corrija o documento de um deles no cadastro de clientes e importe novamente.");
+            seen[document] = entry.Entity;
+        }
+    }
+
+    // So promove o documento do cliente quando ninguem mais esta usando aquele
+    // CNPJ/CPF. Sobrescrever as cegas quebrava o indice unico do banco quando a
+    // planilha trazia o mesmo documento em dois clientes diferentes.
+    private static void TrySetDocument(
+        Cliente client, string document, IDictionary<string, Cliente> clientByDocument)
+    {
+        if (string.IsNullOrWhiteSpace(document)) return;
+        if (!string.IsNullOrWhiteSpace(client.CnpjCpf)
+            && !client.CnpjCpf.StartsWith("LEG-", StringComparison.OrdinalIgnoreCase)) return;
+        if (clientByDocument.TryGetValue(document, out var owner) && !ReferenceEquals(owner, client)) return;
+
+        if (!string.IsNullOrWhiteSpace(client.CnpjCpf)) clientByDocument.Remove(client.CnpjCpf);
+        client.CnpjCpf = document;
+        clientByDocument[document] = client;
     }
 
     private static string LegacyDocument(string key)
@@ -539,6 +725,15 @@ public sealed partial class AtlasWorkbookImportService(
     private static string ClientKey(string? name, string? phone) =>
         $"{Text(name)?.ToUpperInvariant() ?? "SEM NOME"}|{Digits(phone)}";
 
+    private static string CodeKey(string? value)
+    {
+        var text = Text(value) ?? string.Empty;
+        text = text.Replace("\u00A0", " ", StringComparison.Ordinal).Replace(" ", "", StringComparison.Ordinal);
+        if (text.Contains(',', StringComparison.Ordinal) && !text.Contains('.', StringComparison.Ordinal))
+            text = text.Replace(',', '.');
+        return text.ToUpperInvariant();
+    }
+
     private static string Digits(string? value) => new((value ?? "").Where(char.IsDigit).ToArray());
     private static string? Text(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string CellText(IXLCell cell) => cell.IsEmpty() ? "" : cell.GetFormattedString().Trim();
@@ -547,15 +742,30 @@ public sealed partial class AtlasWorkbookImportService(
         if (cell.IsEmpty()) return null;
         if (cell.TryGetValue<decimal>(out var number)) return number;
         var text = cell.GetFormattedString().Replace("R$", "", StringComparison.OrdinalIgnoreCase).Trim();
-        return decimal.TryParse(text, NumberStyles.Number, PtBr, out number)
-            || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out number) ? number : null;
+        var comma = text.LastIndexOf(',');
+        var dot = text.LastIndexOf('.');
+        var culture = dot >= 0 && comma < 0 && text.Length - dot is 2 or 3
+            ? CultureInfo.InvariantCulture
+            : comma >= 0 && dot < 0
+                ? PtBr
+                : dot > comma ? CultureInfo.InvariantCulture : PtBr;
+        return decimal.TryParse(text, NumberStyles.Number, culture, out number) ? number : null;
     }
     private static DateOnly? CellDate(IXLCell cell)
     {
         if (cell.IsEmpty()) return null;
         if (cell.TryGetValue<DateTime>(out var date)) return DateOnly.FromDateTime(date);
-        if (cell.TryGetValue<double>(out var serial)) return DateOnly.FromDateTime(DateTime.FromOADate(serial));
-        return DateOnly.TryParse(cell.GetFormattedString(), PtBr, out var parsed) ? parsed : null;
+        if (cell.TryGetValue<double>(out var serial) && serial is > 0 and < 2958466)
+        {
+            try { return DateOnly.FromDateTime(DateTime.FromOADate(serial)); } catch { }
+        }
+        var formatted = cell.GetFormattedString();
+        if (DateTime.TryParse(formatted, PtBr, DateTimeStyles.None, out var dt)
+            || DateTime.TryParse(formatted, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+        {
+            return DateOnly.FromDateTime(dt);
+        }
+        return DateOnly.TryParse(formatted, PtBr, out var parsed) ? parsed : null;
     }
 
     [GeneratedRegex(@"(\d+)\s*x", RegexOptions.IgnoreCase)]

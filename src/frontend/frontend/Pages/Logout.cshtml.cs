@@ -12,15 +12,21 @@ public sealed class LogoutModel : PageModel
 {
     public async Task<IActionResult> OnGetAsync()
     {
+        Response.Headers.CacheControl = "no-store, no-cache";
+        Response.Headers.Pragma = "no-cache";
+
         var authenticationProperties = new LogoutAuthenticationPropertiesBuilder()
-            .WithRedirectUri(Url.Content("~/"))
+            .WithRedirectUri(Url.Content("~/Login"))
             .Build();
 
+        // Remove a sessão local antes de iniciar o redirecionamento externo.
+        // Assim o usuário deixa de estar autenticado imediatamente, mesmo que
+        // a comunicação com o provedor leve alguns instantes.
+        await HttpContext.SignOutAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme);
         await HttpContext.SignOutAsync(
             Auth0Constants.AuthenticationScheme,
             authenticationProperties);
-        await HttpContext.SignOutAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme);
 
         return new EmptyResult();
     }

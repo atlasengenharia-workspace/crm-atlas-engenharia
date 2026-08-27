@@ -181,8 +181,7 @@ public sealed class LancamentoService(
             .Where(x => filter.Status is null || x.Status == filter.Status)
             .Where(x => filter.DataInicial is null || x.Data >= filter.DataInicial)
             .Where(x => filter.DataFinal is null || x.Data <= filter.DataFinal)
-            .Where(x => Contains(x.Descricao, filter.Descricao))
-            .Where(x => Contains(x.CodigoServico, filter.CodigoServico))
+            .Where(x => MatchesTextFilter(x, filter))
             .OrderByDescending(x => x.Data)
             .ThenByDescending(x => x.Id)
             .Select(ToDto);
@@ -277,6 +276,22 @@ public sealed class LancamentoService(
 
     private static bool Contains(string? source, string? value) =>
         string.IsNullOrWhiteSpace(value) || (source?.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private static bool MatchesTextFilter(Lancamento lancamento, LancamentoFilter filter)
+    {
+        var descricao = filter.Descricao?.Trim();
+        var codigoServico = filter.CodigoServico?.Trim();
+
+        // The launches page sends its single search term in both fields because
+        // it represents "description OR service code".
+        if (!string.IsNullOrWhiteSpace(descricao)
+            && string.Equals(descricao, codigoServico, StringComparison.OrdinalIgnoreCase))
+            return Contains(lancamento.Descricao, descricao)
+                || Contains(lancamento.CodigoServico, codigoServico);
+
+        return Contains(lancamento.Descricao, descricao)
+            && Contains(lancamento.CodigoServico, codigoServico);
+    }
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

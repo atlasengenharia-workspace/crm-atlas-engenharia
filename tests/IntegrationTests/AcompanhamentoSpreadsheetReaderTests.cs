@@ -89,6 +89,26 @@ public sealed class AcompanhamentoSpreadsheetReaderTests
     }
 
     [Fact]
+    public async Task ReadsFractionalContractValueFromXlsxWithoutChangingItsMagnitude()
+    {
+        await using var stream = new MemoryStream();
+        using (var workbook = new XLWorkbook())
+        {
+            AddSheet(workbook, "CLCB", "4292", "Patricia - Cosmópolis");
+            workbook.Worksheet("CLCB").Cell("E2").Value = 8851.800000000001;
+            workbook.SaveAs(stream);
+        }
+        stream.Position = 0;
+
+        var rows = await _reader.ReadAsync(stream, "PLANILHA PURA.xlsx", AcompanhamentoServicoTipo.CLCB);
+
+        var row = Assert.Single(rows);
+        Assert.True(row.Valido);
+        Assert.NotNull(row.Item);
+        Assert.InRange(row.Item.ValorContrato!.Value, 8851.79m, 8851.81m);
+    }
+
+    [Fact]
     public async Task UsesFallbackWhenLegacyRowHasNoStatus()
     {
         const string csv = """
@@ -102,6 +122,82 @@ public sealed class AcompanhamentoSpreadsheetReaderTests
         var row = Assert.Single(rows);
         Assert.True(row.Valido);
         Assert.Equal("Não informado", row.Item!.Situacao);
+    }
+
+    [Fact]
+    public async Task ReadsProcessosAdmWithValorContratoAndProximaParcela()
+    {
+        const string csv = """
+            Cod.;Nome do cliente;Serviço;Situação;Descrição da situação;R$ Contrato;Data Contrato;NF;Condição pag.;Prox. Parcela;A Receber;Recebido;Custos
+            5001;Cliente Processo;Alvará;Em andamento;Análise documental;4500,50;15/05/2026;Sim;3x;20/06/2026;3000,00;1500,50;200,00
+            """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+
+        var rows = await _reader.ReadAsync(stream, "PLANILHA PURA(PROCESSOS ADM).csv");
+
+        var row = Assert.Single(rows);
+        Assert.True(row.Valido);
+        Assert.NotNull(row.Item);
+        Assert.Equal(AcompanhamentoServicoTipo.PROCESSOS_ADM, row.Item.Tipo);
+        Assert.Equal(4500.50m, row.Item.ValorContrato);
+        Assert.Equal(new DateOnly(2026, 5, 15), row.Item.DataContrato);
+        Assert.Equal(new DateOnly(2026, 6, 20), row.Item.ProximaParcela);
+        Assert.Equal("Alvará", row.Item.Servico);
+        Assert.Equal("3x", row.Item.CondicaoPagamento);
+    }
+
+    [Fact]
+    public async Task ReadsXlsxWithExcelSerialDatesAndAlternativeParcelaHeaders()
+    {
+        await using var stream = new MemoryStream();
+        using (var workbook = new XLWorkbook())
+        {
+            var sheet = workbook.AddWorksheet("PROCESSOS ADM");
+            sheet.Cell("A1").Value = "Cod.";
+            sheet.Cell("B1").Value = "Nome do cliente";
+            sheet.Cell("C1").Value = "Situação";
+            sheet.Cell("D1").Value = "Descrição da situação";
+            sheet.Cell("E1").Value = "R$ Contrato";
+            sheet.Cell("F1").Value = "Data Contrato";
+            sheet.Cell("G1").Value = "Próxima Parcela";
+            sheet.Cell("A2").Value = "5002";
+            sheet.Cell("B2").Value = "Cliente Processos Excel";
+            sheet.Cell("C2").Value = "Em andamento";
+            sheet.Cell("D2").Value = "Análise";
+            sheet.Cell("E2").Value = 3500.00;
+            // 46183 is 2026-06-10 in Excel OA Date format
+            sheet.Cell("F2").Value = 46183;
+            // DateTime object in cell
+            sheet.Cell("G2").Value = new DateTime(2026, 7, 10);
+            workbook.SaveAs(stream);
+        }
+        stream.Position = 0;
+
+        var rows = await _reader.ReadAsync(stream, "PLANILHA PURA.xlsx", AcompanhamentoServicoTipo.PROCESSOS_ADM);
+
+        var row = Assert.Single(rows);
+        Assert.True(row.Valido);
+        Assert.NotNull(row.Item);
+        Assert.Equal(3500m, row.Item.ValorContrato);
+        Assert.Equal(new DateOnly(2026, 6, 10), row.Item.DataContrato);
+        Assert.Equal(new DateOnly(2026, 7, 10), row.Item.ProximaParcela);
+    }
+
+    [Fact]
+    public async Task ReadsCsvWithVencimentoOrDtProxHeaders()
+    {
+        const string csv = """
+            Código;Cliente;Situação;Vencimento
+            5003;Cliente Teste;Pendente;15/08/2026 00:00:00
+            """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+
+        var rows = await _reader.ReadAsync(stream, "PLANILHA PURA(PROCESSOS ADM).csv");
+
+        var row = Assert.Single(rows);
+        Assert.True(row.Valido);
+        Assert.NotNull(row.Item);
+        Assert.Equal(new DateOnly(2026, 8, 15), row.Item.ProximaParcela);
     }
 
     private static void AddSheet(XLWorkbook workbook, string name, string code, string client)

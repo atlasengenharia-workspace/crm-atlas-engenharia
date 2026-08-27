@@ -1,5 +1,5 @@
-@page "/servicos"
 @attribute [Authorize]
+@inject IJSRuntime JS
 @inject ICadastroServicoService Service
 @inject IClienteService ClienteService
 @inject ICondicaoPagamentoService CondicaoService
@@ -8,6 +8,7 @@
 @inject IAcompanhamentoService AcompanhamentoService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Navigation
 
 <PageTitle>Cadastros de serviço | CRM Atlas</PageTitle>
 
@@ -66,7 +67,7 @@
                   Breakpoint="Breakpoint.Md">
             <HeaderContent>
                 <MudTh>Código</MudTh><MudTh>Empresa</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh>
-                <MudTh>Contrato</MudTh><MudTh>Entrada</MudTh><MudTh Class="text-right">Ações</MudTh>
+                <MudTh>Contrato</MudTh><MudTh>Semanas</MudTh><MudTh>Entrada</MudTh><MudTh Class="text-right">Ações</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd>
@@ -75,7 +76,7 @@
                     <MudText Typo="Typo.caption" Color="Color.Secondary">@context.DocumentoEmpresa</MudText>
                 </MudTd>
                 <MudTd DataLabel="Serviço">
-                    <MudChip T="string" Size="Size.Small" Color="Color.Primary">@TypeLabel(context.TipoServico)</MudChip>
+                    <MudChip T="string" Size="Size.Small" Color="@TypeColor(context.TipoServico)">@TypeLabel(context.TipoServico)</MudChip>
                     <MudText Typo="Typo.caption" Class="ml-1">@context.Subtipo</MudText>
                 </MudTd>
                 <MudTd DataLabel="Situação">
@@ -84,6 +85,7 @@
                     </MudChip>
                 </MudTd>
                 <MudTd DataLabel="Contrato">@Money(context.ValorContrato ?? 0)</MudTd>
+                <MudTd DataLabel="Semanas">@WeeksSince(context.DataEntrada)</MudTd>
                 <MudTd DataLabel="Entrada">@context.DataEntrada.ToString("dd/MM/yyyy")</MudTd>
                 <MudTd DataLabel="Ações" Class="text-right">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
@@ -99,13 +101,6 @@
         </MudTable>
         </ChildContent>
         </SmartTableFilter>
-        @if (_result.TotalPages > 1)
-        {
-            <MudDivider />
-            <MudToolBar Class="justify-end pa-4">
-                <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" Color="Color.Primary" />
-            </MudToolBar>
-        }
     </MudPaper>
 </GlobalSkeleton>
 
@@ -123,11 +118,17 @@
         <MudDivider Class="mb-4" />
 
         <MudForm @ref="_form" @bind-IsValid="_valid">
-            <MudTabs Elevation="0" Rounded="true" Class="service-tabs">
-                <MudTabPanel Text="Identificação" Icon="@Icons.Material.Filled.Business">
+            <div class="d-flex flex-column gap-4">
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Identificação</MudText>
                     <MudGrid Spacing="2">
                         <MudItem xs="12" sm="6">
-                            <MudSelect T="long?" @bind-Value="_model.ClienteId" Label="Cliente cadastrado"
+                            <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
+                                          Required="true" RequiredError="Informe o código usado pela empresa."
+                                          ReadOnly="@(_model.Id is not null)" Variant="Variant.Outlined"
+                                          HelperText="Ex.: 2.15, 3.209 ou 3141" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="long?" Value="_model.ClienteId" ValueChanged="ClientChanged" Label="Cliente cadastrado"
                                        Variant="Variant.Outlined" Clearable="true">
                                 @foreach (var cliente in _clientes)
                                 {
@@ -137,8 +138,7 @@
                         </MudItem>
                         <MudItem xs="12" sm="6">
                             <MudTextField @bind-Value="_model.DocumentoEmpresa" Label="CPF ou CNPJ"
-                                          Required="true" RequiredError="Informe o documento."
-                                          Variant="Variant.Outlined" />
+                                          Variant="Variant.Outlined" OnBlur="OnDocumentoBlur" />
                         </MudItem>
                         <MudItem xs="12">
                             <MudTextField @bind-Value="_model.RazaoSocialEmpresa" Label="Razão social"
@@ -156,9 +156,26 @@
                             <MudTextField @bind-Value="_model.Email" Label="E-mail" Variant="Variant.Outlined"
                                           InputType="InputType.Email" />
                         </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresa" Label="Endereço da empresa"
-                                          Variant="Variant.Outlined" />
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepAsync" />
+                        </MudItem>
+                        <MudItem xs="12" sm="7">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Rua" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="2">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaNumero" Label="Número" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaBairro" Label="Bairro" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaComplemento" Label="Complemento" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaCidade" Label="Cidade" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="1">
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
                         </MudItem>
                         <MudItem xs="12">
                             <MudSwitch T="bool" @bind-Value="_model.MesmoEnderecoEmpresa" Color="Color.Primary">
@@ -173,8 +190,8 @@
                             </MudItem>
                         }
                     </MudGrid>
-                </MudTabPanel>
-                <MudTabPanel Text="Serviço e contrato" Icon="@Icons.Material.Filled.Assignment">
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Serviço e contrato</MudText>
                     <MudGrid Spacing="2">
                         <MudItem xs="12">
                             <MudSelect T="long?" Value="_model.OrcamentoId" ValueChanged="BudgetChanged"
@@ -228,7 +245,7 @@
                                              Format="C2" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudSelect T="long?" @bind-Value="_model.CondicaoPagamentoId"
+                            <MudSelect T="long?" Value="_model.CondicaoPagamentoId" ValueChanged="ConditionChanged"
                                        Label="Condição de pagamento" Clearable="true"
                                        Variant="Variant.Outlined">
                                 @foreach (var condition in _conditions)
@@ -243,8 +260,8 @@
                                              Format="C2" Variant="Variant.Outlined" />
                         </MudItem>
                     </MudGrid>
-                </MudTabPanel>
-                <MudTabPanel Text="Parcelas" Icon="@Icons.Material.Filled.Payments">
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Parcelas</MudText>
                     <div class="d-flex justify-space-between align-center mb-3">
                         <div>
                             <MudText Typo="Typo.h6">Plano financeiro</MudText>
@@ -265,7 +282,7 @@
                     {
                         var index = i;
                         var installment = _model.Parcelas[index];
-                        <MudPaper Outlined="true" Class="pa-3 mb-3">
+                        <MudPaper @key="installment.Key" Outlined="true" Class="pa-3 mb-3">
                             <MudGrid Spacing="2">
                                 <MudItem xs="4" sm="2">
                                     <MudNumericField T="int?" @bind-Value="installment.Numero"
@@ -273,7 +290,7 @@
                                 </MudItem>
                                 <MudItem xs="8" sm="3">
                                     <MudNumericField T="decimal?" @bind-Value="installment.Valor"
-                                                     Label="Valor" Min="0" Format="C2" Variant="Variant.Outlined" />
+                                                     Label="Valor" Min="0" Step="0.01M" Format="C2" Culture="PtBr" Variant="Variant.Outlined" />
                                 </MudItem>
                                 <MudItem xs="10" sm="3">
                                     <MudDatePicker @bind-Date="installment.Vencimento"
@@ -297,8 +314,8 @@
                             @Money(NetValue - InstallmentTotal)
                         </MudAlert>
                     }
-                </MudTabPanel>
-                <MudTabPanel Text="Prestadores e custos" Icon="@Icons.Material.Filled.Engineering">
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Prestadores e custos</MudText>
                     <div class="d-flex flex-wrap justify-space-between align-center gap-2 mb-4">
                         <div>
                             <MudText Typo="Typo.h6">Prestadores vinculados</MudText>
@@ -346,8 +363,8 @@
                             </MudGrid>
                         </MudPaper>
                     }
-                </MudTabPanel>
-            </MudTabs>
+                </MudPaper>
+            </div>
         </MudForm>
         <MudDivider Class="my-5" />
         <MudStack Row="true" Justify="Justify.FlexEnd">
@@ -362,10 +379,11 @@
     private PagedResult<CadastroServicoDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =
     [
-        new("codigo","Código",x=>x.Codigo),new("empresa","Empresa",x=>x.RazaoSocialEmpresa),
-        new("documento","Documento",x=>x.DocumentoEmpresa),new("tipo","Tipo",x=>TypeLabel(x.TipoServico)),
-        new("subtipo","Serviço",x=>x.Subtipo),new("situacao","Situação",x=>x.SituacaoInicial),
-        new("contrato","Contrato",x=>x.ValorContrato),new("entrada","Entrada",x=>x.DataEntrada.ToString("dd/MM/yyyy"))
+        new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
+        new("documento","Documento",x=>x.DocumentoEmpresa,2),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),3),
+        new("subtipo","Serviço",x=>x.Subtipo,3),new("situacao","Situação",x=>x.SituacaoInicial,4),
+        new("contrato","Contrato",x=>x.ValorContrato,5,true),new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),6,true),
+        new("entrada","Entrada",x=>x.DataEntrada,7)
     ];
     private IReadOnlyList<ClienteDto> _clientes = [];
     private IReadOnlyList<CondicaoPagamentoDto> _conditions = [];
@@ -397,11 +415,33 @@
     private decimal InstallmentTotal => _model.Parcelas.Sum(x => x.Valor ?? 0);
     private decimal ProviderProvisioned => _model.Prestadores.Sum(x => x.ValorProvisionado ?? 0);
     private decimal ProviderActual => _model.Prestadores.Sum(x => x.ValorEfetivo ?? 0);
+    private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+
+    [SupplyParameterFromQuery(Name = "editar")]
+    public long? EditServiceId { get; set; }
+    [SupplyParameterFromQuery(Name = "editarCodigo")]
+    public string? EditServiceCode { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         await LoadReferencesAsync();
         await LoadAsync();
+        if (EditServiceId is not null)
+        {
+            try { Edit(await Service.GetAsync(EditServiceId.Value)); }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        }
+        else if (!string.IsNullOrWhiteSpace(EditServiceCode))
+        {
+            try
+            {
+                var matches = await Service.ListAsync(new(EditServiceCode, null, null, 1, 5000, null, false));
+                var service = matches.Items.FirstOrDefault(x => string.Equals(x.Codigo, EditServiceCode, StringComparison.OrdinalIgnoreCase));
+                if (service is null) Snackbar.Add($"Cadastro de serviço não encontrado para o código {EditServiceCode}.", Severity.Error);
+                else Edit(service);
+            }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        }
     }
 
     private async Task LoadReferencesAsync()
@@ -417,14 +457,14 @@
             _providers = await PrestadorService.ListAsync();
             _situations = await AcompanhamentoService.ListSituationsAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
     }
 
     private async Task LoadAsync()
     {
         _loading = true;
         try { _result = await Service.ListAsync(new(
-            _search, _search, _tipo, _page, 20, _situacao, _ocultarConcluidos)); }
+            _search, _search, _tipo, 1, 5000, _situacao, _ocultarConcluidos)); }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
@@ -438,6 +478,24 @@
         _editorOpen = true;
     }
     private void Edit(CadastroServicoDto x) { _model = ServiceModel.From(x); _editorOpen = true; }
+    private void ClientChanged(long? id)
+    {
+        _model.ClienteId = id;
+        var client = _clientes.FirstOrDefault(x => x.Id == id);
+        if (client is null) return;
+        _model.DocumentoEmpresa = client.CnpjCpf;
+        _model.RazaoSocialEmpresa = client.RazaoSocial;
+        _model.ContatoEmpresa = client.NomeContato;
+        _model.Telefone = client.Telefone;
+        _model.Email = client.Email;
+        _model.EnderecoEmpresaRua = client.Rua;
+        _model.EnderecoEmpresaNumero = client.Numero;
+        _model.EnderecoEmpresaBairro = client.Bairro;
+        _model.EnderecoEmpresaComplemento = client.Complemento;
+        _model.EnderecoEmpresaCidade = client.Cidade;
+        _model.EnderecoEmpresaEstado = client.Estado;
+        _model.EnderecoEmpresaCep = client.Cep;
+    }
     private void TypeChanged(AcompanhamentoServicoTipo value)
     {
         _model.TipoServico = value;
@@ -464,6 +522,49 @@
         Vencimento = DateTime.Today.AddMonths(_model.Parcelas.Count + 1)
     });
     private void RemoveInstallment(int index) => _model.Parcelas.RemoveAt(index);
+    private void ConditionChanged(long? id)
+    {
+        _model.CondicaoPagamentoId = id;
+        GenerateInstallments();
+    }
+    private void GenerateInstallments()
+    {
+        if (_model.CondicaoPagamentoId is null) return;
+        var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
+        if (condition is null) return;
+        var name = condition.Nome ?? "";
+        var (count, interval) = ParseCondition(name);
+        if (count <= 0) return;
+        _model.Parcelas.Clear();
+        var baseDate = _model.DataContrato ?? DateTime.Today;
+        var installmentValue = NetValue / count;
+        for (int i = 0; i < count; i++)
+        {
+            var dueDate = interval switch
+            {
+                "semanal" => baseDate.AddDays(7 * i),
+                "mensal" => baseDate.AddMonths(i),
+                "anual" => baseDate.AddYears(i),
+                _ => baseDate.AddMonths(i)
+            };
+            _model.Parcelas.Add(new()
+            {
+                Numero = i + 1,
+                Valor = i == count - 1 ? NetValue - (installmentValue * (count - 1)) : installmentValue,
+                Vencimento = dueDate,
+                FormaPagamento = "Boleto"
+            });
+        }
+    }
+    private static (int Count, string Interval) ParseCondition(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"(\d+)\s*x", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        int count = match.Success ? int.Parse(match.Groups[1].Value) : 1;
+        if (lower.Contains("entrada")) count += 1;
+        string interval = lower.Contains("semanal") ? "semanal" : lower.Contains("anual") ? "anual" : "mensal";
+        return (count, interval);
+    }
     private void AddProvider() => _model.Prestadores.Add(new());
     private void RemoveProvider(int index) => _model.Prestadores.RemoveAt(index);
     private void ProviderChanged(int index, long? id)
@@ -481,6 +582,7 @@
         _model.ValorContrato = budget.ValorTotal;
         if (!string.IsNullOrWhiteSpace(budget.Nome)) _model.RazaoSocialEmpresa = budget.Nome;
         if (!string.IsNullOrWhiteSpace(budget.Telefone)) _model.Telefone = budget.Telefone;
+        if (!string.IsNullOrWhiteSpace(budget.Email)) _model.Email = budget.Email;
     }
 
     private async Task SaveAsync()
@@ -521,7 +623,93 @@
         AcompanhamentoServicoTipo.OBRAS => "Obras",
         _ => type.ToString()
     };
+    private static Color TypeColor(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.AVCB => Color.Error,
+        AcompanhamentoServicoTipo.CLCB => Color.Warning,
+        AcompanhamentoServicoTipo.OBRAS => Color.Info,
+        _ => Color.Secondary
+    };
     private static string Money(decimal value) => value.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+    private async Task BuscarCepAsync()
+    {
+        var cep = _model.EnderecoEmpresaCep;
+        if (string.IsNullOrWhiteSpace(cep)) return;
+        try
+        {
+            var result = await JS.InvokeAsync<ViaCepResult?>("buscarCep", cep);
+            if (result is null) return;
+            if (result.erro is true) { Snackbar.Add("CEP não encontrado.", Severity.Warning); return; }
+            _model.EnderecoEmpresaRua = result.logradouro;
+            _model.EnderecoEmpresaBairro = result.bairro;
+            _model.EnderecoEmpresaCidade = result.localidade;
+            _model.EnderecoEmpresaEstado = result.uf;
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao consultar CEP: {ex.Message}", Severity.Error); }
+    }
+    private void OnDocumentoBlur()
+    {
+        _model.DocumentoEmpresa = FormatCpfCnpj(_model.DocumentoEmpresa);
+        if (!string.IsNullOrWhiteSpace(_model.DocumentoEmpresa) && !IsCpfOrCnpjValid(_model.DocumentoEmpresa))
+            Snackbar.Add("CPF/CNPJ inválido.", Severity.Warning);
+    }
+    private static bool IsCpfOrCnpjValid(string? value)
+    {
+        var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length != 11 && digits.Length != 14) return false;
+        if (new HashSet<char>(digits).Count == 1) return false;
+        if (digits.Length == 11)
+        {
+            int[] w1 = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+            int[] w2 = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+            var baseCpf = digits[..9];
+            int calc(string input, int[] weights)
+            {
+                int s = 0;
+                for (int i = 0; i < weights.Length; i++) s += (input[i] - '0') * weights[i];
+                int r = s % 11;
+                return r < 2 ? 0 : 11 - r;
+            }
+            int d1 = calc(baseCpf, w1);
+            int d2 = calc(baseCpf + d1, w2);
+            return digits[9] - '0' == d1 && digits[10] - '0' == d2;
+        }
+        else
+        {
+            int[] w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+            int[] w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+            var baseCnpj = digits[..12];
+            int calc(string input, int[] weights)
+            {
+                int s = 0;
+                for (int i = 0; i < weights.Length; i++) s += (input[i] - '0') * weights[i];
+                int r = s % 11;
+                return r < 2 ? 0 : 11 - r;
+            }
+            int d1 = calc(baseCnpj, w1);
+            int d2 = calc(baseCnpj + d1, w2);
+            return digits[12] - '0' == d1 && digits[13] - '0' == d2;
+        }
+    }
+    private static string FormatCpfCnpj(string? value)
+    {
+        var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length == 11)
+            return $"{digits[..3]}.{digits[3..6]}.{digits[6..9]}-{digits[9..]}";
+        if (digits.Length == 14)
+            return $"{digits[..2]}.{digits[2..5]}.{digits[5..8]}/{digits[8..12]}-{digits[12..]}";
+        return value ?? "";
+    }
+    private sealed record ViaCepResult(string? logradouro, string? bairro, string? localidade, string? uf, bool? erro);
+    private static string ServiceSaveError(Exception exception, string? code)
+    {
+        var detail = exception.GetBaseException().Message;
+        if (detail.Contains("IX_cadastro_servicos_codigo", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
+            return $"Já existe um serviço com o código {code?.Trim()}. Informe outro código ou edite o cadastro existente.";
+        return exception.Message;
+    }
+    private static int WeeksSince(DateOnly start) => Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.DayNumber) / 7);
     private static Color StatusColor(string? status) =>
         status?.Contains("conclu", StringComparison.OrdinalIgnoreCase) == true
         || status?.Contains("finaliz", StringComparison.OrdinalIgnoreCase) == true
@@ -551,6 +739,13 @@
         public string? Telefone { get; set; }
         public string? Email { get; set; }
         public string? EnderecoEmpresa { get; set; }
+        public string? EnderecoEmpresaRua { get; set; }
+        public string? EnderecoEmpresaNumero { get; set; }
+        public string? EnderecoEmpresaBairro { get; set; }
+        public string? EnderecoEmpresaComplemento { get; set; }
+        public string? EnderecoEmpresaCidade { get; set; }
+        public string? EnderecoEmpresaEstado { get; set; }
+        public string? EnderecoEmpresaCep { get; set; }
         public string? EnderecoServico { get; set; }
         public bool MesmoEnderecoEmpresa { get; set; } = true;
         public decimal? ValorContrato { get; set; }
@@ -567,6 +762,10 @@
             SituacaoInicial = x.SituacaoInicial, DocumentoEmpresa = x.DocumentoEmpresa,
             RazaoSocialEmpresa = x.RazaoSocialEmpresa, ContatoEmpresa = x.ContatoEmpresa,
             Telefone = x.Telefone, Email = x.Email, EnderecoEmpresa = x.EnderecoEmpresa,
+            EnderecoEmpresaRua = x.EnderecoEmpresaRua ?? x.EnderecoEmpresa, EnderecoEmpresaNumero = x.EnderecoEmpresaNumero,
+            EnderecoEmpresaBairro = x.EnderecoEmpresaBairro, EnderecoEmpresaComplemento = x.EnderecoEmpresaComplemento,
+            EnderecoEmpresaCidade = x.EnderecoEmpresaCidade, EnderecoEmpresaEstado = x.EnderecoEmpresaEstado,
+            EnderecoEmpresaCep = x.EnderecoEmpresaCep,
             EnderecoServico = x.EnderecoServico, MesmoEnderecoEmpresa = x.MesmoEnderecoEmpresa,
             ValorContrato = x.ValorContrato,
             DataContrato = x.DataContrato?.ToDateTime(TimeOnly.MinValue),
@@ -589,7 +788,9 @@
         public CadastroServicoDto ToDto() => new(
             Id, Codigo, ClienteId, OrcamentoId, null, CondicaoPagamentoId, TipoServico, Subtipo,
             DateOnly.FromDateTime(DataEntrada!.Value), SituacaoInicial, DocumentoEmpresa,
-            RazaoSocialEmpresa, ContatoEmpresa, Telefone, Email, EnderecoEmpresa, EnderecoServico,
+            RazaoSocialEmpresa, ContatoEmpresa, Telefone, Email, EnderecoEmpresa,
+            EnderecoEmpresaRua, EnderecoEmpresaNumero, EnderecoEmpresaBairro, EnderecoEmpresaComplemento,
+            EnderecoEmpresaCidade, EnderecoEmpresaEstado, EnderecoEmpresaCep, EnderecoServico,
             MesmoEnderecoEmpresa, ValorContrato, DateOnly.FromDateTime(DataContrato!.Value),
             null, ValorNotaFiscal,
             Parcelas.Select(p => new CadastroServicoParcelaDto(
@@ -604,6 +805,7 @@
 
     private sealed class InstallmentModel
     {
+        public Guid Key { get; } = Guid.NewGuid();
         public long? Id { get; set; }
         public int? Numero { get; set; }
         public decimal? Valor { get; set; }
