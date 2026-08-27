@@ -511,7 +511,7 @@
 
                             <SmartTableFilter TItem="DashboardPriorityItem" Items="FilteredPriorities" Columns="_priorityColumns" TableKey="dashboard-fila">
                             <ChildContent Context="smartPriorities">
-                            <MudTable Items="smartPriorities" Hover="true" Elevation="0" Class="atlas-data-table">
+                            <MudTable Items="smartPriorities" Hover="true" Elevation="0" Class="atlas-data-table" RowsPerPage="20" Breakpoint="Breakpoint.Md">
                                 <HeaderContent>
                                     <MudTh>CÓDIGO</MudTh>
                                     <MudTh>EM ABERTO HÁ</MudTh>
@@ -557,6 +557,9 @@
                                         </MudButton>
                                     </MudTd>
                                 </RowTemplate>
+                                <PagerContent>
+                                    <MudTablePager PageSizeOptions="new int[] { 20, 50, 100 }" />
+                                </PagerContent>
                             </MudTable>
                             </ChildContent>
                             </SmartTableFilter>
