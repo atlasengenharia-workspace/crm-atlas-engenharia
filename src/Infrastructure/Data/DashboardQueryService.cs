@@ -1,6 +1,7 @@
 using CrmAtlas.ApplicationCore.Dashboard;
 using CrmAtlas.ApplicationCore.Enums;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace CrmAtlas.Infrastructure.Data;
 
@@ -385,11 +386,11 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var ci = new System.Globalization.CultureInfo("pt-BR");
         return g switch
         {
-            DashboardGranularity.Semana => period.ToString("dd/MM/yy", ci),
-            DashboardGranularity.Mes => period.ToString("MMM/yy", ci),
-            DashboardGranularity.Trimestre => $"T{((period.Month - 1) / 3) + 1}/{period.Year % 100:00}",
+            DashboardGranularity.Semana => $"Sem {ISOWeek.GetWeekOfYear(period.ToDateTime(TimeOnly.MinValue))}/{ISOWeek.GetYear(period.ToDateTime(TimeOnly.MinValue))}",
+            DashboardGranularity.Mes => $"{ci.DateTimeFormat.AbbreviatedMonthNames[period.Month - 1].TrimEnd('.').ToLowerInvariant()}./{period.Year % 100:00}",
+            DashboardGranularity.Trimestre => $"{((period.Month - 1) / 3) + 1}º tri/{period.Year % 100:00}",
             DashboardGranularity.Ano => period.Year.ToString(),
-            _ => period.ToString("MMM/yy", ci)
+            _ => $"{ci.DateTimeFormat.AbbreviatedMonthNames[period.Month - 1].TrimEnd('.').ToLowerInvariant()}./{period.Year % 100:00}"
         };
     }
 
