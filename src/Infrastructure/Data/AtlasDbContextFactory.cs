@@ -28,7 +28,11 @@ public sealed class AtlasDbContextFactory : IDesignTimeDbContextFactory<AtlasDbC
         var options = new DbContextOptionsBuilder<AtlasDbContext>()
             .UseNpgsql(
                 connectionString,
-                npgsql => npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+                npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName);
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                })
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
 

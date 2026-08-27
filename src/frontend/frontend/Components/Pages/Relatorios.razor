@@ -127,7 +127,7 @@
 
             if (report.Code == "ACOMPANHAMENTO")
             {
-                var items = (await AcompanhamentoService.ListAsync()).Items;
+                var items = (await AcompanhamentoService.ListAsync(new(PageSize: 5000))).Items;
                 pdfBytes = ReportService.GenerateGeneralOperationalReport(items);
                 filename = $"Relatorio_Acompanhamento_Atlas_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
             }
@@ -155,7 +155,7 @@
             }
             else
             {
-                var items = (await AcompanhamentoService.ListAsync()).Items;
+                var items = (await AcompanhamentoService.ListAsync(new(PageSize: 5000))).Items;
                 pdfBytes = ReportService.GenerateGeneralOperationalReport(items);
                 filename = $"{report.Title.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd}.pdf";
             }

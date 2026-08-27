@@ -44,7 +44,10 @@ public static class DependencyInjection
 
             services.AddDbContext<AtlasDbContext>(
                 (provider, options) => options.UseNpgsql(connectionString, npgsql =>
-                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+                {
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName);
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                })
                     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
                     .AddInterceptors(provider.GetRequiredService<RealtimeSaveChangesInterceptor>()),
                 contextLifetime: ServiceLifetime.Transient,
@@ -54,7 +57,10 @@ public static class DependencyInjection
         {
             services.AddDbContext<AtlasDbContext>(
                 (provider, options) => options.UseNpgsql("Host=localhost;Database=atlas_dummy", npgsql =>
-                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName))
+                {
+                    npgsql.MigrationsAssembly(typeof(AtlasDbContext).Assembly.FullName);
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                })
                     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
                     .AddInterceptors(provider.GetRequiredService<RealtimeSaveChangesInterceptor>()),
                 contextLifetime: ServiceLifetime.Transient,
