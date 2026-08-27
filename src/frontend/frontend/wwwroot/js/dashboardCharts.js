@@ -1022,5 +1022,68 @@ window.dashboardCharts = {
             this.contratoChart = newChart;
         }
         return true;
+    },
+
+    renderQtdEvoChart: function (canvasId, labels, avcb, clcb, procAdm, obras) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return false;
+
+        const chartKey = canvasId === 'qtdChartFullscreenCanvas' ? 'qtdFullscreenChart' : 'qtdChart';
+        if (this[chartKey]) {
+            this[chartKey].destroy();
+            this[chartKey] = null;
+        }
+
+        const newChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { type: 'bar', label: 'AVCB', data: avcb, backgroundColor: '#C8432F', borderRadius: 2, stack: 'q' },
+                    { type: 'bar', label: 'CLCB', data: clcb, backgroundColor: '#DE9427', borderRadius: 2, stack: 'q' },
+                    { type: 'bar', label: 'Proc. Adm', data: procAdm, backgroundColor: '#6B46C1', borderRadius: 2, stack: 'q' },
+                    { type: 'bar', label: 'Obras', data: obras, backgroundColor: '#2B6CB0', borderRadius: 2, stack: 'q' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, boxWidth: 8, padding: 12, font: { family: 'Inter', size: 11, weight: '500' } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(23, 30, 50, 0.95)',
+                        titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
+                        bodyFont: { family: 'Inter', size: 12 },
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function (context) {
+                                return ' ' + context.dataset.label + ': ' + context.parsed.y + ' contrato(s)';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        stacked: true,
+                        grid: { color: '#EEF0F4' },
+                        ticks: { font: { family: 'Inter', size: 11 }, precision: 0 }
+                    },
+                    x: {
+                        stacked: true,
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 11 } }
+                    }
+                }
+            }
+        });
+
+        this[chartKey] = newChart;
+        return true;
     }
 };

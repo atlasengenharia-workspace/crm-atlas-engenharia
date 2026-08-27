@@ -70,6 +70,13 @@ public sealed record DashboardServiceQuantityComparison(
     int CurrentCount,
     int PreviousCount);
 
+public sealed record DashboardQuantityEvolutionPoint(
+    string Label,
+    int Avcb,
+    int Clcb,
+    int ProcAdm,
+    int Obras);
+
 public sealed record DashboardTopClientItem(
     int Rank,
     string ClientName,
@@ -112,6 +119,7 @@ public sealed record DashboardSnapshot(
     IReadOnlyList<DashboardServiceQuantityComparison>? QuantityComparisons = null,
     IReadOnlyList<DashboardMonthlyRevenuePoint>? MonthlyRevenues = null,
     IReadOnlyList<DashboardMonthlyIndirectCostPoint>? MonthlyIndirectCosts = null,
+    IReadOnlyList<DashboardQuantityEvolutionPoint>? QuantityEvolution = null,
     IReadOnlyList<DashboardBreakdownPoint>? ReceivableByService = null);
 
 public interface IDashboardQueryService

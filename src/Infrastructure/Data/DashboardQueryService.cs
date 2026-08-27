@@ -250,6 +250,17 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
                 prevContracts.Count(x => x.TipoServico == l.Type)))
             .ToList();
 
+        var quantityEvolution = periods.Select(period =>
+        {
+            var periodContracts = contracts.Where(x => InPeriod(x.DataContrato, period, filter.Granularity)).ToList();
+            return new DashboardQuantityEvolutionPoint(
+                PeriodLabel(period, filter.Granularity),
+                periodContracts.Count(x => x.TipoServico == AcompanhamentoServicoTipo.AVCB),
+                periodContracts.Count(x => x.TipoServico == AcompanhamentoServicoTipo.CLCB),
+                periodContracts.Count(x => x.TipoServico == AcompanhamentoServicoTipo.PROCESSOS_ADM),
+                periodContracts.Count(x => x.TipoServico == AcompanhamentoServicoTipo.OBRAS));
+        }).ToList();
+
         var prevEntries = await db.Lancamentos
             .AsNoTracking()
             .Where(x => x.Data >= prevStart && x.Data <= prevEnd)
@@ -347,6 +358,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             quantityComparisons,
             monthlyRevenues,
             monthlyIndirectCosts,
+            quantityEvolution,
             receivableByService);
     }
 

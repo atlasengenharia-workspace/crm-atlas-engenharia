@@ -201,9 +201,13 @@
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
                                 <MudStack Spacing="0">
                                     <MudText Typo="Typo.h6" Class="font-weight-bold">Quantidade fechada por serviço</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Contratos no período × período anterior</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@(_qtdByPeriod ? "Evolução por período" : "Total no período × período anterior")</MudText>
                                 </MudStack>
-                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenQtdFullscreenAsync" aria-label="Expandir gráfico" />
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudButton Size="Size.Small" Variant="@(_qtdByPeriod ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="ToggleQtdViewAsync">Por período</MudButton>
+                                    <MudButton Size="Size.Small" Variant="@(_qtdByPeriod ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="ToggleQtdViewAsync">Total</MudButton>
+                                    <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenQtdFullscreenAsync" aria-label="Expandir gráfico" />
+                                </MudStack>
                             </MudStack>
                             <div style="height: 320px; position: relative; width: 100%;">
                                 <canvas id="qtdChartCanvas"></canvas>
@@ -695,6 +699,7 @@
     private decimal? _maxContract;
     private bool _includeProLabore = true;
     private DashboardGranularity _granularity = DashboardGranularity.Mes;
+    private bool _qtdByPeriod = true;
 
     private readonly HashSet<AcompanhamentoServicoTipo> _activeLines = [
         AcompanhamentoServicoTipo.AVCB,
@@ -978,9 +983,32 @@
 
     private async Task RenderQtdChartAsync(string canvasId)
     {
+        if (_qtdByPeriod)
+        {
+            if (_data?.QuantityEvolution == null || !_data.QuantityEvolution.Any()) return;
+
+            var evoLabels = _data.QuantityEvolution.Select(x => x.Label).ToArray();
+            var avcb = _data.QuantityEvolution.Select(x => (double)x.Avcb).ToArray();
+            var clcb = _data.QuantityEvolution.Select(x => (double)x.Clcb).ToArray();
+            var proc = _data.QuantityEvolution.Select(x => (double)x.ProcAdm).ToArray();
+            var obras = _data.QuantityEvolution.Select(x => (double)x.Obras).ToArray();
+
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    var success = await JS.InvokeAsync<bool>("dashboardCharts.renderQtdEvoChart", canvasId, evoLabels, avcb, clcb, proc, obras);
+                    if (success) break;
+                }
+                catch { }
+                await Task.Delay(100);
+            }
+            return;
+        }
+
         if (_data?.QuantityComparisons == null || !_data.QuantityComparisons.Any()) return;
 
-        var labels = _data.QuantityComparisons.Select(x => x.LineName).ToArray();
+        var qtdLabels = _data.QuantityComparisons.Select(x => x.LineName).ToArray();
         var atual = _data.QuantityComparisons.Select(x => x.CurrentCount).ToArray();
         var anterior = _data.QuantityComparisons.Select(x => x.PreviousCount).ToArray();
 
@@ -988,7 +1016,7 @@
         {
             try
             {
-                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderQtdChart", canvasId, labels, atual, anterior);
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderQtdChart", canvasId, qtdLabels, atual, anterior);
                 if (success) break;
             }
             catch { }
@@ -1053,6 +1081,12 @@
         StateHasChanged();
         await Task.Delay(150);
         await RenderVendasChartAsync("vendasChartFullscreenCanvas");
+    }
+
+    private async Task ToggleQtdViewAsync()
+    {
+        _qtdByPeriod = !_qtdByPeriod;
+        await RenderQtdChartAsync("qtdChartCanvas");
     }
 
     private async Task OpenQtdFullscreenAsync()
