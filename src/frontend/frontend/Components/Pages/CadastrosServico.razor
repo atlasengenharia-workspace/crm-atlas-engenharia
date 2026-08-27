@@ -392,7 +392,7 @@
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
         new("documento","Documento",x=>x.DocumentoEmpresa,2),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),3),
         new("subtipo","Serviço",x=>x.Subtipo,3),new("situacao","Situação",x=>x.SituacaoInicial,4),
-        new("contrato","Contrato",x=>x.ValorContrato,5,true),new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),6,true),
+        new("contrato","Contrato",x=>x.ValorContrato,5,true),new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),6,false),
         new("entrada","Entrada",x=>x.DataEntrada,7)
     ];
     private IReadOnlyList<ClienteDto> _clientes = [];
