@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
 
@@ -17,7 +18,8 @@ public sealed record CustoIndiretoFilter(
     string? Descricao,
     string? Categoria,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    long? AfterId = null);
 
 public sealed record LancamentoDto(
     long? Id,
@@ -56,11 +58,12 @@ public sealed record LancamentoFilter(
     string? Descricao,
     string? CodigoServico,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    long? AfterId = null);
 
 public interface ICustoIndiretoService
 {
-    Task<PagedResult<CustoIndiretoDto>> ListAsync(CustoIndiretoFilter filter, CancellationToken cancellationToken = default);
+    Task<CursorResult<CustoIndiretoDto>> ListAsync(CustoIndiretoFilter filter, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> CreateAsync(CustoIndiretoDto dto, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> UpdateAsync(long id, CustoIndiretoDto dto, CancellationToken cancellationToken = default);
@@ -70,7 +73,7 @@ public interface ICustoIndiretoService
 
 public interface ILancamentoService
 {
-    Task<PagedResult<LancamentoDto>> ListAsync(LancamentoFilter filter, CancellationToken cancellationToken = default);
+    Task<CursorResult<LancamentoDto>> ListAsync(LancamentoFilter filter, CancellationToken cancellationToken = default);
     Task<LancamentoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<LancamentoDto> CreateAsync(LancamentoDto dto, CancellationToken cancellationToken = default);
     Task<LancamentoDto> UpdateAsync(long id, LancamentoDto dto, CancellationToken cancellationToken = default);
@@ -87,18 +90,33 @@ public interface IReceiptStorage
 
 public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) : ICustoIndiretoService
 {
-    public async Task<PagedResult<CustoIndiretoDto>> ListAsync(
+    public async Task<CursorResult<CustoIndiretoDto>> ListAsync(
         CustoIndiretoFilter filter,
         CancellationToken cancellationToken = default)
     {
-        var source = (await repository.ListAsync(cancellationToken))
-            .Where(x => filter.DataInicial is null || x.Data >= filter.DataInicial)
-            .Where(x => filter.DataFinal is null || x.Data <= filter.DataFinal)
-            .Where(x => Contains(x.Descricao, filter.Descricao))
-            .Where(x => Contains(x.Categoria, filter.Categoria))
-            .OrderByDescending(x => x.Data)
-            .Select(ToDto);
-        return PagedResult<CustoIndiretoDto>.Create(source, filter.Page, filter.PageSize);
+        var query = repository.AsQueryable();
+
+        if (filter.DataInicial is not null)
+            query = query.Where(x => x.Data >= filter.DataInicial);
+        if (filter.DataFinal is not null)
+            query = query.Where(x => x.Data <= filter.DataFinal);
+        if (!string.IsNullOrWhiteSpace(filter.Descricao))
+            query = query.Where(x => x.Descricao.Contains(filter.Descricao.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.Categoria))
+            query = query.Where(x => x.Categoria.Contains(filter.Categoria.Trim()));
+
+        if (filter.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+
+        return new CursorResult<CustoIndiretoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
 
     public async Task<CustoIndiretoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -172,20 +190,53 @@ public sealed class LancamentoService(
     IRepository<CrmAtlas.ApplicationCore.Servicos.CadastroServico> cadastros,
     IRepository<CrmAtlas.ApplicationCore.Servicos.Prestador> prestadores) : ILancamentoService
 {
-    public async Task<PagedResult<LancamentoDto>> ListAsync(
+    public async Task<CursorResult<LancamentoDto>> ListAsync(
         LancamentoFilter filter,
         CancellationToken cancellationToken = default)
     {
-        var source = (await repository.ListAsync(cancellationToken))
-            .Where(x => filter.Tipo is null || x.Tipo == filter.Tipo)
-            .Where(x => filter.Status is null || x.Status == filter.Status)
-            .Where(x => filter.DataInicial is null || x.Data >= filter.DataInicial)
-            .Where(x => filter.DataFinal is null || x.Data <= filter.DataFinal)
-            .Where(x => MatchesTextFilter(x, filter))
-            .OrderByDescending(x => x.Data)
-            .ThenByDescending(x => x.Id)
-            .Select(ToDto);
-        return PagedResult<LancamentoDto>.Create(source, filter.Page, filter.PageSize);
+        var query = repository.AsQueryable();
+
+        if (filter.Tipo is not null)
+            query = query.Where(x => x.Tipo == filter.Tipo);
+        if (filter.Status is not null)
+            query = query.Where(x => x.Status == filter.Status);
+        if (filter.DataInicial is not null)
+            query = query.Where(x => x.Data >= filter.DataInicial);
+        if (filter.DataFinal is not null)
+            query = query.Where(x => x.Data <= filter.DataFinal);
+
+        var descricao = filter.Descricao?.Trim();
+        var codigoServico = filter.CodigoServico?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(descricao) || !string.IsNullOrWhiteSpace(codigoServico))
+        {
+            bool same = string.Equals(descricao, codigoServico, StringComparison.OrdinalIgnoreCase);
+            if (same)
+            {
+                query = query.Where(x =>
+                    (x.Descricao != null && x.Descricao.Contains(descricao!))
+                    || (x.CodigoServico != null && x.CodigoServico.Contains(codigoServico!)));
+            }
+            else
+            {
+                query = query.Where(x =>
+                    (string.IsNullOrWhiteSpace(descricao) || (x.Descricao != null && x.Descricao.Contains(descricao!)))
+                    && (string.IsNullOrWhiteSpace(codigoServico) || (x.CodigoServico != null && x.CodigoServico.Contains(codigoServico!))));
+            }
+        }
+
+        if (filter.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+
+        return new CursorResult<LancamentoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
 
     public async Task<LancamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>

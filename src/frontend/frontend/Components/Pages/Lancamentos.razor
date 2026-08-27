@@ -139,13 +139,14 @@ else
     </MudTable>
     </ChildContent>
     </SmartTableFilter>
-    @if (_result.TotalPages > 1)
-    {
-        <div class="d-flex justify-end pa-4">
-            <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync"
-                           Disabled="_loading" />
-        </div>
-    }
+    <MudDivider />
+    <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+        </MudStack>
+    </MudToolBar>
 </MudPaper>
 
 }
@@ -251,7 +252,8 @@ else
 </MudDrawer>
 
 @code {
-    private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
+    private CursorResult<LancamentoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
     private IReadOnlyList<LancamentoDto> _summaryItems = [];
     private readonly IReadOnlyList<SmartFilterColumn<LancamentoDto>> _filterColumns =
     [
@@ -287,7 +289,7 @@ else
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
             _providers = await PrestadorService.ListAsync();
-            _result = await Service.ListAsync(CurrentFilter(1, 5000));
+            _result = await Service.ListAsync(CurrentFilter(1, 20, null));
             _summaryItems = _result.Items;
         }
         catch (Exception ex)
@@ -299,8 +301,24 @@ else
             _initialLoading = false;
         }
     }
-    private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
-    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+    private async Task ApplyFilterAsync() { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -313,18 +331,18 @@ else
                 Snackbar.Add("A data inicial não pode ser posterior à data final.", Severity.Warning);
                 return;
             }
-            _result = await Service.ListAsync(CurrentFilter(1, 5000));
+            _result = await Service.ListAsync(CurrentFilter(_page, 20, _cursors[_page - 1]));
             _summaryItems = _result.Items;
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; _loadGate.Release(); }
     }
 
-    private LancamentoFilter CurrentFilter(int page, int pageSize) => new(
+    private LancamentoFilter CurrentFilter(int page, int pageSize, long? afterId) => new(
         _tipo, _status,
         _startDate.HasValue ? DateOnly.FromDateTime(_startDate.Value) : null,
         _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : null,
-        _search, _search, page, pageSize);
+        _search, _search, page, pageSize, afterId);
 
     private void New() { _model = new(); _receipt = null; _editorOpen = true; }
     private void Edit(LancamentoDto x)

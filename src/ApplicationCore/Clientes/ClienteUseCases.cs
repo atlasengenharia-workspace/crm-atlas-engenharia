@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Text.RegularExpressions;
 using CrmAtlas.ApplicationCore.Common;
 
@@ -28,7 +29,8 @@ public sealed record ClienteFilter(
     string? Cidade,
     string? Estado,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    long? AfterId = null);
 
 public sealed record ClienteStatistics(int TotalClientes, int TotalCidades, int TotalEstados);
 
@@ -41,7 +43,7 @@ public interface ICepLookupService
 
 public interface IClienteService
 {
-    Task<PagedResult<ClienteDto>> ListAsync(ClienteFilter filter, CancellationToken cancellationToken = default);
+    Task<CursorResult<ClienteDto>> ListAsync(ClienteFilter filter, CancellationToken cancellationToken = default);
     Task<ClienteDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<ClienteDto> CreateAsync(ClienteDto dto, CancellationToken cancellationToken = default);
     Task<ClienteDto> UpdateAsync(long id, ClienteDto dto, CancellationToken cancellationToken = default);
@@ -55,22 +57,39 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         @"^(LEG-[0-9A-F]{12}|\d{11}|\d{14}|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})$",
         RegexOptions.Compiled);
 
-    public async Task<PagedResult<ClienteDto>> ListAsync(
+    public async Task<CursorResult<ClienteDto>> ListAsync(
         ClienteFilter filter,
         CancellationToken cancellationToken = default)
     {
-        var items = await repository.ListAsync(cancellationToken);
-        var filtered = items
-            .Where(x => Contains(x.CnpjCpf, filter.CnpjCpf))
-            .Where(x => Contains(x.RazaoSocial, filter.RazaoSocial))
-            .Where(x => Contains(x.NomeContato, filter.NomeContato))
-            .Where(x => Contains(x.Telefone, filter.Telefone))
-            .Where(x => Contains(x.Email, filter.Email))
-            .Where(x => Contains(x.Cidade, filter.Cidade))
-            .Where(x => Contains(x.Estado, filter.Estado))
-            .OrderBy(x => x.RazaoSocial)
-            .Select(ToDto);
-        return PagedResult<ClienteDto>.Create(filtered, filter.Page, filter.PageSize);
+        var query = repository.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter.CnpjCpf))
+            query = query.Where(x => x.CnpjCpf.Contains(filter.CnpjCpf.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.RazaoSocial))
+            query = query.Where(x => x.RazaoSocial.Contains(filter.RazaoSocial.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.NomeContato))
+            query = query.Where(x => x.NomeContato != null && x.NomeContato.Contains(filter.NomeContato.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.Telefone))
+            query = query.Where(x => x.Telefone != null && x.Telefone.Contains(filter.Telefone.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.Email))
+            query = query.Where(x => x.Email != null && x.Email.Contains(filter.Email.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.Cidade))
+            query = query.Where(x => x.Cidade != null && x.Cidade.Contains(filter.Cidade.Trim()));
+        if (!string.IsNullOrWhiteSpace(filter.Estado))
+            query = query.Where(x => x.Estado != null && x.Estado.Contains(filter.Estado.Trim()));
+
+        if (filter.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+
+        return new CursorResult<ClienteDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
 
     public async Task<ClienteDto> GetAsync(long id, CancellationToken cancellationToken = default) =>

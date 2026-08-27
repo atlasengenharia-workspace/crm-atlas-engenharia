@@ -1,5 +1,6 @@
 using CrmAtlas.ApplicationCore.Servicos;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace CrmAtlas.Infrastructure.Data;
@@ -15,6 +16,22 @@ public sealed class CadastroServicoRepository(AtlasDbContext dbContext)
 
     public async Task<IReadOnlyList<CadastroServico>> ListAsync(CancellationToken cancellationToken = default) =>
         await dbContext.CadastrosServico.AsNoTracking().ToListAsync(cancellationToken);
+
+    public IQueryable<CadastroServico> AsQueryable() =>
+        dbContext.CadastrosServico.AsNoTracking();
+
+    public IQueryable<CadastroServico> AsNoTrackingDetailed() =>
+        Query().AsNoTracking();
+
+    public async Task<IReadOnlyList<CadastroServico>> ToListAsync(
+        IQueryable<CadastroServico> query,
+        CancellationToken cancellationToken = default) =>
+        await query.ToListAsync(cancellationToken);
+
+    public async Task<int> CountAsync(
+        IQueryable<CadastroServico> query,
+        CancellationToken cancellationToken = default) =>
+        await query.CountAsync(cancellationToken);
 
     public async Task<IReadOnlyList<CadastroServico>> ListDetailedAsync(
         CancellationToken cancellationToken = default) =>

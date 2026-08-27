@@ -16,6 +16,15 @@ public sealed class EfRepository<TEntity>(AtlasDbContext dbContext) : IRepositor
     public async Task<IReadOnlyList<TEntity>> ListAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Set<TEntity>().AsNoTracking().ToListAsync(cancellationToken);
 
+    public IQueryable<TEntity> AsQueryable() =>
+        dbContext.Set<TEntity>().AsNoTracking();
+
+    public async Task<IReadOnlyList<TEntity>> ToListAsync(IQueryable<TEntity> query, CancellationToken cancellationToken = default) =>
+        await query.ToListAsync(cancellationToken);
+
+    public async Task<int> CountAsync(IQueryable<TEntity> query, CancellationToken cancellationToken = default) =>
+        await query.CountAsync(cancellationToken);
+
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default) =>
         await dbContext.Set<TEntity>().AddAsync(entity, cancellationToken);
 

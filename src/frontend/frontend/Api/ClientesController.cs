@@ -9,7 +9,7 @@ namespace CrmAtlas.Web.Api;
 public sealed class ClientesController(IClienteService service) : ControllerBase
 {
     [HttpGet]
-    public Task<PagedResult<ClienteDto>> List(
+    public Task<CursorResult<ClienteDto>> List(
         [FromQuery] ClienteFilter filter,
         CancellationToken cancellationToken) =>
         service.ListAsync(filter, cancellationToken);

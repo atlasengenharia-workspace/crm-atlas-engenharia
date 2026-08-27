@@ -37,7 +37,7 @@ public sealed class CondicoesPagamentoController(ICondicaoPagamentoService servi
 public sealed class CadastrosServicoController(ICadastroServicoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<PagedResult<CadastroServicoDto>> List(
+    public Task<CursorResult<CadastroServicoDto>> List(
         [FromQuery] CadastroServicoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 

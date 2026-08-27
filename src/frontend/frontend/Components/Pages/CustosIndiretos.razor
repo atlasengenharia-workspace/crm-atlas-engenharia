@@ -167,16 +167,14 @@
         </ChildContent>
         </SmartTableFilter>
 
-        @if (_result.TotalPages > 1)
-        {
-            <MudDivider />
-            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pa-4 flex-wrap">
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    Exibindo página @_page de @_result.TotalPages (Total: @_result.TotalItems registros)
-                </MudText>
-                <MudPagination Count="_result.TotalPages" Selected="_page" SelectedChanged="PageChangedAsync" Color="Color.Primary" />
+        <MudDivider />
+        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
             </MudStack>
-        }
+        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -298,7 +296,8 @@
     private static readonly string[] Categories =
         ["Aluguel", "Energia", "Água", "Internet e telefonia", "Software", "Combustível", "Materiais", "Marketing", "Contabilidade", "Impostos", "Outros"];
 
-    private PagedResult<CustoIndiretoDto> _result = new([], 1, 20, 0);
+    private CursorResult<CustoIndiretoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
     private readonly IReadOnlyList<SmartFilterColumn<CustoIndiretoDto>> _filterColumns =
     [
         new("id","ID",x=>x.Id,1),new("data","Data",x=>x.Data,2),
@@ -334,19 +333,35 @@
     protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
-    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
 
     private async Task SelectCategoryAsync(string? category)
     {
         _selectedCategory = category;
-        _page = 1;
+        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
     private async Task ClearSearchAsync()
     {
         _search = null;
-        _page = 1;
+        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -356,7 +371,7 @@
         _selectedCategory = null;
         _start = null;
         _end = null;
-        _page = 1;
+        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -383,7 +398,7 @@
                 _end = null;
                 break;
         }
-        _page = 1;
+        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -395,10 +410,10 @@
             var searchCategoryFilter = !string.IsNullOrWhiteSpace(_selectedCategory) ? _selectedCategory : _search;
 
             _result = await Service.ListAsync(new(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 5000));
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, _page, 20, _cursors[_page - 1]));
 
             _analytics = (await Service.ListAsync(new(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000))).Items;
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000, null))).Items;
 
             var allGroups = _analytics
                 .Where(x => !string.IsNullOrWhiteSpace(x.Categoria))

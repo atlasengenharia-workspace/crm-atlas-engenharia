@@ -57,7 +57,7 @@
                     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="atlas-panel-heading mb-3">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                             <MudText Typo="Typo.h6">Empresas e pessoas</MudText>
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">@_result.TotalItems registro(s)</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Página @_page</MudChip>
                         </MudStack>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.Add" OnClick="New">
@@ -108,17 +108,16 @@
                     </ChildContent>
                     </SmartTableFilter>
 
-                    @if (_result.TotalPages > 1)
-                    {
-                        <MudDivider Class="my-3" />
-                        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                @_result.TotalItems registro(s)
-                            </MudText>
-                            <MudPagination Count="_result.TotalPages" Selected="_page"
-                                           SelectedChanged="PageChangedAsync" Color="Color.Primary" />
-                        </MudToolBar>
-                    }
+                    <MudDivider Class="my-3" />
+                    <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Página @_page
+                        </MudText>
+                        <MudStack Row="true" Spacing="2">
+                            <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                            <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+                        </MudStack>
+                    </MudToolBar>
                 </MudPaper>
             </MudItem>
         </MudGrid>
@@ -228,7 +227,8 @@
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
     private static readonly string[] Ufs =
         ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-    private PagedResult<ClienteDto> _result = new([], 1, 20, 0);
+    private CursorResult<ClienteDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
     private readonly IReadOnlyList<SmartFilterColumn<ClienteDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Id,1),new("cliente","Cliente",x=>x.RazaoSocial,2),
@@ -255,7 +255,7 @@
         try
         {
             _result = await ClienteService.ListAsync(new(
-                null, _search, _search, _search, _search, null, _estado, 1, 5000));
+                null, _search, _search, _search, _search, null, _estado, _page, 20, _cursors[_page - 1]));
             _statistics = await ClienteService.GetStatisticsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -264,10 +264,27 @@
 
     private async Task SearchOnEnter(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter") { _page = 1; await LoadAsync(); }
+        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
     }
 
-    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
     private void New() { _model = new(); _editorOpen = true; }
     private void Edit(ClienteDto item) { _model = ClienteEditModel.From(item); _editorOpen = true; }
 

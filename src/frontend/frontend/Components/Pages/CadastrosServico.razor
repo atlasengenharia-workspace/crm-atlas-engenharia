@@ -101,6 +101,15 @@
         </MudTable>
         </ChildContent>
         </SmartTableFilter>
+
+        <MudDivider />
+        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
+            </MudStack>
+        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -376,7 +385,8 @@
 </MudDrawer>
 
 @code {
-    private PagedResult<CadastroServicoDto> _result = new([], 1, 20, 0);
+    private CursorResult<CadastroServicoDto> _result = new([], 1, 20, null, false);
+    private List<long?> _cursors = new List<long?> { null };
     private readonly IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
@@ -463,14 +473,33 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        try { _result = await Service.ListAsync(new(
-            _search, _search, _tipo, 1, 5000, _situacao, _ocultarConcluidos)); }
+        try
+        {
+            _result = await Service.ListAsync(new(
+                _search, _search, _tipo, _page, 20, _situacao, _ocultarConcluidos, _cursors[_page - 1]));
+        }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
 
-    private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
-    private async Task PageChangedAsync(int page) { _page = page; await LoadAsync(); }
+    private async Task ApplyFilterAsync() { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
+    private async Task PreviousAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+    private async Task NextAsync()
+    {
+        if (_result.HasNext)
+        {
+            _page++;
+            _cursors.Add(_result.NextCursor);
+            await LoadAsync();
+        }
+    }
     private void New()
     {
         _model = new();

@@ -150,7 +150,7 @@
                 var totalCustos = custosDiretos + custosIndiretos;
                 var lucro = faturamento - totalCustos;
 
-                pdfBytes = ReportService.GenerateFinancialSummaryReport(faturamento, totalCustos, lucro, lancamentosResult.TotalItems);
+                pdfBytes = ReportService.GenerateFinancialSummaryReport(faturamento, totalCustos, lucro, lancamentos.Count);
                 filename = $"Resumo_Financeiro_Atlas_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
             }
             else

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
@@ -63,7 +64,8 @@ public sealed record CadastroServicoFilter(
     int Page = 1,
     int PageSize = 20,
     string? Situacao = null,
-    bool OcultarConcluidos = true);
+    bool OcultarConcluidos = true,
+    long? AfterId = null);
 
 public sealed record CadastroServicoSubtipoConfigDto(
     AcompanhamentoServicoTipo TipoServico,
@@ -71,13 +73,14 @@ public sealed record CadastroServicoSubtipoConfigDto(
 
 public interface ICadastroServicoRepository : IRepository<CadastroServico>
 {
+    IQueryable<CadastroServico> AsNoTrackingDetailed();
     Task<IReadOnlyList<CadastroServico>> ListDetailedAsync(CancellationToken cancellationToken = default);
     Task<CadastroServico?> GetDetailedAsync(long id, CancellationToken cancellationToken = default);
 }
 
 public interface ICadastroServicoService
 {
-    Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default);
+    Task<CursorResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> CreateAsync(CadastroServicoDto dto, CancellationToken cancellationToken = default);
@@ -92,18 +95,51 @@ public sealed class CadastroServicoService(
     IRepository<CondicaoPagamento> condicoes,
     IRepository<Prestador> prestadores) : ICadastroServicoService
 {
-    public async Task<PagedResult<CadastroServicoDto>> ListAsync(
+    public async Task<CursorResult<CadastroServicoDto>> ListAsync(
         CadastroServicoFilter filter,
         CancellationToken cancellationToken = default)
     {
-        var source = (await repository.ListDetailedAsync(cancellationToken))
-            .Where(x => MatchesSearch(x, filter.Codigo, filter.DocumentoEmpresa))
-            .Where(x => filter.TipoServico is null || x.TipoServico == filter.TipoServico)
-            .Where(x => Contains(x.SituacaoInicial, filter.Situacao))
-            .Where(x => !filter.OcultarConcluidos || !IsCompleted(x.SituacaoInicial))
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(ToDto);
-        return PagedResult<CadastroServicoDto>.Create(source, filter.Page, filter.PageSize);
+        var query = repository.AsNoTrackingDetailed();
+
+        var search = !string.IsNullOrWhiteSpace(filter.Codigo) ? filter.Codigo : filter.DocumentoEmpresa;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search!.Trim();
+            query = query.Where(x =>
+                x.Codigo.Contains(term)
+                || (x.DocumentoEmpresa != null && x.DocumentoEmpresa.Contains(term))
+                || (x.RazaoSocialEmpresa != null && x.RazaoSocialEmpresa.Contains(term))
+                || (x.Subtipo != null && x.Subtipo.Contains(term)));
+        }
+
+        if (filter.TipoServico is not null)
+            query = query.Where(x => x.TipoServico == filter.TipoServico);
+
+        if (!string.IsNullOrWhiteSpace(filter.Situacao))
+            query = query.Where(x => x.SituacaoInicial != null && x.SituacaoInicial.Contains(filter.Situacao!.Trim()));
+
+        if (filter.OcultarConcluidos)
+        {
+            query = query.Where(x =>
+                x.SituacaoInicial == null
+                || !x.SituacaoInicial.Contains("Concluído")
+                && !x.SituacaoInicial.Contains("Concluido")
+                && !x.SituacaoInicial.Contains("Finalizado")
+                && !x.SituacaoInicial.Contains("Encerrado"));
+        }
+
+        if (filter.AfterId is not null)
+            query = query.Where(x => x.Id < filter.AfterId);
+
+        query = query.OrderByDescending(x => x.Id);
+
+        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
+        var hasNext = items.Count > pageSize;
+        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
+        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+
+        return new CursorResult<CadastroServicoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
 
     public async Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(
