@@ -1,4 +1,4 @@
-name: .NET
+name: .NET CI/CD
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,3 +29,30 @@ jobs:
 
     - name: Test Integration
       run: dotnet test tests/IntegrationTests/IntegrationTests.csproj --verbosity normal
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Railway CLI
+      run: npm i -g @railway/cli
+
+    - name: Deploy to Railway
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway up \
+          --project d0cae88a-42a2-42e0-ba83-ff24d5af1064 \
+          --service 77852547-c653-43f9-8589-821640630cbd \
+          --environment 9437cb3b-facf-42b0-869f-a33f12bcb7e6 \
+          --detach \
+          --yes
