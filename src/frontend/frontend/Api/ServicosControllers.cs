@@ -9,7 +9,7 @@ namespace CrmAtlas.Web.Api;
 public sealed class CondicoesPagamentoController(ICondicaoPagamentoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<CursorResult<CondicaoPagamentoDto>> List(
+    public Task<PagedResult<CondicaoPagamentoDto>> List(
         [FromQuery] CondicaoPagamentoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 
@@ -39,7 +39,7 @@ public sealed class CondicoesPagamentoController(ICondicaoPagamentoService servi
 public sealed class CadastrosServicoController(ICadastroServicoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<CursorResult<CadastroServicoDto>> List(
+    public Task<PagedResult<CadastroServicoDto>> List(
         [FromQuery] CadastroServicoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 

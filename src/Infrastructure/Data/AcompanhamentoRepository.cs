@@ -12,6 +12,8 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
         Query().AsNoTracking();
     public async Task<IReadOnlyList<AcompanhamentoServico>> ToListAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default)=>
         await query.ToListAsync(ct);
+    public async Task<int> CountAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default)=>
+        await query.CountAsync(ct);
     public Task<AcompanhamentoServico?> GetDetailedAsync(long id,CancellationToken ct=default)=>
         Query().FirstOrDefaultAsync(x=>x.Id==id,ct);
     public async Task<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>> ListSituationsAsync(CancellationToken ct=default)=>

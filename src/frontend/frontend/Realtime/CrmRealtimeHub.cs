@@ -29,7 +29,13 @@ public sealed class SignalRRealtimeNotifier(
 {
     private readonly ConcurrentDictionary<Guid, Func<RealtimeChange, Task>> _subscribers = new();
 
-    public async Task PublishAsync(RealtimeChange change, CancellationToken cancellationToken = default)
+    public Task PublishAsync(RealtimeChange change, CancellationToken cancellationToken = default)
+    {
+        _ = Task.Run(async () => await PublishCoreAsync(change, cancellationToken), cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    private async Task PublishCoreAsync(RealtimeChange change, CancellationToken cancellationToken)
     {
         try
         {

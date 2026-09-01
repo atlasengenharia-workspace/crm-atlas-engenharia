@@ -30,7 +30,8 @@ public sealed record ClienteFilter(
     string? Estado,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public sealed record ClienteStatistics(int TotalClientes, int TotalCidades, int TotalEstados);
 
@@ -43,7 +44,7 @@ public interface ICepLookupService
 
 public interface IClienteService
 {
-    Task<CursorResult<ClienteDto>> ListAsync(ClienteFilter filter, CancellationToken cancellationToken = default);
+    Task<PagedResult<ClienteDto>> ListAsync(ClienteFilter filter, CancellationToken cancellationToken = default);
     Task<ClienteDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<ClienteDto> CreateAsync(ClienteDto dto, CancellationToken cancellationToken = default);
     Task<ClienteDto> UpdateAsync(long id, ClienteDto dto, CancellationToken cancellationToken = default);
@@ -57,7 +58,7 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         @"^(LEG-[0-9A-F]{12}|\d{11}|\d{14}|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})$",
         RegexOptions.Compiled);
 
-    public async Task<CursorResult<ClienteDto>> ListAsync(
+    public async Task<PagedResult<ClienteDto>> ListAsync(
         ClienteFilter filter,
         CancellationToken cancellationToken = default)
     {
@@ -78,18 +79,15 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         if (!string.IsNullOrWhiteSpace(filter.Estado))
             query = query.Where(x => x.Estado != null && x.Estado.Contains(filter.Estado.Trim()));
 
-        if (filter.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
         var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+        var page = Math.Max(1, filter.Page);
+        var total = await repository.CountAsync(query, cancellationToken);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var dtos = items.Select(ToDto).ToList();
 
-        return new CursorResult<ClienteDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
+        return PagedResult<ClienteDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<ClienteDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -160,6 +158,24 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
     private async Task<Cliente> FindAsync(long id, CancellationToken cancellationToken) =>
         await repository.GetByIdAsync(id, cancellationToken)
         ?? throw new NotFoundException($"Cliente não encontrado com id: {id}.");
+
+    private static IQueryable<Cliente> ApplySort(IQueryable<Cliente> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "cliente" => descending ? query.OrderByDescending(x => x.RazaoSocial) : query.OrderBy(x => x.RazaoSocial),
+            "documento" => descending ? query.OrderByDescending(x => x.CnpjCpf) : query.OrderBy(x => x.CnpjCpf),
+            "telefone" => descending ? query.OrderByDescending(x => x.Telefone) : query.OrderBy(x => x.Telefone),
+            "email" => descending ? query.OrderByDescending(x => x.Email) : query.OrderBy(x => x.Email),
+            "cidade" => descending ? query.OrderByDescending(x => x.Cidade) : query.OrderBy(x => x.Cidade),
+            "estado" => descending ? query.OrderByDescending(x => x.Estado) : query.OrderBy(x => x.Estado),
+            "codigo" or _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
 
     private static ClienteDto ToDto(Cliente x) => new(
         x.Id, x.CnpjCpf, x.RazaoSocial, x.NomeContato, x.Telefone, x.Email, x.Rua,

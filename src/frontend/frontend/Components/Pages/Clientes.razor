@@ -55,26 +55,25 @@
             <MudItem xs="12">
                 <MudPaper Outlined="true" Class="atlas-panel pa-5 mb-6">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="atlas-panel-heading mb-3">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                            <MudText Typo="Typo.h6">Empresas e pessoas</MudText>
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Página @_page</MudChip>
-                        </MudStack>
+                        <MudText Typo="Typo.h6">Empresas e pessoas</MudText>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.Add" OnClick="New">
                             Novo cliente
                         </MudButton>
                     </MudStack>
 
-                    <SmartTableFilter TItem="ClienteDto" Items="_result.Items" Columns="_filterColumns">
+                    <SmartTableFilter TItem="ClienteDto" Items="_result.Items" Columns="_filterColumns"
+                                      ProcessOnClient="false" TotalCount="_result.TotalItems"
+                                      OnStateChanged="OnSmartTableStateChanged">
                     <ChildContent Context="smartItems">
                     <MudTable Items="smartItems" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm"
-                              Elevation="0" Class="atlas-data-table">
+                              Elevation="0" Class="atlas-data-table" RowsPerPage="1000" Virtualize="true" ItemSize="52">
                         <HeaderContent>
-                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Id ?? 0))">Código</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.RazaoSocial))">Cliente</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.CnpjCpf))">Documento</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Telefone ?? ""))">Contato</MudTableSortLabel></MudTh>
-                            <MudTh><MudTableSortLabel SortBy="@(new Func<ClienteDto, object>(x => x.Cidade ?? ""))">Localidade</MudTableSortLabel></MudTh>
+                            <MudTh>Código</MudTh>
+                            <MudTh>Cliente</MudTh>
+                            <MudTh>Documento</MudTh>
+                            <MudTh>Contato</MudTh>
+                            <MudTh>Localidade</MudTh>
                             <MudTh Class="text-right">Ações</MudTh>
                         </HeaderContent>
                         <RowTemplate>
@@ -107,17 +106,6 @@
                     </MudTable>
                     </ChildContent>
                     </SmartTableFilter>
-
-                    <MudDivider Class="my-3" />
-                    <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            Página @_page
-                        </MudText>
-                        <MudStack Row="true" Spacing="2">
-                            <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                            <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-                        </MudStack>
-                    </MudToolBar>
                 </MudPaper>
             </MudItem>
         </MudGrid>
@@ -227,8 +215,7 @@
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
     private static readonly string[] Ufs =
         ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-    private CursorResult<ClienteDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
+    private PagedResult<ClienteDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<ClienteDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Id,1),new("cliente","Cliente",x=>x.RazaoSocial,2),
@@ -245,7 +232,9 @@
     private bool _lookingUpCep;
     private string? _search;
     private string? _estado;
-    private int _page = 1;
+    private string? _sortKey;
+    private bool _sortDescending;
+    private const int PageSize = 1000;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -255,35 +244,25 @@
         try
         {
             _result = await ClienteService.ListAsync(new(
-                null, _search, _search, _search, _search, null, _estado, _page, 20, _cursors[_page - 1]));
+                null, _search, _search, _search, _search, null, _estado,
+                1, PageSize, _sortKey, _sortDescending));
             _statistics = await ClienteService.GetStatisticsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
 
+    private async Task OnSmartTableStateChanged(SmartTableState state)
+    {
+        _search = state.Search;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
+    }
+
     private async Task SearchOnEnter(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
-    }
-
-    private async Task PreviousAsync()
-    {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
-    }
-
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
+        if (args.Key == "Enter") { await LoadAsync(); }
     }
     private void New() { _model = new(); _editorOpen = true; }
     private void Edit(ClienteDto item) { _model = ClienteEditModel.From(item); _editorOpen = true; }

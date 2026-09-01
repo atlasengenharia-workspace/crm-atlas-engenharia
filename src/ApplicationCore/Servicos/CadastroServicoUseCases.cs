@@ -65,7 +65,9 @@ public sealed record CadastroServicoFilter(
     int PageSize = 20,
     string? Situacao = null,
     bool OcultarConcluidos = true,
-    long? AfterId = null);
+    long? AfterId = null,
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public sealed record CadastroServicoSubtipoConfigDto(
     AcompanhamentoServicoTipo TipoServico,
@@ -80,7 +82,7 @@ public interface ICadastroServicoRepository : IRepository<CadastroServico>
 
 public interface ICadastroServicoService
 {
-    Task<CursorResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default);
+    Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> CreateAsync(CadastroServicoDto dto, CancellationToken cancellationToken = default);
@@ -95,7 +97,7 @@ public sealed class CadastroServicoService(
     IRepository<CondicaoPagamento> condicoes,
     IRepository<Prestador> prestadores) : ICadastroServicoService
 {
-    public async Task<CursorResult<CadastroServicoDto>> ListAsync(
+    public async Task<PagedResult<CadastroServicoDto>> ListAsync(
         CadastroServicoFilter filter,
         CancellationToken cancellationToken = default)
     {
@@ -128,18 +130,15 @@ public sealed class CadastroServicoService(
                 && !x.SituacaoInicial.Contains("Encerrado"));
         }
 
-        if (filter.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
         var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+        var page = Math.Max(1, filter.Page);
+        var total = await repository.CountAsync(query, cancellationToken);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var dtos = items.Select(ToDto).ToList();
 
-        return new CursorResult<CadastroServicoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
+        return PagedResult<CadastroServicoDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(
@@ -333,6 +332,27 @@ public sealed class CadastroServicoService(
         if (id is null) return null;
         if (current?.Id == id.Value) return current;
         return await ResolveAsync(source, id, resource, cancellationToken);
+    }
+
+    private static IQueryable<CadastroServico> ApplySort(IQueryable<CadastroServico> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "codigo" => descending ? query.OrderByDescending(x => x.Codigo) : query.OrderBy(x => x.Codigo),
+            "empresa" => descending ? query.OrderByDescending(x => x.RazaoSocialEmpresa) : query.OrderBy(x => x.RazaoSocialEmpresa),
+            "documento" => descending ? query.OrderByDescending(x => x.DocumentoEmpresa) : query.OrderBy(x => x.DocumentoEmpresa),
+            "tipo" => descending ? query.OrderByDescending(x => x.TipoServico) : query.OrderBy(x => x.TipoServico),
+            "subtipo" => descending ? query.OrderByDescending(x => x.Subtipo) : query.OrderBy(x => x.Subtipo),
+            "situacao" => descending ? query.OrderByDescending(x => x.SituacaoInicial) : query.OrderBy(x => x.SituacaoInicial),
+            "contrato" => descending ? query.OrderByDescending(x => x.ValorContrato) : query.OrderBy(x => x.ValorContrato),
+            "semanas" => descending ? query.OrderByDescending(x => x.DataEntrada) : query.OrderBy(x => x.DataEntrada),
+            "entrada" => descending ? query.OrderByDescending(x => x.DataEntrada) : query.OrderBy(x => x.DataEntrada),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
     }
 
     private static CadastroServicoDto ToDto(CadastroServico x) => new(

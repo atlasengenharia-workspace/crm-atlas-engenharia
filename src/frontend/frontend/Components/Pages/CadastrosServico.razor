@@ -61,10 +61,12 @@
     </MudPaper>
 
     <MudPaper Outlined="true">
-        <SmartTableFilter TItem="CadastroServicoDto" Items="_result.Items" Columns="_filterColumns">
+        <SmartTableFilter TItem="CadastroServicoDto" Items="_result.Items" Columns="_filterColumns"
+                          ProcessOnClient="false" TotalCount="_result.TotalItems"
+                          OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
         <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0"
-                  Breakpoint="Breakpoint.Md">
+                  Breakpoint="Breakpoint.Md" RowsPerPage="1000" Virtualize="true" ItemSize="52">
             <HeaderContent>
                 <MudTh>Código</MudTh><MudTh>Empresa</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh>
                 <MudTh>Contrato</MudTh><MudTh>Semanas</MudTh><MudTh>Entrada</MudTh><MudTh Class="text-right">Ações</MudTh>
@@ -103,13 +105,6 @@
         </SmartTableFilter>
 
         <MudDivider />
-        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-            </MudStack>
-        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -385,8 +380,7 @@
 </MudDrawer>
 
 @code {
-    private CursorResult<CadastroServicoDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
+    private PagedResult<CadastroServicoDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
@@ -411,7 +405,8 @@
     private AcompanhamentoServicoTipo? _tipo;
     private string? _situacao;
     private bool _ocultarConcluidos = true;
-    private int _page = 1;
+    private string? _sortKey;
+    private bool _sortDescending;
 
     private IEnumerable<string> AvailableSituations =>
         _situations.Where(x => x.Ativo && (_tipo is null || x.Tipo == _tipo))
@@ -470,36 +465,28 @@
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
     }
 
+    private const int PageSize = 1000;
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
             _result = await Service.ListAsync(new(
-                _search, _search, _tipo, _page, 20, _situacao, _ocultarConcluidos, _cursors[_page - 1]));
+                _search, _search, _tipo, 1, PageSize, _situacao, _ocultarConcluidos, null, _sortKey, _sortDescending));
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
 
-    private async Task ApplyFilterAsync() { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
-    private async Task PreviousAsync()
+    private async Task OnSmartTableStateChanged(SmartTableState state)
     {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
+        _search = state.Search;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
     }
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
-    }
+
+    private async Task ApplyFilterAsync() { await LoadAsync(); }
     private void New()
     {
         _model = new();

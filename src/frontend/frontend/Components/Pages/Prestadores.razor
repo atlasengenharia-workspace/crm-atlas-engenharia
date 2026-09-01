@@ -13,9 +13,11 @@
     <MudPaper Outlined="true" Class="pa-4">
         <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar nome, documento ou contato" Immediate="true" OnKeyDown="SearchOnEnter"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
-        <SmartTableFilter TItem="PrestadorDto" Items="Filtered" Columns="_filterColumns">
+        <SmartTableFilter TItem="PrestadorDto" Items="_result.Items" Columns="_filterColumns"
+                          ProcessOnClient="false" TotalCount="_result.TotalItems"
+                          OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading">
+        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading" RowsPerPage="1000" Virtualize="true" ItemSize="52">
             <HeaderContent><MudTh>Prestador</MudTh><MudTh>Documento</MudTh><MudTh>Contato</MudTh><MudTh>Pagamento</MudTh><MudTh>Ações</MudTh></HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Prestador"><div class="d-flex align-center gap-2"><MudAvatar Color="Color.Primary" Size="Size.Small">@Initials(context.Nome)</MudAvatar><strong>@context.Nome</strong></div></MudTd>
@@ -34,15 +36,6 @@
         </SmartTableFilter>
 
         <MudDivider Class="my-3" />
-        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                Página @_page
-            </MudText>
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-            </MudStack>
-        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -134,9 +127,9 @@
 </MudDrawer>
 
 @code {
-    private List<PrestadorDto> _items=[]; private CursorResult<PrestadorDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
-    private int _page = 1;
+    private PagedResult<PrestadorDto> _result = new([], 1, 1000, 0);
+    private string? _sortKey;
+    private bool _sortDescending;
     private ProviderModel _model=new(); private MudForm? _form;
     private PrestadorDetalheDto? _detalhe;
     private readonly IReadOnlyList<SmartFilterColumn<PrestadorDto>> _filterColumns =
@@ -145,42 +138,30 @@
         new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("pagamento","Pagamento",x=>x.MetodoPagamento,4)
     ];
     private bool _loading,_open,_saving,_valid,_detailsOpen; private string? _search;
-    private IEnumerable<PrestadorDto> Filtered=>string.IsNullOrWhiteSpace(_search)?_items:_items.Where(x=>$"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    private const int PageSize = 1000;
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync()
     {
         _loading=true;
         try
         {
-            _result = await Service.ListAsync(new PrestadorFilter(_search, _page, 20, _cursors[_page - 1]));
-            _items = _result.Items.ToList();
+            _result = await Service.ListAsync(new PrestadorFilter(_search, 1, PageSize, _sortKey, _sortDescending));
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
         finally{_loading=false;}
     }
 
+    private async Task OnSmartTableStateChanged(SmartTableState state)
+    {
+        _search = state.Search;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
+    }
+
     private async Task SearchOnEnter(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
-    }
-
-    private async Task PreviousAsync()
-    {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
-    }
-
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
+        if (args.Key == "Enter") { await LoadAsync(); }
     }
 
     private void New(){_model=new();_open=true;} private void Edit(PrestadorDto x){_model=ProviderModel.From(x);_open=true;}

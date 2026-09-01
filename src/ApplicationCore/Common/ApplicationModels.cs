@@ -6,7 +6,9 @@ public sealed record PagedResult<T>(
     int PageSize,
     int TotalItems)
 {
-    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(TotalItems / (double)PageSize);
+    public int TotalPages => PageSize == 0 ? 0 : Math.Max(1, (int)Math.Ceiling(TotalItems / (double)PageSize));
+    public bool HasNext => Page < TotalPages;
+    public bool HasPrevious => Page > 1;
 
     public static PagedResult<T> Create(IEnumerable<T> source, int page, int pageSize)
     {
@@ -18,6 +20,13 @@ public sealed record PagedResult<T>(
             page,
             pageSize,
             materialized.Count);
+    }
+
+    public static PagedResult<T> Create(IReadOnlyList<T> pageItems, int page, int pageSize, int totalItems)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 5000);
+        return new(pageItems, page, pageSize, totalItems);
     }
 }
 

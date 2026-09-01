@@ -19,7 +19,8 @@ public sealed record CustoIndiretoFilter(
     string? Categoria,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public sealed record LancamentoDto(
     long? Id,
@@ -59,11 +60,12 @@ public sealed record LancamentoFilter(
     string? CodigoServico,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public interface ICustoIndiretoService
 {
-    Task<CursorResult<CustoIndiretoDto>> ListAsync(CustoIndiretoFilter filter, CancellationToken cancellationToken = default);
+    Task<PagedResult<CustoIndiretoDto>> ListAsync(CustoIndiretoFilter filter, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> CreateAsync(CustoIndiretoDto dto, CancellationToken cancellationToken = default);
     Task<CustoIndiretoDto> UpdateAsync(long id, CustoIndiretoDto dto, CancellationToken cancellationToken = default);
@@ -73,7 +75,7 @@ public interface ICustoIndiretoService
 
 public interface ILancamentoService
 {
-    Task<CursorResult<LancamentoDto>> ListAsync(LancamentoFilter filter, CancellationToken cancellationToken = default);
+    Task<PagedResult<LancamentoDto>> ListAsync(LancamentoFilter filter, CancellationToken cancellationToken = default);
     Task<LancamentoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<LancamentoDto> CreateAsync(LancamentoDto dto, CancellationToken cancellationToken = default);
     Task<LancamentoDto> UpdateAsync(long id, LancamentoDto dto, CancellationToken cancellationToken = default);
@@ -90,7 +92,7 @@ public interface IReceiptStorage
 
 public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) : ICustoIndiretoService
 {
-    public async Task<CursorResult<CustoIndiretoDto>> ListAsync(
+    public async Task<PagedResult<CustoIndiretoDto>> ListAsync(
         CustoIndiretoFilter filter,
         CancellationToken cancellationToken = default)
     {
@@ -105,18 +107,15 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
         if (!string.IsNullOrWhiteSpace(filter.Categoria))
             query = query.Where(x => x.Categoria.ToLower().Contains(filter.Categoria.Trim().ToLower()));
 
-        if (filter.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
         var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+        var page = Math.Max(1, filter.Page);
+        var total = await repository.CountAsync(query, cancellationToken);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var dtos = items.Select(ToDto).ToList();
 
-        return new CursorResult<CustoIndiretoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
+        return PagedResult<CustoIndiretoDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<CustoIndiretoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -175,6 +174,22 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
         entity.Categoria = Required(dto.Categoria, "A categoria é obrigatória.");
     }
 
+    private static IQueryable<CustoIndireto> ApplySort(IQueryable<CustoIndireto> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "data" => descending ? query.OrderByDescending(x => x.Data) : query.OrderBy(x => x.Data),
+            "descricao" => descending ? query.OrderByDescending(x => x.Descricao) : query.OrderBy(x => x.Descricao),
+            "categoria" => descending ? query.OrderByDescending(x => x.Categoria) : query.OrderBy(x => x.Categoria),
+            "valor" => descending ? query.OrderByDescending(x => x.Valor) : query.OrderBy(x => x.Valor),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
+
     private static CustoIndiretoDto ToDto(CustoIndireto x) =>
         new(x.Id, x.Data, x.Descricao, x.Valor, x.Categoria);
 
@@ -190,7 +205,7 @@ public sealed class LancamentoService(
     IRepository<CrmAtlas.ApplicationCore.Servicos.CadastroServico> cadastros,
     IRepository<CrmAtlas.ApplicationCore.Servicos.Prestador> prestadores) : ILancamentoService
 {
-    public async Task<CursorResult<LancamentoDto>> ListAsync(
+    public async Task<PagedResult<LancamentoDto>> ListAsync(
         LancamentoFilter filter,
         CancellationToken cancellationToken = default)
     {
@@ -225,18 +240,15 @@ public sealed class LancamentoService(
             }
         }
 
-        if (filter.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
         var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+        var page = Math.Max(1, filter.Page);
+        var total = await repository.CountAsync(query, cancellationToken);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var dtos = items.Select(ToDto).ToList();
 
-        return new CursorResult<LancamentoDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
+        return PagedResult<LancamentoDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<LancamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -309,6 +321,27 @@ public sealed class LancamentoService(
     private async Task<Lancamento> FindAsync(long id, CancellationToken cancellationToken) =>
         await repository.GetByIdAsync(id, cancellationToken)
         ?? throw new NotFoundException($"Lançamento não encontrado com id: {id}.");
+
+    private static IQueryable<Lancamento> ApplySort(IQueryable<Lancamento> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "codigo" => descending ? query.OrderByDescending(x => x.Codigo) : query.OrderBy(x => x.Codigo),
+            "data" => descending ? query.OrderByDescending(x => x.Data) : query.OrderBy(x => x.Data),
+            "descricao" => descending ? query.OrderByDescending(x => x.Descricao) : query.OrderBy(x => x.Descricao),
+            "servico" => descending ? query.OrderByDescending(x => x.CodigoServico) : query.OrderBy(x => x.CodigoServico),
+            "cliente" => descending ? query.OrderByDescending(x => x.NomeCliente) : query.OrderBy(x => x.NomeCliente),
+            "prestador" => descending ? query.OrderByDescending(x => x.NomePrestador) : query.OrderBy(x => x.NomePrestador),
+            "tipo" => descending ? query.OrderByDescending(x => x.Tipo) : query.OrderBy(x => x.Tipo),
+            "situacao" => descending ? query.OrderByDescending(x => x.Status) : query.OrderBy(x => x.Status),
+            "valor" => descending ? query.OrderByDescending(x => x.Valor) : query.OrderBy(x => x.Valor),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
 
     private static LancamentoDto ToDto(Lancamento x)
     {

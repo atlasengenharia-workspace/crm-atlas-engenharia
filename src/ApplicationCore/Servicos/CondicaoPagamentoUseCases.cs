@@ -14,11 +14,12 @@ public sealed record CondicaoPagamentoFilter(
     string? Search = null,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public interface ICondicaoPagamentoService
 {
-    Task<CursorResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default);
+    Task<PagedResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> CreateAsync(CondicaoPagamentoDto dto, CancellationToken cancellationToken = default);
     Task<CondicaoPagamentoDto> UpdateAsync(long id, CondicaoPagamentoDto dto, CancellationToken cancellationToken = default);
@@ -28,25 +29,22 @@ public interface ICondicaoPagamentoService
 public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repository)
     : ICondicaoPagamentoService
 {
-    public async Task<CursorResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var query = repository.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter?.Search))
             query = query.Where(x => x.Nome.Contains(filter.Search.Trim()));
 
-        if (filter?.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
         var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), cancellationToken);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(ToDto).ToList();
+        var page = Math.Max(1, filter?.Page ?? 1);
+        var total = await repository.CountAsync(query, cancellationToken);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var dtos = items.Select(ToDto).ToList();
 
-        return new CursorResult<CondicaoPagamentoDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+        return PagedResult<CondicaoPagamentoDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -109,6 +107,21 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
     private async Task<CondicaoPagamento> FindAsync(long id, CancellationToken cancellationToken) =>
         await repository.GetByIdAsync(id, cancellationToken)
         ?? throw new NotFoundException($"Condição de pagamento não encontrada com id: {id}.");
+
+    private static IQueryable<CondicaoPagamento> ApplySort(IQueryable<CondicaoPagamento> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "nome" => descending ? query.OrderByDescending(x => x.Nome) : query.OrderBy(x => x.Nome),
+            "parcelas" => descending ? query.OrderByDescending(x => x.QuantidadeParcelas) : query.OrderBy(x => x.QuantidadeParcelas),
+            "intervalo" => descending ? query.OrderByDescending(x => x.IntervaloDias) : query.OrderBy(x => x.IntervaloDias),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
 
     private static CondicaoPagamentoDto ToDto(CondicaoPagamento x) =>
         new(x.Id, x.Nome, x.QuantidadeParcelas ?? 1, x.IntervaloDias, x.Indefinido);

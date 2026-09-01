@@ -1,5 +1,7 @@
 @page "/acompanhamento"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject IAcompanhamentoService Service
@@ -52,11 +54,17 @@
                 <MudSwitch T="bool" Value="_hideCompleted" ValueChanged="OnHideCompletedChanged" Color="Color.Primary"
                            Label="Ocultar concluídos" />
             </MudItem>
+            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
+                           OnClick="AutoFitColumnsAsync">Auto ajuste colunas</MudButton>
+            </MudItem>
         </MudGrid>
         <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
-                          HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged">
+                          HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged"
+                          ProcessOnClient="false" TotalCount="_result.TotalItems"
+                          OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <div class="atlas-operational-table-scroll">
+        <div id="acompanhamento-table-wrapper" class="atlas-operational-table-scroll">
         @if (_selectedIds.Count > 0)
         {
             <MudPaper Outlined="true" Class="pa-3 mb-3">
@@ -77,182 +85,195 @@
                 </MudStack>
             </MudPaper>
         }
-        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Md" Elevation="0" Loading="_loading" Class="atlas-operational-table">
-            <HeaderContent>
-                <MudTh Style="width: 40px;"><MudCheckBox T="bool" Value="@(smartItems.All(x => _selectedIds.Contains(x.Id)))" ValueChanged="@(async (bool b) => ToggleSelectAll(smartItems, b))" Dense="true" /></MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Codigo)">Código</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Código" Items="Filtered" GetValue='x=>x.Codigo' Selected='@GetColumnFilter("codigo")' SelectedChanged='(v)=>OnColumnFilterChanged("codigo", v)' />
-                    </MudStack>
-                </MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Cliente??string.Empty)">Cliente</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Cliente" Items="Filtered" GetValue='x=>x.Cliente' Selected='@GetColumnFilter("cliente")' SelectedChanged='(v)=>OnColumnFilterChanged("cliente", v)' />
-                    </MudStack>
-                </MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Endereco??string.Empty)">Endereço</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Endereço" Items="Filtered" GetValue='x=>x.Endereco' Selected='@GetColumnFilter("endereco")' SelectedChanged='(v)=>OnColumnFilterChanged("endereco", v)' />
-                    </MudStack>
-                </MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Telefone??string.Empty)">Telefone</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Telefone" Items="Filtered" GetValue='x=>x.Telefone' Selected='@GetColumnFilter("telefone")' SelectedChanged='(v)=>OnColumnFilterChanged("telefone", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Servico??string.Empty)">Serviço</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Tipo" Items="Filtered" GetValue='x=>TypeLabel(x.Tipo)' Selected='@GetColumnFilter("tipo")' SelectedChanged='(v)=>OnColumnFilterChanged("tipo", v)' />
-                    </MudStack>
-                 </MudTh>
-                  <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ValorContrato??0)">R$ Contrato</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="R$ Contrato" Items="Filtered" GetValue='x=>Money(x.ValorContrato)' Selected='@GetColumnFilter("valorContrato")' SelectedChanged='(v)=>OnColumnFilterChanged("valorContrato", v)' />
-                    </MudStack>
-                </MudTh>
-                  <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.DataContrato??DateOnly.MinValue)">Data Contrato</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Data Contrato" Items="Filtered" GetValue='x=>x.DataContrato?.ToString("dd/MM/yyyy")' Selected='@GetColumnFilter("dataContrato")' SelectedChanged='(v)=>OnColumnFilterChanged("dataContrato", v)' />
-                    </MudStack>
-                </MudTh>
-                   <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.NotaFiscal??string.Empty)">NF</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="NF" Items="Filtered" GetValue='x=>x.NotaFiscal' Selected='@GetColumnFilter("nf")' SelectedChanged='(v)=>OnColumnFilterChanged("nf", v)' />
-                    </MudStack>
-                </MudTh>
-                   <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.CondicaoPagamento??string.Empty)">Condição pag.</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Condição pag." Items="Filtered" GetValue='x=>x.CondicaoPagamento' Selected='@GetColumnFilter("condicaoPagamento")' SelectedChanged='(v)=>OnColumnFilterChanged("condicaoPagamento", v)' />
-                    </MudStack>
-                </MudTh>
-                   <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ProximaParcela??DateOnly.MinValue)">Prox. Parcela</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Prox. Parcela" Items="Filtered" GetValue='x=>x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto' Selected='@GetColumnFilter("proximaParcela")' SelectedChanged='(v)=>OnColumnFilterChanged("proximaParcela", v)' />
-                    </MudStack>
-                </MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Situacao)">Situação</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Situação" Items="Filtered" GetValue='x=>x.Situacao' Selected='@GetColumnFilter("situacao")' SelectedChanged='(v)=>OnColumnFilterChanged("situacao", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Descricao??string.Empty)">Observações</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Observações" Items="Filtered" GetValue='x=>x.Descricao' Selected='@GetColumnFilter("observacoes")' SelectedChanged='(v)=>OnColumnFilterChanged("observacoes", v)' />
-                    </MudStack>
-                </MudTh>
-                <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.ObservacaoMudanca??string.Empty)">Observação da mudança</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Observação da mudança" Items="Filtered" GetValue='x=>x.ObservacaoMudanca' Selected='@GetColumnFilter("observacaoMudanca")' SelectedChanged='(v)=>OnColumnFilterChanged("observacaoMudanca", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.AReceber??0)">A receber</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="A receber" Items="Filtered" GetValue='x=>Money(x.AReceber)' Selected='@GetColumnFilter("areceber")' SelectedChanged='(v)=>OnColumnFilterChanged("areceber", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Recebido??0)">Recebido</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Recebido" Items="Filtered" GetValue='x=>Money(x.Recebido)' Selected='@GetColumnFilter("recebido")' SelectedChanged='(v)=>OnColumnFilterChanged("recebido", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.Custos??0)">Custos</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Custos" Items="Filtered" GetValue='x=>Money(x.Custos)' Selected='@GetColumnFilter("custos")' SelectedChanged='(v)=>OnColumnFilterChanged("custos", v)' />
-                    </MudStack>
-                </MudTh>
-                 <MudTh>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
-                        <MudTableSortLabel SortBy="new Func<AcompanhamentoDto, object>(x=>x.AtualizadoEm??DateTime.MinValue)">Atualização</MudTableSortLabel>
-                        <ColumnFilter TItem="AcompanhamentoDto" OnHide="ToggleHiddenColumn" OnPin="TogglePinColumn" Label="Atualização" Items="Filtered" GetValue='x=>x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")' Selected='@GetColumnFilter("atualizacao")' SelectedChanged='(v)=>OnColumnFilterChanged("atualizacao", v)' />
-                    </MudStack>
-                </MudTh><MudTh>Ações</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd><MudCheckBox T="bool" Value="@(_selectedIds.Contains(context.Id))" ValueChanged="@((bool b) => ToggleSelect(context, b))" Dense="true" /></MudTd>
-                <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd>
-                <MudTd DataLabel="Cliente">@context.Cliente</MudTd>
-                <MudTd DataLabel="Endereço">@(string.IsNullOrWhiteSpace(context.Endereco) ? "—" : context.Endereco)</MudTd>
-                <MudTd DataLabel="Telefone">@(string.IsNullOrWhiteSpace(context.Telefone) ? "—" : context.Telefone)</MudTd>
-                <MudTd DataLabel="Serviço">
-                    <MudText Typo="Typo.body2" Class="font-weight-medium">@(string.IsNullOrWhiteSpace(context.Servico) ? TypeLabel(context.Tipo) : context.Servico)</MudText>
-                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@TypeColor(context.Tipo)">@TypeLabel(context.Tipo)</MudChip>
-                 </MudTd>
-                  <MudTd DataLabel="R$ Contrato">@Money(context.ValorContrato)</MudTd>
-                  <MudTd DataLabel="Data Contrato">@(context.DataContrato?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
-                   <MudTd DataLabel="NF">@(string.IsNullOrWhiteSpace(context.NotaFiscal) ? "—" : context.NotaFiscal)</MudTd>
-                   <MudTd DataLabel="Condição pag.">@(string.IsNullOrWhiteSpace(context.CondicaoPagamento) ? "—" : context.CondicaoPagamento)</MudTd>
-                   <MudTd DataLabel="Prox. Parcela">@(context.ProximaParcela?.ToString("dd/MM/yyyy") ?? context.ProximaParcelaTexto ?? "—")</MudTd>
-                 <MudTd DataLabel="Situação">
-                     @if (_editStatusId == context.Id)
-                     {
-                         <MudSelect T="string" Value="_editingSituacao" ValueChanged="@(async (string s) => await SaveSituacaoAsync(context, s))"
-                                    Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense">
-                             @foreach (var status in StatusesFor(context.Tipo))
-                             {
-                                 <MudSelectItem T="string" Value="@status">@status</MudSelectItem>
-                             }
-                         </MudSelect>
-                     }
-                     else
-                     {
-                         <span class="atlas-status-pill" style="@SituationStyle(context)" @onclick="@(() => StartEditSituacao(context))">@context.Situacao</span>
-                     }
-                 </MudTd>
-                 <MudTd DataLabel="Observações" Class="atlas-observation-cell">
-                     @if (_editDescId == context.Id)
-                     {
-                         <MudTextField @bind-Value="_editingDescricao"
-                                       OnBlur="@(async () => await SaveDescricaoAsync(context))"
-                                       Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
-                     }
-                     else
-                     {
-                         <MudText Typo="Typo.body2" @onclick="@(() => StartEditDescricao(context))" Style="cursor:pointer;">@(string.IsNullOrWhiteSpace(context.Descricao) ? "—" : context.Descricao)</MudText>
-                     }
-                 </MudTd>
-                 <MudTd DataLabel="Observação da mudança" Class="atlas-observation-cell">
-                     <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(context.ObservacaoMudanca) ? "—" : context.ObservacaoMudanca)</MudText>
-                 </MudTd>
-                 <MudTd DataLabel="A receber">@Money(context.AReceber)</MudTd>
-                 <MudTd DataLabel="Recebido">@Money(context.Recebido)</MudTd>
-                 <MudTd DataLabel="Custos">@Money(context.Custos)</MudTd>
-                 <MudTd DataLabel="Atualização">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
-                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
-                    <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
-                    <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" /></MudTd>
-            </RowTemplate>
-            <NoRecordsContent><EmptyState Title="Nenhum acompanhamento" Message="Importe serviços ou ajuste os filtros." /></NoRecordsContent>
-        </MudTable>
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="AcompanhamentoDto"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                        AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                        FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                        Density="Radzen.Density.Compact" EmptyText="Nenhum acompanhamento"
+                        GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                        ColumnsShowingText="colunas visíveis">
+            <Columns>
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Width="40px" Sortable="false" Resizable="false" Title=" ">
+                    <HeaderTemplate>
+                        <MudCheckBox T="bool" Value="@(smartItems.All(x => _selectedIds.Contains(x.Id)))" ValueChanged="@(async (bool b) => ToggleSelectAll(smartItems, b))" Dense="true" />
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudCheckBox T="bool" Value="@(_selectedIds.Contains(context.Id))" ValueChanged="@((bool b) => ToggleSelect(context, b))" Dense="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Codigo" Title="Código" Visible="@(!_hiddenColumns.Contains("Código"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Código</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context"><strong>@context.Codigo</strong></Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Cliente" Title="Cliente" Visible="@(!_hiddenColumns.Contains("Cliente"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Cliente</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context"><span style="display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@context.Cliente</span></Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Endereco" Title="Endereço" Visible="@(!_hiddenColumns.Contains("Endereço"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Endereço</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(string.IsNullOrWhiteSpace(context.Endereco) ? "—" : context.Endereco)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Telefone" Title="Telefone" Visible="@(!_hiddenColumns.Contains("Telefone"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Telefone</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(string.IsNullOrWhiteSpace(context.Telefone) ? "—" : context.Telefone)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Servico" Title="Serviço" Visible="@(!_hiddenColumns.Contains("Tipo"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Serviço</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudText Typo="Typo.body2" Class="font-weight-medium">@(string.IsNullOrWhiteSpace(context.Servico) ? TypeLabel(context.Tipo) : context.Servico)</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@TypeColor(context.Tipo)">@TypeLabel(context.Tipo)</MudChip>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="ValorContrato" Title="R$ Contrato" Visible="@(!_hiddenColumns.Contains("R$ Contrato"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">R$ Contrato</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@Money(context.ValorContrato)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="DataContrato" Title="Data Contrato" Visible="@(!_hiddenColumns.Contains("Data Contrato"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Data Contrato</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(context.DataContrato?.ToString("dd/MM/yyyy") ?? "—")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="NotaFiscal" Title="NF" Visible="@(!_hiddenColumns.Contains("NF"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">NF</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(string.IsNullOrWhiteSpace(context.NotaFiscal) ? "—" : context.NotaFiscal)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="CondicaoPagamento" Title="Condição pag." Visible="@(!_hiddenColumns.Contains("Condição pag."))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Condição pag.</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(string.IsNullOrWhiteSpace(context.CondicaoPagamento) ? "—" : context.CondicaoPagamento)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="ProximaParcela" Title="Prox. Parcela" Visible="@(!_hiddenColumns.Contains("Prox. Parcela"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Prox. Parcela</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@(context.ProximaParcela?.ToString("dd/MM/yyyy") ?? context.ProximaParcelaTexto ?? "—")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Situacao" Title="Situação" Visible="@(!_hiddenColumns.Contains("Situação"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Situação</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        @if (_editStatusId == context.Id)
+                        {
+                            <MudSelect T="string" Value="_editingSituacao" ValueChanged="@(async (string s) => await SaveSituacaoAsync(context, s))"
+                                       Variant="Variant.Outlined" Dense="true" Margin="Margin.Dense">
+                                @foreach (var status in StatusesFor(context.Tipo))
+                                {
+                                    <MudSelectItem T="string" Value="@status">@status</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                        else
+                        {
+                            <span class="atlas-status-pill" style="@SituationStyle(context)" @onclick="@(() => StartEditSituacao(context))">@context.Situacao</span>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Descricao" Title="Observações" Visible="@(!_hiddenColumns.Contains("Observações"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Observações</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <div class="atlas-observation-cell">
+                        @if (_editDescId == context.Id)
+                        {
+                            <MudTextField @bind-Value="_editingDescricao"
+                                          OnBlur="@(async () => await SaveDescricaoAsync(context))"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" @onclick="@(() => StartEditDescricao(context))" Style="cursor:pointer;">@(string.IsNullOrWhiteSpace(context.Descricao) ? "—" : context.Descricao)</MudText>
+                        }
+                        </div>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="ObservacaoMudanca" Title="Observação da mudança" Visible="@(!_hiddenColumns.Contains("Observação da mudança"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Observação da mudança</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <div class="atlas-observation-cell">
+                            <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(context.ObservacaoMudanca) ? "—" : context.ObservacaoMudanca)</MudText>
+                        </div>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="AReceber" Title="A receber" Visible="@(!_hiddenColumns.Contains("A receber"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">A receber</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@Money(context.AReceber)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Recebido" Title="Recebido" Visible="@(!_hiddenColumns.Contains("Recebido"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Recebido</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@Money(context.Recebido)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Custos" Title="Custos" Visible="@(!_hiddenColumns.Contains("Custos"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Custos</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@Money(context.Custos)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="AtualizadoEm" Title="Atualização" Visible="@(!_hiddenColumns.Contains("Atualização"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Atualização</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Title="Ações" Resizable="false" Sortable="false" Visible="@(!_hiddenColumns.Contains("Ações"))">
+                    <Template Context="context">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+            <EmptyTemplate>
+                <EmptyState Title="Nenhum acompanhamento" Message="Importe serviços ou ajuste os filtros." />
+            </EmptyTemplate>
+        </RadzenDataGrid>
         </div>
         </ChildContent>
         </SmartTableFilter>
 
         <MudDivider Class="my-3" />
-        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                Página @_page
-            </MudText>
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-            </MudStack>
-        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -457,11 +478,13 @@
 
 <style>
     .atlas-operational-table-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
-    .atlas-operational-table { min-width: 1280px; }
-    .atlas-operational-table td { vertical-align: middle; }
-    .atlas-operational-table td:nth-child(2), .atlas-operational-table td:nth-child(3), .atlas-operational-table td:nth-child(5), .atlas-operational-table td:nth-child(7) { min-width: 170px; }
-    .atlas-observation-cell { min-width: 260px !important; white-space: normal; line-height: 1.35; }
-    .atlas-status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: .75rem; font-weight: 700; white-space: nowrap; border: 1px solid rgba(15,23,42,.12); }
+    .atlas-operational-table { width: auto; display: inline-block; }
+    .atlas-operational-table .mud-table-root { width: auto; table-layout: auto; border-collapse: collapse; }
+    .atlas-operational-table th, .atlas-operational-table td { vertical-align: middle; padding: 2px 5px !important; white-space: nowrap; font-size: .8rem; border-right: 1px solid var(--mud-palette-divider); overflow: visible; }
+    .atlas-operational-table th { background: #f8f9fa; }
+    .atlas-operational-table.excel-mode .mud-chip { margin: 1px !important; padding: 1px 5px !important; font-size: .72rem !important; }
+    .atlas-observation-cell { min-width: 180px !important; max-width: 280px; white-space: normal; line-height: 1.35; }
+    .atlas-status-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 6px; font-size: .72rem; font-weight: 700; white-space: nowrap; border: 1px solid rgba(15,23,42,.12); }
     .atlas-color-dot { width: 13px; height: 13px; flex: 0 0 13px; border-radius: 50%; border: 1px solid rgba(15,23,42,.18); }
     .atlas-import-drawer { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--mud-palette-surface); }
     .atlas-import-header { flex: 0 0 auto; border-bottom: 1px solid var(--mud-palette-divider); }
@@ -478,12 +501,20 @@
         .atlas-import-footer .mud-stack { width: 100%; }
         .atlas-import-footer .mud-button-root { flex: 1; }
     }
+
+    .excel-grid .rz-grid-table { border-collapse: collapse; border: 1px solid #d1d5db; width: 100%; }
+    .excel-grid .rz-grid-table th { background: #e5e7eb !important; border: 1px solid #d1d5db; font-weight: 600; font-size: .78rem; padding: 4px 6px; }
+    .excel-grid .rz-grid-table td { border: 1px solid #e5e7eb; font-size: .8rem; padding: 3px 6px; vertical-align: middle; }
+    .excel-grid .rz-grid-table tr:nth-child(even) td { background: #f3f4f6; }
+    .excel-grid .rz-grid-table tr:hover td { background: #e0e7ff; }
 </style>
 
 @code {
-    private List<AcompanhamentoDto> _items=[]; private CursorResult<AcompanhamentoDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
-    private int _page = 1;
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private RadzenDataGrid<AcompanhamentoDto>? _grid;
+    private PagedResult<AcompanhamentoDto> _result = new([], 1, 1000, 0);
+    private string? _sortKey;
+    private bool _sortDescending;
     private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
@@ -510,35 +541,9 @@
     private readonly HashSet<long> _selectedIds = [];
     private string? _bulkSituacao,_bulkDescricao;
     private bool _bulkApplying;
-    private readonly Dictionary<string, HashSet<string>> _columnFilters = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _hiddenColumns = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pinnedColumns = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Func<AcompanhamentoDto, object?>> _columnValueGetters = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["codigo"] = x => x.Codigo,
-        ["cliente"] = x => x.Cliente,
-        ["endereco"] = x => x.Endereco,
-        ["telefone"] = x => x.Telefone,
-        ["tipo"] = x => TypeLabel(x.Tipo),
-        ["valorContrato"] = x => Money(x.ValorContrato),
-        ["dataContrato"] = x => x.DataContrato?.ToString("dd/MM/yyyy"),
-        ["nf"] = x => x.NotaFiscal,
-        ["condicaoPagamento"] = x => x.CondicaoPagamento,
-        ["proximaParcela"] = x => x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto,
-        ["situacao"] = x => x.Situacao,
-        ["observacoes"] = x => x.Descricao,
-        ["observacaoMudanca"] = x => x.ObservacaoMudanca,
-        ["areceber"] = x => Money(x.AReceber),
-        ["recebido"] = x => Money(x.Recebido),
-        ["custos"] = x => Money(x.Custos),
-        ["atualizacao"] = x => x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-    };
-    private IReadOnlySet<string> GetColumnFilter(string key) => _columnFilters.TryGetValue(key, out var values) ? values : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    private void OnColumnFilterChanged(string key, IReadOnlySet<string> values)
-    {
-        if (values.Count == 0) _columnFilters.Remove(key);
-        else _columnFilters[key] = [.. values];
-    }
+    private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
     private void OnHiddenColumnsChanged(IReadOnlySet<string> hidden)
     {
         _hiddenColumns.Clear();
@@ -552,11 +557,10 @@
     {
         if (!_pinnedColumns.Add(key)) _pinnedColumns.Remove(key);
     }
-    private IEnumerable<AcompanhamentoDto> Filtered=>_items
+    private IEnumerable<AcompanhamentoDto> Filtered=>_result.Items
         .Where(x=>_tipoFiltro is null||x.Tipo==_tipoFiltro)
         .Where(x=>!_hideCompleted||!IsCompleted(x.Situacao))
-        .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase))
-        .Where(x=>_columnFilters.All(f=>!_columnValueGetters.TryGetValue(f.Key,out var getter)||f.Value.Count==0||f.Value.Contains(Text(getter(x)))));
+        .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase));
     private static bool IsCompleted(string? status) =>
         !string.IsNullOrEmpty(status) &&
         (status!.StartsWith("Concluído", StringComparison.OrdinalIgnoreCase) ||
@@ -571,57 +575,62 @@
         return Color.Info;
     }
     protected override async Task OnInitializedAsync()=>await LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Task.Delay(300);
+        try { await JS.InvokeVoidAsync("resizableTable.restore", "acompanhamento-table-wrapper", "acompanhamento.colWidths"); }
+        catch { }
+    }
     private async Task LoadAsync()
     {
-        _loading=true;
+        await _loadSemaphore.WaitAsync();
         try
         {
-            _result = await Service.ListAsync(new AcompanhamentoFilter(_search, _tipoFiltro, _hideCompleted, _page, 20, _cursors[_page - 1]));
-            _items = _result.Items.ToList();
+            _loading=true;
+            _result = await Service.ListAsync(new AcompanhamentoFilter(_search, _tipoFiltro, _hideCompleted, 1, 0, _sortKey, _sortDescending));
             _situations=(await Service.ListSituationsAsync()).ToList();
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
-        finally{_loading=false;}
+        finally
+        {
+            _loading=false;
+            _loadSemaphore.Release();
+        }
+    }
+
+    private async Task AutoFitColumnsAsync()
+    {
+        try { await JS.InvokeVoidAsync("resizableTable.autoFit", "acompanhamento-table-wrapper", "acompanhamento.colWidths"); }
+        catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
+    }
+
+    private async Task OnSmartTableStateChanged(SmartTableState state)
+    {
+        _search = state.Search;
+        if (!string.IsNullOrWhiteSpace(state.SortKey))
+        {
+            _sortKey = state.SortKey;
+            _sortDescending = state.SortDescending;
+        }
+        await LoadAsync();
     }
 
     private async Task SearchOnEnter(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter") { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
+        if (args.Key == "Enter") { await LoadAsync(); }
     }
 
     private async Task OnTipoFiltroChanged(AcompanhamentoServicoTipo? value)
     {
         _tipoFiltro = value;
-        _page = 1;
-        _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
     private async Task OnHideCompletedChanged(bool value)
     {
         _hideCompleted = value;
-        _page = 1;
-        _cursors = new List<long?> { null };
         await LoadAsync();
-    }
-
-    private async Task PreviousAsync()
-    {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
-    }
-
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
     }
 
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
@@ -645,7 +654,7 @@
     }
     private IEnumerable<string> StatusesFor(AcompanhamentoServicoTipo tipo)=>
         _situations.Where(x=>x.Tipo==tipo&&x.Ativo).Select(x=>x.Nome)
-            .Concat(_items.Where(x=>x.Tipo==tipo).Select(x=>x.Situacao))
+            .Concat(_result.Items.Where(x=>x.Tipo==tipo).Select(x=>x.Situacao))
             .Concat(DefaultStatuses(tipo))
             .Where(x=>!string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -677,7 +686,7 @@
     {
         if(_selected is null)return Task.FromResult(Enumerable.Empty<string>());
         var statuses=_situations.Where(x=>x.Tipo==_selected.Tipo&&x.Ativo).Select(x=>x.Nome)
-            .Concat(_items.Where(x=>x.Tipo==_selected.Tipo).Select(x=>x.Situacao))
+            .Concat(_result.Items.Where(x=>x.Tipo==_selected.Tipo).Select(x=>x.Situacao))
             .Concat(DefaultStatuses(_selected.Tipo))
             .Where(x=>!string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -731,7 +740,6 @@
     private void CloseImportDrawer(){if(_importing||_parsingImport)return;ClearImportFile();_importOpen=false;}
      private static string FormatFileSize(long bytes)=>bytes switch{>=1024L*1024L=>$"{bytes/(1024d*1024d):N1} MB",>=1024=>$"{bytes/1024d:N1} KB",_=>$"{bytes} bytes"};
      private static string Money(decimal? value)=>value?.ToString("C2",new System.Globalization.CultureInfo("pt-BR"))??"—";
-    private static string Text(object? value)=>value?.ToString()?.Trim()??"";
      private static string ImportErrorMessage(Exception exception){var root=exception.GetBaseException();return root==exception?exception.Message:$"{exception.Message} Causa: {root.Message}";}
     private static string TypeLabel(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.PROCESSOS_ADM=>"Processos administrativos",AcompanhamentoServicoTipo.OBRAS=>"Obras",_=>t.ToString()};
     private static Color TypeColor(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.AVCB=>Color.Error,AcompanhamentoServicoTipo.CLCB=>Color.Warning,AcompanhamentoServicoTipo.OBRAS=>Color.Info,_=>Color.Secondary};

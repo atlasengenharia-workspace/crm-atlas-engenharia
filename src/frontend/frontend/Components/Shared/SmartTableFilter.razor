@@ -6,10 +6,12 @@
 <MudPaper Outlined="true" Class="pa-3 mb-3 smart-filter-panel">
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="smart-filter-controls">
         <MudIcon Icon="@Icons.Material.Filled.FilterAlt" Color="Color.Primary" />
-        <MudTextField T="string" Value="_quickSearch" ValueChanged="QuickSearchChangedAsync"
+        <MudTextField T="string" Value="_state.Search" ValueChanged="QuickSearchChangedAsync"
                       Placeholder="Pesquisar em todas as colunas" Immediate="true" DebounceInterval="250"
                       Margin="Margin.Dense" Variant="Variant.Outlined" Adornment="Adornment.Start"
                       AdornmentIcon="@Icons.Material.Filled.Search" Class="smart-filter-search" />
+        @if (ProcessOnClient)
+        {
         <MudSelect T="string" @bind-Value="_columnKey" Label="Coluna" Margin="Margin.Dense"
                    Variant="Variant.Outlined" Class="smart-filter-column">
             @foreach (var column in Columns)
@@ -35,6 +37,7 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                    StartIcon="@Icons.Material.Filled.Add" OnClick="AddFilterAsync"
                    Disabled="@(!CanAdd)">Aplicar</MudButton>
+        }
         <MudMenu Label="Colunas" StartIcon="@Icons.Material.Filled.ViewColumn" Variant="Variant.Outlined" Size="Size.Small">
             @foreach (var column in DisplayColumns)
             {
@@ -44,29 +47,29 @@
                 </MudMenuItem>
             }
         </MudMenu>
-        <MudSelect T="string" Value="_sortKey" ValueChanged="SortChangedAsync" Label="Classificar"
+        <MudSelect T="string" Value="_state.SortKey" ValueChanged="SortChangedAsync" Label="Classificar"
                    Clearable="true" Margin="Margin.Dense" Variant="Variant.Outlined" Class="smart-filter-column">
             @foreach (var column in Columns)
             {
                 <MudSelectItem Value="@column.Key">@column.Label</MudSelectItem>
             }
         </MudSelect>
-        <MudIconButton Icon="@(_sortDescending ? Icons.Material.Filled.South : Icons.Material.Filled.North)"
+        <MudIconButton Icon="@(_state.SortDescending ? Icons.Material.Filled.South : Icons.Material.Filled.North)"
                        OnClick="ToggleSortAsync" aria-label="Alternar direção da classificação" />
         <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
             <MudIconButton Icon="@Icons.Material.Filled.Remove" OnClick="DecreaseDensityAsync" aria-label="Diminuir tabela" />
             <MudIconButton Icon="@Icons.Material.Filled.Add" OnClick="IncreaseDensityAsync" aria-label="Aumentar tabela" />
         </MudButtonGroup>
-        @if (_filters.Count > 0 || !string.IsNullOrWhiteSpace(_quickSearch))
+        @if (_state.Filters.Count > 0 || !string.IsNullOrWhiteSpace(_state.Search))
         {
             <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.FilterAltOff"
                        OnClick="ClearAllAsync">Limpar</MudButton>
         }
     </MudStack>
-    @if (_filters.Count > 0)
+    @if (ProcessOnClient && _state.Filters.Count > 0)
     {
         <div class="d-flex flex-wrap gap-2 mt-2">
-            @foreach (var filter in _filters)
+            @foreach (var filter in _state.Filters)
             {
                 <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined"
                          OnClose="@(() => RemoveFilterAsync(filter))">@FilterLabel(filter)</MudChip>
@@ -74,17 +77,33 @@
         </div>
     }
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2" Wrap="Wrap.Wrap">
-        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@ProcessedItems.Count() registro(s)</MudChip>
-        @foreach (var total in Totals)
+        @if (ProcessOnClient)
         {
-            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
-                Soma de @total.Label: @total.Value.ToString("N2", PtBr)
-            </MudChip>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@ProcessedItems.Count() registro(s)</MudChip>
+            @foreach (var total in ComputedTotals)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                    Soma de @total.Label: @total.Value.ToString("N2", PtBr)
+                </MudChip>
+            }
+        }
+        else
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@TotalCount registro(s)</MudChip>
+            @if (ServerTotals is not null)
+            {
+                @foreach (var total in ServerTotals)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                        Soma de @total.Label: @total.Value.ToString("N2", PtBr)
+                    </MudChip>
+                }
+            }
         }
     </MudStack>
 </MudPaper>
 
-<div class="smart-table-host density-@_density @HostClass">
+<div class="smart-table-host density-@_state.Density @HostClass">
     @if (_hiddenColumns.Count > 0)
     {
         <style>@((MarkupString)HiddenColumnCss)</style>
@@ -110,14 +129,19 @@
     [Parameter] public IReadOnlySet<string>? HiddenColumns { get; set; }
     [Parameter] public EventCallback<IReadOnlySet<string>> HiddenColumnsChanged { get; set; }
     [Parameter] public string? TableKey { get; set; }
+    [Parameter] public bool ProcessOnClient { get; set; } = true;
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public IReadOnlyList<(string Label, decimal Value)>? ServerTotals { get; set; }
+    [Parameter] public EventCallback<SmartTableState> OnStateChanged { get; set; }
 
     private static readonly CultureInfo PtBr = new("pt-BR");
-    private readonly List<ActiveFilter> _filters = [];
     private readonly HashSet<string> _hiddenColumns = new(StringComparer.OrdinalIgnoreCase);
-    private string? _quickSearch, _columnKey, _value, _sortKey;
+    private string? _columnKey;
+    private string? _value;
     private SmartFilterOperator _operator = SmartFilterOperator.Contains;
-    private bool _sortDescending, _loaded;
-    private int _density = 1;
+    private bool _loaded;
+    private SmartTableState _state = new(null, null, false, 1, new HashSet<string>(StringComparer.OrdinalIgnoreCase), []);
+
     private string StorageKey => $"atlas.table.{TableKey ?? typeof(TItem).Name}";
     private string HostClass => $"smart-{Math.Abs(StorageKey.GetHashCode())}";
     private IEnumerable<SmartFilterColumn<TItem>> DisplayColumns => Columns.Where(x => x.DisplayIndex is not null);
@@ -128,16 +152,21 @@
     {
         get
         {
-            var result = Items.Where(Matches);
-            var column = Columns.FirstOrDefault(x => x.Key == _sortKey);
-            if (column is null) return result;
-            return _sortDescending
-                ? result.OrderByDescending(x => SortValue(column.Value(x)), SmartValueComparer.Instance)
-                : result.OrderBy(x => SortValue(column.Value(x)), SmartValueComparer.Instance);
+            var result = Items;
+            if (ProcessOnClient)
+            {
+                result = result.Where(Matches);
+                var column = Columns.FirstOrDefault(x => x.Key == _state.SortKey);
+                if (column is not null)
+                    result = _state.SortDescending
+                        ? result.OrderByDescending(x => SortValue(column.Value(x)), SmartValueComparer.Instance)
+                        : result.OrderBy(x => SortValue(column.Value(x)), SmartValueComparer.Instance);
+            }
+            return result;
         }
     }
 
-    private IEnumerable<(string Label, decimal Value)> Totals => Columns.Where(x => x.Summable).Select(column =>
+    private IEnumerable<(string Label, decimal Value)> ComputedTotals => Columns.Where(x => x.Summable).Select(column =>
         (column.Label, ProcessedItems.Sum(item => DecimalValue(column.Value(item)))));
 
     private string HiddenColumnCss => string.Join(Environment.NewLine, DisplayColumns
@@ -161,21 +190,25 @@
         try
         {
             var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-            var state = string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<TableState>(json);
-            if (state is null) return;
-            _quickSearch = state.Search; _sortKey = state.SortKey; _sortDescending = state.SortDescending;
-            _density = Math.Clamp(state.Density, 0, 2);
-            _hiddenColumns.Clear(); foreach (var key in state.HiddenColumns ?? []) _hiddenColumns.Add(key);
-            _filters.Clear(); if (state.Filters is not null) _filters.AddRange(state.Filters);
-            StateHasChanged();
+            var saved = string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<TableState>(json);
+            if (saved is null) return;
+
+            var hidden = new HashSet<string>(saved.HiddenColumns ?? [], StringComparer.OrdinalIgnoreCase);
+            var filters = saved.Filters ?? [];
+            _state = new SmartTableState(saved.Search, saved.SortKey, saved.SortDescending, saved.Density, hidden, filters);
+            _hiddenColumns.Clear(); foreach (var key in hidden) _hiddenColumns.Add(key);
+
+            // Notificar mudanças salvas ao componente pai seria útil, mas pode causar
+            // loop de recarga quando o componente é remontado pelo GlobalSkeleton. Por
+            // enquanto restaura apenas estado interno (colunas/densidade) sem forçar load.
         }
         catch { }
     }
 
     private bool Matches(TItem item)
     {
-        if (!string.IsNullOrWhiteSpace(_quickSearch) && !Columns.Any(c => Text(c.Value(item)).Contains(_quickSearch.Trim(), StringComparison.OrdinalIgnoreCase))) return false;
-        return _filters.All(filter => { var c = Columns.FirstOrDefault(x => x.Key == filter.ColumnKey); return c is not null && MatchesValue(Text(c.Value(item)), filter); });
+        if (!string.IsNullOrWhiteSpace(_state.Search) && !Columns.Any(c => Text(c.Value(item)).Contains(_state.Search.Trim(), StringComparison.OrdinalIgnoreCase))) return false;
+        return _state.Filters.All(filter => { var c = Columns.FirstOrDefault(x => x.Key == filter.ColumnKey); return c is not null && MatchesValue(Text(c.Value(item)), filter); });
     }
 
     private static bool MatchesValue(string source, ActiveFilter filter) => filter.Operator switch
@@ -188,20 +221,68 @@
         _ => source.Contains(filter.Value, StringComparison.OrdinalIgnoreCase)
     };
 
-    private async Task QuickSearchChangedAsync(string? value) { _quickSearch = value; await SaveAsync(); }
-    private async Task AddFilterAsync() { if (!CanAdd) return; _filters.Add(new(_columnKey!, _operator, NeedsValue ? _value!.Trim() : "")); _value = null; await SaveAsync(); }
-    private async Task RemoveFilterAsync(ActiveFilter filter) { _filters.Remove(filter); await SaveAsync(); }
-    private async Task ClearAllAsync() { _filters.Clear(); _quickSearch = null; _value = null; await SaveAsync(); }
+    private async Task QuickSearchChangedAsync(string? value)
+    {
+        _state = _state with { Search = value };
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task AddFilterAsync()
+    {
+        if (!CanAdd) return;
+        var list = _state.Filters.ToList();
+        list.Add(new(_columnKey!, _operator, NeedsValue ? _value!.Trim() : ""));
+        _state = _state with { Filters = list };
+        _value = null;
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task RemoveFilterAsync(ActiveFilter filter)
+    {
+        var list = _state.Filters.ToList();
+        list.Remove(filter);
+        _state = _state with { Filters = list };
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task ClearAllAsync()
+    {
+        _state = _state with { Search = null, Filters = new List<ActiveFilter>() };
+        _value = null;
+        await SaveAndNotifyAsync();
+    }
+
     private async Task ToggleColumnAsync(string key)
     {
         if (!_hiddenColumns.Add(key)) _hiddenColumns.Remove(key);
+        _state = _state with { HiddenColumns = _hiddenColumns };
         if (HiddenColumnsChanged.HasDelegate) await HiddenColumnsChanged.InvokeAsync(_hiddenColumns);
-        await SaveAsync();
+        await SaveAndNotifyAsync();
     }
-    private async Task SortChangedAsync(string? key) { _sortKey = key; await SaveAsync(); }
-    private async Task ToggleSortAsync() { _sortDescending = !_sortDescending; await SaveAsync(); }
-    private async Task DecreaseDensityAsync() { _density = Math.Max(0, _density - 1); await SaveAsync(); }
-    private async Task IncreaseDensityAsync() { _density = Math.Min(2, _density + 1); await SaveAsync(); }
+
+    private async Task SortChangedAsync(string? key)
+    {
+        _state = _state with { SortKey = key };
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task ToggleSortAsync()
+    {
+        _state = _state with { SortDescending = !_state.SortDescending };
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task DecreaseDensityAsync()
+    {
+        _state = _state with { Density = Math.Max(0, _state.Density - 1) };
+        await SaveAndNotifyAsync();
+    }
+
+    private async Task IncreaseDensityAsync()
+    {
+        _state = _state with { Density = Math.Min(2, _state.Density + 1) };
+        await SaveAndNotifyAsync();
+    }
 
     private Task<IEnumerable<string>> SearchValuesAsync(string search, CancellationToken ct)
     {
@@ -210,12 +291,18 @@
             .Distinct(StringComparer.OrdinalIgnoreCase).Where(x => string.IsNullOrWhiteSpace(search) || x.Contains(search, StringComparison.OrdinalIgnoreCase)).OrderBy(x => x).Take(250));
     }
 
+    private async Task SaveAndNotifyAsync()
+    {
+        await SaveAsync();
+        if (OnStateChanged.HasDelegate) await OnStateChanged.InvokeAsync(_state);
+    }
+
     private async Task SaveAsync()
     {
         try
         {
-            var state = new TableState(_quickSearch, _sortKey, _sortDescending, _density, _hiddenColumns.ToList(), _filters.ToList());
-            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(state));
+            var saved = new TableState(_state.Search, _state.SortKey, _state.SortDescending, _state.Density, _hiddenColumns.ToList(), _state.Filters.ToList());
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(saved));
         }
         catch { }
     }
@@ -224,12 +311,12 @@
     private static string Text(object? value) => value?.ToString()?.Trim() ?? "";
     private static object? SortValue(object? value) => value;
     private static decimal DecimalValue(object? value) => value switch { decimal d => d, int i => i, long l => l, double d => (decimal)d, float f => (decimal)f, _ => 0 };
-    private sealed record ActiveFilter(string ColumnKey, SmartFilterOperator Operator, string Value);
+
     private sealed record TableState(string? Search, string? SortKey, bool SortDescending, int Density, List<string>? HiddenColumns, List<ActiveFilter>? Filters);
+
     private sealed class SmartValueComparer : IComparer<object?>
     {
         public static readonly SmartValueComparer Instance = new();
         public int Compare(object? x, object? y) { if (x is null) return y is null ? 0 : -1; if (y is null) return 1; if (x is IComparable c) try { return c.CompareTo(y); } catch { } return string.Compare(Text(x), Text(y), StringComparison.OrdinalIgnoreCase); }
     }
-    public enum SmartFilterOperator { Contains, Equals, NotEquals, StartsWith, IsEmpty, IsNotEmpty }
 }

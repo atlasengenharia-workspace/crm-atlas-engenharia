@@ -17,18 +17,19 @@ public sealed record OrcamentoFilter(
     string? Search = null,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public interface IOrcamentoService
 {
-    Task<CursorResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default);
+    Task<PagedResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default);
     Task<OrcamentoDto> SaveAsync(OrcamentoDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
 }
 
 public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcamentoService
 {
-    public async Task<CursorResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default)
+    public async Task<PagedResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default)
     {
         var query = repository.AsQueryable();
 
@@ -43,18 +44,15 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
                 (x.Email != null && x.Email.Contains(term)));
         }
 
-        if (filter?.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
         var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(Map).ToList();
+        var page = Math.Max(1, filter?.Page ?? 1);
+        var total = await repository.CountAsync(query, ct);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
+        var dtos = items.Select(Map).ToList();
 
-        return new CursorResult<OrcamentoDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+        return PagedResult<OrcamentoDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<OrcamentoDto> SaveAsync(OrcamentoDto dto, CancellationToken ct = default)
@@ -81,6 +79,27 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
     }
+
+    private static IQueryable<Orcamento> ApplySort(IQueryable<Orcamento> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "codigo" => descending ? query.OrderByDescending(x => x.Codigo) : query.OrderBy(x => x.Codigo),
+            "cliente" => descending ? query.OrderByDescending(x => x.Nome) : query.OrderBy(x => x.Nome),
+            "telefone" => descending ? query.OrderByDescending(x => x.Telefone) : query.OrderBy(x => x.Telefone),
+            "email" => descending ? query.OrderByDescending(x => x.Email) : query.OrderBy(x => x.Email),
+            "data" => descending ? query.OrderByDescending(x => x.Data) : query.OrderBy(x => x.Data),
+            "tipo" => descending ? query.OrderByDescending(x => x.TipoServico) : query.OrderBy(x => x.TipoServico),
+            "situacao" => descending ? query.OrderByDescending(x => x.Situacao) : query.OrderBy(x => x.Situacao),
+            "valor" => descending ? query.OrderByDescending(x => x.ValorTotal) : query.OrderBy(x => x.ValorTotal),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
+
     private static OrcamentoDto Map(Orcamento x) => new(x.Id, x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.TipoServico, x.ValorTotal, x.Data, x.Email);
 }
 
@@ -103,11 +122,12 @@ public sealed record PrestadorFilter(
     string? Search = null,
     int Page = 1,
     int PageSize = 20,
-    long? AfterId = null);
+    string? SortKey = null,
+    bool SortDescending = false);
 
 public interface IPrestadorService
 {
-    Task<CursorResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default);
+    Task<PagedResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default);
     Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default);
     Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
@@ -118,7 +138,7 @@ public sealed class PrestadorService(
     IRepository<CadastroServico> servicos,
     IRepository<Lancamento> lancamentos) : IPrestadorService
 {
-    public async Task<CursorResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default)
+    public async Task<PagedResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default)
     {
         var query = repository.AsQueryable();
 
@@ -126,25 +146,22 @@ public sealed class PrestadorService(
         {
             var term = filter.Search.Trim();
             query = query.Where(x =>
-                x.Nome.Contains(term) ||
+                (x.Nome != null && x.Nome.Contains(term)) ||
                 (x.CnpjCpf != null && x.CnpjCpf.Contains(term)) ||
                 (x.Telefone != null && x.Telefone.Contains(term)) ||
                 (x.Email != null && x.Email.Contains(term)) ||
                 (x.MetodoPagamento != null && x.MetodoPagamento.Contains(term)));
         }
 
-        if (filter?.AfterId is not null)
-            query = query.Where(x => x.Id < filter.AfterId);
-
-        query = query.OrderByDescending(x => x.Id);
+        query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
         var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
-        var items = await repository.ToListAsync(query.Take(pageSize + 1), ct);
-        var hasNext = items.Count > pageSize;
-        var nextCursor = hasNext ? items[pageSize - 1].Id : (long?)null;
-        var dtos = items.Take(pageSize).Select(Map).ToList();
+        var page = Math.Max(1, filter?.Page ?? 1);
+        var total = await repository.CountAsync(query, ct);
+        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
+        var dtos = items.Select(Map).ToList();
 
-        return new CursorResult<PrestadorDto>(dtos, filter?.Page ?? 1, pageSize, nextCursor, hasNext);
+        return PagedResult<PrestadorDto>.Create(dtos, page, pageSize, total);
     }
 
     public async Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default)
@@ -200,6 +217,24 @@ public sealed class PrestadorService(
         var entity=await repository.GetByIdAsync(id,ct)??throw new NotFoundException("Prestador não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
     }
+
+    private static IQueryable<Prestador> ApplySort(IQueryable<Prestador> query, string? sortKey, bool descending)
+    {
+        if (string.IsNullOrWhiteSpace(sortKey)) return query.OrderByDescending(x => x.Id);
+
+        var ordered = sortKey.ToLowerInvariant() switch
+        {
+            "prestador" => descending ? query.OrderByDescending(x => x.Nome) : query.OrderBy(x => x.Nome),
+            "documento" => descending ? query.OrderByDescending(x => x.CnpjCpf) : query.OrderBy(x => x.CnpjCpf),
+            "telefone" => descending ? query.OrderByDescending(x => x.Telefone) : query.OrderBy(x => x.Telefone),
+            "email" => descending ? query.OrderByDescending(x => x.Email) : query.OrderBy(x => x.Email),
+            "pagamento" => descending ? query.OrderByDescending(x => x.MetodoPagamento) : query.OrderBy(x => x.MetodoPagamento),
+            _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
+        };
+
+        return ordered.ThenBy(x => x.Id);
+    }
+
     private static PrestadorDto Map(Prestador x)=>new(x.Id,x.Nome??"",x.CnpjCpf,x.Telefone,x.Email,x.MetodoPagamento,x.ChavePix,x.Banco,x.Agencia,x.Conta);
 }
 

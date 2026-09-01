@@ -9,7 +9,7 @@ namespace CrmAtlas.Web.Api;
 public sealed class CustosIndiretosController(ICustoIndiretoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<CursorResult<CustoIndiretoDto>> List(
+    public Task<PagedResult<CustoIndiretoDto>> List(
         [FromQuery] CustoIndiretoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 
@@ -44,7 +44,7 @@ public sealed class CustosIndiretosController(ICustoIndiretoService service) : C
 public sealed class LancamentosController(ILancamentoService service) : ControllerBase
 {
     [HttpGet]
-    public Task<CursorResult<LancamentoDto>> List(
+    public Task<PagedResult<LancamentoDto>> List(
         [FromQuery] LancamentoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 

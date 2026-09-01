@@ -6,3 +6,15 @@ public sealed record SmartFilterColumn<TItem>(
     Func<TItem, object?> Value,
     int? DisplayIndex = null,
     bool Summable = false);
+
+public sealed record SmartTableState(
+    string? Search,
+    string? SortKey,
+    bool SortDescending,
+    int Density,
+    IReadOnlySet<string> HiddenColumns,
+    IReadOnlyList<ActiveFilter> Filters);
+
+public sealed record ActiveFilter(string ColumnKey, SmartFilterOperator Operator, string Value);
+
+public enum SmartFilterOperator { Contains, Equals, NotEquals, StartsWith, IsEmpty, IsNotEmpty }

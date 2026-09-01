@@ -11,7 +11,7 @@ public sealed class AcompanhamentosController(
     IAcompanhamentoReportService reports) : ControllerBase
 {
     [HttpGet]
-    public Task<CursorResult<AcompanhamentoDto>> List(
+    public Task<PagedResult<AcompanhamentoDto>> List(
         [FromQuery] AcompanhamentoFilter filter,
         CancellationToken ct) => service.ListAsync(filter, ct);
 

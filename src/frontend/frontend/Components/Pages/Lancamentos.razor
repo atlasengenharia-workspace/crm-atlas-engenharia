@@ -93,10 +93,12 @@ else
             <MudText Typo="Typo.body2">Atualizando lançamentos...</MudText>
         </div>
     </MudOverlay>
-    <SmartTableFilter TItem="LancamentoDto" Items="_result.Items" Columns="_filterColumns">
+    <SmartTableFilter TItem="LancamentoDto" Items="_result.Items" Columns="_filterColumns"
+                      ProcessOnClient="false" TotalCount="_result.TotalItems"
+                      OnStateChanged="OnSmartTableStateChanged">
     <ChildContent Context="smartItems">
     <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0"
-              Breakpoint="Breakpoint.Md">
+              Breakpoint="Breakpoint.Md" RowsPerPage="1000" Virtualize="true" ItemSize="52">
         <HeaderContent>
             <MudTh>Data</MudTh><MudTh>Lançamento</MudTh><MudTh>Tipo</MudTh>
             <MudTh>Status</MudTh><MudTh Class="text-right">Valor</MudTh>
@@ -140,13 +142,6 @@ else
     </ChildContent>
     </SmartTableFilter>
     <MudDivider />
-    <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
-        <MudStack Row="true" Spacing="2">
-            <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-            <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-        </MudStack>
-    </MudToolBar>
 </MudPaper>
 
 }
@@ -252,8 +247,7 @@ else
 </MudDrawer>
 
 @code {
-    private CursorResult<LancamentoDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
+    private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
     private IReadOnlyList<LancamentoDto> _summaryItems = [];
     private readonly IReadOnlyList<SmartFilterColumn<LancamentoDto>> _filterColumns =
     [
@@ -279,17 +273,19 @@ else
     private LancamentoStatus? _status;
     private DateTime? _startDate;
     private DateTime? _endDate;
-    private int _page = 1;
+    private string? _sortKey;
+    private bool _sortDescending;
 
     private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
 
+    private const int PageSize = 1000;
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
-            _result = await Service.ListAsync(CurrentFilter(1, 20, null));
+            _result = await Service.ListAsync(CurrentFilter(1, PageSize));
             _summaryItems = _result.Items;
         }
         catch (Exception ex)
@@ -301,24 +297,16 @@ else
             _initialLoading = false;
         }
     }
-    private async Task ApplyFilterAsync() { _page = 1; _cursors = new List<long?> { null }; await LoadAsync(); }
-    private async Task PreviousAsync()
+
+    private async Task OnSmartTableStateChanged(SmartTableState state)
     {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
+        _search = state.Search;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
     }
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
-    }
+
+    private async Task ApplyFilterAsync() { await LoadAsync(); }
 
     private async Task LoadAsync()
     {
@@ -331,18 +319,18 @@ else
                 Snackbar.Add("A data inicial não pode ser posterior à data final.", Severity.Warning);
                 return;
             }
-            _result = await Service.ListAsync(CurrentFilter(_page, 20, _cursors[_page - 1]));
+            _result = await Service.ListAsync(CurrentFilter(1, PageSize));
             _summaryItems = _result.Items;
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; _loadGate.Release(); }
     }
 
-    private LancamentoFilter CurrentFilter(int page, int pageSize, long? afterId) => new(
+    private LancamentoFilter CurrentFilter(int page, int pageSize) => new(
         _tipo, _status,
         _startDate.HasValue ? DateOnly.FromDateTime(_startDate.Value) : null,
         _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : null,
-        _search, _search, page, pageSize, afterId);
+        _search, _search, page, pageSize, _sortKey, _sortDescending);
 
     private void New() { _model = new(); _receipt = null; _editorOpen = true; }
     private void Edit(LancamentoDto x)

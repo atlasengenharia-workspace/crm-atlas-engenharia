@@ -18,9 +18,11 @@
     <MudGrid>
         <MudItem xs="12" md="@(_editing ? 7 : 12)">
             <MudPaper Outlined="true">
-                <SmartTableFilter TItem="CondicaoPagamentoDto" Items="_items" Columns="_filterColumns">
+                <SmartTableFilter TItem="CondicaoPagamentoDto" Items="_result.Items" Columns="_filterColumns"
+                                  ProcessOnClient="false" TotalCount="_result.TotalItems"
+                                  OnStateChanged="OnSmartTableStateChanged">
                 <ChildContent Context="smartItems">
-                <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0">
+                <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0" RowsPerPage="1000" Virtualize="true" ItemSize="52">
                     <HeaderContent>
                         <MudTh>Nome</MudTh><MudTh>Parcelas</MudTh><MudTh>Intervalo</MudTh>
                         <MudTh Class="text-right">Ações</MudTh>
@@ -54,15 +56,6 @@
                 </SmartTableFilter>
 
                 <MudDivider Class="my-3" />
-                <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-0">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Página @_page
-                    </MudText>
-                    <MudStack Row="true" Spacing="2">
-                        <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                        <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-                    </MudStack>
-                </MudToolBar>
             </MudPaper>
         </MudItem>
         @if (_editing)
@@ -103,10 +96,9 @@
 </GlobalSkeleton>
 
 @code {
-    private List<CondicaoPagamentoDto> _items = [];
-    private CursorResult<CondicaoPagamentoDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
-    private int _page = 1;
+    private PagedResult<CondicaoPagamentoDto> _result = new([], 1, 1000, 0);
+    private string? _sortKey;
+    private bool _sortDescending;
     private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
     [
         new("nome","Nome",x=>x.Nome,1),new("parcelas","Parcelas",x=>x.QuantidadeParcelas,2,true),
@@ -119,36 +111,24 @@
     private bool _saving;
     private bool _editing;
 
+    private const int PageSize = 1000;
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
-            _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, _page, 20, _cursors[_page - 1]));
-            _items = _result.Items.ToList();
+            _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, 1, PageSize, _sortKey, _sortDescending));
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
     }
 
-    private async Task PreviousAsync()
+    private async Task OnSmartTableStateChanged(SmartTableState state)
     {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
-    }
-
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
     }
 
     private void New() { _model = new(); _editing = true; }

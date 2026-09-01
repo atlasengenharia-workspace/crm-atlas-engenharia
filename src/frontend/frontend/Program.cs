@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using Radzen;
 using CrmAtlas.Web.Components;
 using System.Globalization;
 using CrmAtlas.ApplicationCore.Common;
@@ -23,6 +24,7 @@ if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var port))
 }
 
 builder.Services.AddMudServices();
+builder.Services.AddRadzenComponents();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Replace(ServiceDescriptor.Singleton(typeof(SignalRRealtimeNotifier), typeof(SignalRRealtimeNotifier)));
 builder.Services.Replace(ServiceDescriptor.Singleton<IRealtimeNotifier>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>()));

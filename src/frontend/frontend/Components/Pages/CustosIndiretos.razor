@@ -127,9 +127,11 @@
 
     <!-- Main Data Table -->
     <MudPaper Outlined="true" Class="atlas-panel">
-        <SmartTableFilter TItem="CustoIndiretoDto" Items="_result.Items" Columns="_filterColumns">
+        <SmartTableFilter TItem="CustoIndiretoDto" Items="_result.Items" Columns="_filterColumns"
+                          ProcessOnClient="false" TotalCount="_result.TotalItems"
+                          OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Striped="true" Loading="_loading" Elevation="0">
+        <MudTable Items="smartItems" Hover="true" Striped="true" Loading="_loading" Elevation="0" RowsPerPage="1000" Virtualize="true" ItemSize="52">
             <HeaderContent>
                 <MudTh style="width: 70px;">#ID</MudTh>
                 <MudTh>Data</MudTh>
@@ -168,13 +170,6 @@
         </SmartTableFilter>
 
         <MudDivider />
-        <MudToolBar Class="justify-space-between flex-wrap gap-2 pa-2">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Página @_page</MudText>
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Outlined" OnClick="PreviousAsync" Disabled="_page == 1">Anterior</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="NextAsync" Disabled="!_result.HasNext">Próxima</MudButton>
-            </MudStack>
-        </MudToolBar>
     </MudPaper>
 </GlobalSkeleton>
 
@@ -296,8 +291,7 @@
     private static readonly string[] Categories =
         ["Aluguel", "Energia", "Água", "Internet e telefonia", "Software", "Combustível", "Materiais", "Marketing", "Contabilidade", "Impostos", "Outros"];
 
-    private CursorResult<CustoIndiretoDto> _result = new([], 1, 20, null, false);
-    private List<long?> _cursors = new List<long?> { null };
+    private PagedResult<CustoIndiretoDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<CustoIndiretoDto>> _filterColumns =
     [
         new("id","ID",x=>x.Id,1),new("data","Data",x=>x.Data,2),
@@ -320,7 +314,8 @@
     private string? _selectedCategory;
     private DateTime? _start;
     private DateTime? _end;
-    private int _page = 1;
+    private string? _sortKey;
+    private bool _sortDescending;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(_search) || !string.IsNullOrWhiteSpace(_selectedCategory) || _start.HasValue || _end.HasValue;
 
@@ -332,36 +327,26 @@
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
-    private async Task ApplyFilterAsync() { _page = 1; await LoadAsync(); }
-    private async Task PreviousAsync()
+    private const int PageSize = 1000;
+    private async Task OnSmartTableStateChanged(SmartTableState state)
     {
-        if (_page > 1)
-        {
-            _page--;
-            await LoadAsync();
-        }
+        _search = state.Search;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
     }
-    private async Task NextAsync()
-    {
-        if (_result.HasNext)
-        {
-            _page++;
-            _cursors.Add(_result.NextCursor);
-            await LoadAsync();
-        }
-    }
+
+    private async Task ApplyFilterAsync() { await LoadAsync(); }
 
     private async Task SelectCategoryAsync(string? category)
     {
         _selectedCategory = category;
-        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
     private async Task ClearSearchAsync()
     {
         _search = null;
-        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -371,7 +356,6 @@
         _selectedCategory = null;
         _start = null;
         _end = null;
-        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -398,7 +382,6 @@
                 _end = null;
                 break;
         }
-        _page = 1; _cursors = new List<long?> { null };
         await LoadAsync();
     }
 
@@ -409,11 +392,11 @@
         {
             var searchCategoryFilter = !string.IsNullOrWhiteSpace(_selectedCategory) ? _selectedCategory : _search;
 
-            _result = await Service.ListAsync(new(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, _page, 20, _cursors[_page - 1]));
+            _result = await Service.ListAsync(new CustoIndiretoFilter(
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, PageSize, _sortKey, _sortDescending));
 
-            _analytics = (await Service.ListAsync(new(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000, null))).Items;
+            _analytics = (await Service.ListAsync(new CustoIndiretoFilter(
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000))).Items;
 
             var allGroups = _analytics
                 .Where(x => !string.IsNullOrWhiteSpace(x.Categoria))
