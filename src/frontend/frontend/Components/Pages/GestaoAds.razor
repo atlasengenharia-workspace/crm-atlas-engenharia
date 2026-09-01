@@ -1,5 +1,6 @@
 @page "/gestao-ads"
 @attribute [Authorize]
+@using Radzen.Blazor
 
 <PageTitle>Gestão Ads | CRM Atlas</PageTitle>
 <PageHeader Title="Gestão Ads" Subtitle="Contexto independente para campanhas e aquisição de oportunidades.">
@@ -15,20 +16,45 @@
 <MudPaper Outlined="true" Class="pa-5 mt-5"><MudText Typo="Typo.h6">Campanhas ativas</MudText>
     <SmartTableFilter TItem="Campaign" Items="_campaigns" Columns="_filterColumns" TableKey="gestao-ads">
     <ChildContent Context="smartItems">
-    <MudTable Items="smartItems" Hover="true" Elevation="0" Class="mt-3">
-        <HeaderContent><MudTh>Campanha</MudTh><MudTh>Canal</MudTh><MudTh>Status</MudTh><MudTh>Leads</MudTh><MudTh>Investimento</MudTh></HeaderContent>
-        <RowTemplate><MudTd DataLabel="Campanha">@context.Name</MudTd><MudTd DataLabel="Canal">@context.Channel</MudTd><MudTd DataLabel="Status"><MudChip T="string" Color="Color.Success" Size="Size.Small">Ativa</MudChip></MudTd><MudTd DataLabel="Leads">@context.Leads</MudTd><MudTd DataLabel="Investimento">@context.Spend</MudTd></RowTemplate>
-    </MudTable>
+    <RadzenDataGrid @ref="_grid" Data="@smartItems" TItem="Campaign"
+                    Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                    AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                    AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                    FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                    Density="Radzen.Density.Compact" EmptyText="Nenhuma campanha cadastrada"
+                    GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                    ColumnsShowingText="colunas visíveis">
+        <Columns>
+            <RadzenDataGridColumn TItem="Campaign" Property="Name" Title="Campanha" />
+            <RadzenDataGridColumn TItem="Campaign" Property="Channel" Title="Canal" />
+            <RadzenDataGridColumn TItem="Campaign" Property="Status" Title="Status">
+                <Template Context="context">
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small">@context.Status</MudChip>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Campaign" Property="Leads" Title="Leads" />
+            <RadzenDataGridColumn TItem="Campaign" Property="Spend" Title="Investimento" />
+        </Columns>
+    </RadzenDataGrid>
     </ChildContent>
     </SmartTableFilter>
 </MudPaper>
 @code {
-    private readonly Campaign[] _campaigns=[new("Regularização AVCB SP","Google Ads",96,"R$ 6.850"),new("CLCB para comércios","Meta Ads",54,"R$ 3.420"),new("Projetos e obras","Google Ads",34,"R$ 2.210")];
+    private readonly Campaign[] _campaigns =
+    [
+        new("Regularização AVCB SP", "Google Ads", "Ativa", 96, "R$ 6.850"),
+        new("CLCB para comércios", "Meta Ads", "Ativa", 54, "R$ 3.420"),
+        new("Projetos e obras", "Google Ads", "Ativa", 34, "R$ 2.210")
+    ];
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private RadzenDataGrid<Campaign>? _grid;
     private readonly IReadOnlyList<SmartFilterColumn<Campaign>> _filterColumns =
     [
-        new("campanha","Campanha",x=>x.Name,1), new("canal","Canal",x=>x.Channel,2),
-        new("status","Status",x=>"Ativa",3), new("leads","Leads",x=>x.Leads,4),
-        new("investimento","Investimento",x=>x.Spend,5)
+        new("campanha", "Campanha", x => x.Name, 1),
+        new("canal", "Canal", x => x.Channel, 2),
+        new("status", "Status", x => x.Status, 3),
+        new("leads", "Leads", x => x.Leads, 4),
+        new("investimento", "Investimento", x => x.Spend, 5)
     ];
-    private sealed record Campaign(string Name,string Channel,int Leads,string Spend);
+    private sealed record Campaign(string Name, string Channel, string Status, int Leads, string Spend);
 }

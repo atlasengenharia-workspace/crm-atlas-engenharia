@@ -1,6 +1,7 @@
 @page "/"
 @attribute [Authorize]
 @using CrmAtlas.ApplicationCore.Dashboard
+@using Radzen.Blazor
 @inject IDashboardQueryService Dashboard
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
@@ -395,37 +396,60 @@
 
                             <SmartTableFilter TItem="DashboardTopClientItem" Items="_data.TopClients" Columns="_topClientColumns" TableKey="home-topclients">
                             <ChildContent Context="topItems">
-                            <MudTable Items="topItems" Hover="true" Elevation="0" Class="atlas-data-table">
-                                <HeaderContent>
-                                    <MudTh Style="width: 45px; color: var(--mud-palette-text-secondary);">#</MudTh>
-                                    <MudTh>CLIENTE / CÓDIGOS DOS SERVIÇOS</MudTh>
-                                    <MudTh>LINHA PRINCIPAL</MudTh>
-                                    <MudTh Class="text-right">CONTRATADO ▼</MudTh>
-                                    <MudTh Class="text-center">CONTRATOS</MudTh>
-                                    <MudTh Class="text-right">A RECEBER</MudTh>
-                                </HeaderContent>
-                                <RowTemplate>
-                                    <MudTd DataLabel="#" Style="color: var(--mud-palette-text-secondary); font-size: 0.85rem;">@context.Rank</MudTd>
-                                    <MudTd DataLabel="Cliente">
-                                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.ClientName</MudText>
-                                        @if (!string.IsNullOrEmpty(context.ServiceCodes))
-                                        {
-                                            <div style="font-size: 0.72rem; color: #718096; margin-top: 2px; font-family: Archivo, sans-serif;">@context.ServiceCodes</div>
-                                        }
-                                    </MudTd>
-                                    <MudTd DataLabel="Linha principal">
-                                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.PrimaryLine); margin-right:6px;"></span>
-                                        <span style="font-size: 0.85rem;">@context.PrimaryLine</span>
-                                    </MudTd>
-                                    <MudTd DataLabel="Contratado" Class="text-right">
-                                        <strong style="font-size: 0.9rem;">@FmtCompactMoney(context.TotalContracted)</strong>
-                                    </MudTd>
-                                    <MudTd DataLabel="Contratos" Class="text-center" Style="font-size: 0.85rem;">@context.ContractCount</MudTd>
-                                    <MudTd DataLabel="A receber" Class="text-right" Style="font-size: 0.85rem;">
-                                        @FmtCompactMoney(context.Receivable)
-                                    </MudTd>
-                                </RowTemplate>
-                            </MudTable>
+                            <RadzenDataGrid Data="@topItems" TItem="DashboardTopClientItem"
+                                            Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                                            AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                                            AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                                            FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                                            Density="Radzen.Density.Compact" EmptyText="Nenhum cliente encontrado"
+                                            GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                                            ColumnsShowingText="colunas visíveis">
+                                <Columns>
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="Rank" Title="#" Width="45px">
+                                        <HeaderTemplate>
+                                            <span style="color: var(--mud-palette-text-secondary);">#</span>
+                                        </HeaderTemplate>
+                                        <Template Context="context">
+                                            <span style="color: var(--mud-palette-text-secondary); font-size: 0.85rem;">@context.Rank</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="ClientName" Title="CLIENTE / CÓDIGOS DOS SERVIÇOS">
+                                        <Template Context="context">
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold">@context.ClientName</MudText>
+                                            @if (!string.IsNullOrEmpty(context.ServiceCodes))
+                                            {
+                                                <div style="font-size: 0.72rem; color: #718096; margin-top: 2px; font-family: Archivo, sans-serif;">@context.ServiceCodes</div>
+                                            }
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="PrimaryLine" Title="LINHA PRINCIPAL">
+                                        <Template Context="context">
+                                            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.PrimaryLine); margin-right:6px;"></span>
+                                            <span style="font-size: 0.85rem;">@context.PrimaryLine</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="TotalContracted" Title="CONTRATADO" TextAlign="Radzen.TextAlign.Right">
+                                        <Template Context="context">
+                                            <strong style="font-size: 0.9rem;">@FmtCompactMoney(context.TotalContracted)</strong>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="ContractCount" Title="CONTRATOS" TextAlign="Radzen.TextAlign.Center">
+                                        <Template Context="context">
+                                            <span style="font-size: 0.85rem;">@context.ContractCount</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardTopClientItem" Property="Receivable" Title="A RECEBER" TextAlign="Radzen.TextAlign.Right">
+                                        <Template Context="context">
+                                            <span style="font-size: 0.85rem;">@FmtCompactMoney(context.Receivable)</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+                                </Columns>
+                            </RadzenDataGrid>
                             </ChildContent>
                             </SmartTableFilter>
 
@@ -511,56 +535,118 @@
 
                             <SmartTableFilter TItem="DashboardPriorityItem" Items="FilteredPriorities" Columns="_priorityColumns" TableKey="dashboard-fila">
                             <ChildContent Context="smartPriorities">
-                            <MudTable Items="smartPriorities" Hover="true" Elevation="0" Class="atlas-data-table" RowsPerPage="20" Breakpoint="Breakpoint.Md">
-                                <HeaderContent>
-                                    <MudTh>CÓDIGO</MudTh>
-                                    <MudTh>EM ABERTO HÁ</MudTh>
-                                    <MudTh>CLIENTE</MudTh>
-                                    <MudTh>SERVIÇO</MudTh>
-                                    <MudTh>SITUAÇÃO</MudTh>
-                                    <MudTh>CIDADE</MudTh>
-                                    <MudTh Class="text-right">CONTRATO</MudTh>
-                                    <MudTh Class="text-right">A RECEBER</MudTh>
-                                    <MudTh Class="text-center">AÇÃO</MudTh>
-                                </HeaderContent>
-                                <RowTemplate>
-                                    @{
-                                        var isHidden = _hiddenIds.Contains(context.Id);
-                                        var ageStyle = AgePillStyle(context.DaysInStatus);
-                                        var isWait = IsThirdPartyWait(context.Status);
-                                        var rowStyle = isHidden ? "opacity: 0.5;" : "";
-                                    }
-                                    <MudTd DataLabel="Código" Style="@($"font-weight: 600; color: #4A5568; {rowStyle}")">@(context.Code ?? "—")</MudTd>
-                                    <MudTd DataLabel="Em aberto há" Style="@rowStyle">
-                                        <span style="display:inline-block; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 0.78rem; background-color: @ageStyle.bg; color: @ageStyle.color;">
-                                            @context.DaysInStatus dias
-                                        </span>
-                                    </MudTd>
-                                    <MudTd DataLabel="Cliente" Style="@rowStyle">
-                                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.ServiceType.ToString()); margin-right:6px;"></span>
-                                        <strong>@context.Client</strong>
-                                    </MudTd>
-                                    <MudTd DataLabel="Serviço" Style="@rowStyle">@ServiceLabel(context.ServiceType)</MudTd>
-                                    <MudTd DataLabel="Situação" Style="@rowStyle">
-                                        <span>@context.Status</span>
-                                        @if (isWait)
-                                        {
-                                            <span style="display:inline-block; margin-left: 6px; font-size: 0.72rem; color: #718096; background: #EDF2F7; padding: 1px 6px; border-radius: 4px;">⏸ aguardando terceiros</span>
-                                        }
-                                    </MudTd>
-                                    <MudTd DataLabel="Cidade" Style="@rowStyle">@(context.City ?? "—")</MudTd>
-                                    <MudTd DataLabel="Contrato" Class="text-right" Style="@rowStyle">@FmtCompactMoney(context.ContractValue)</MudTd>
-                                    <MudTd DataLabel="A receber" Class="text-right" Style="@rowStyle">@FmtCompactMoney(context.ReceivableValue)</MudTd>
-                                    <MudTd DataLabel="Ação" Class="text-center" Style="@rowStyle">
-                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => ToggleHide(context.Id))">
-                                            @(isHidden ? "Reexibir" : "Ocultar")
-                                        </MudButton>
-                                    </MudTd>
-                                </RowTemplate>
-                                <PagerContent>
-                                    <MudTablePager PageSizeOptions="new int[] { 20, 50, 100 }" />
-                                </PagerContent>
-                            </MudTable>
+                            <RadzenDataGrid Data="@smartPriorities" TItem="DashboardPriorityItem"
+                                            Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                                            AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                                            AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                                            FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                                            Density="Radzen.Density.Compact" EmptyText="Nenhum serviço encontrado"
+                                            GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                                            ColumnsShowingText="colunas visíveis">
+                                <Columns>
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="Code" Title="CÓDIGO">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                                var codeStyle = $"font-weight: 600; color: #4A5568; {rowStyle}";
+                                            }
+                                            <span style="@codeStyle">@(context.Code ?? "—")</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="DaysInStatus" Title="EM ABERTO HÁ">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                                var ageStyle = AgePillStyle(context.DaysInStatus);
+                                            }
+                                            <span style="@rowStyle">
+                                                <span style="display:inline-block; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 0.78rem; background-color: @ageStyle.bg; color: @ageStyle.color;">
+                                                    @context.DaysInStatus dias
+                                                </span>
+                                            </span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="Client" Title="CLIENTE">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                            }
+                                            <span style="@rowStyle">
+                                                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:@LineDotColor(context.ServiceType.ToString()); margin-right:6px;"></span>
+                                                <strong>@context.Client</strong>
+                                            </span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="ServiceType" Title="SERVIÇO">
+                                        <Template Context="context">
+                                            <span style="@(_hiddenIds.Contains(context.Id) ? "opacity: 0.5;" : "")">@ServiceLabel(context.ServiceType)</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="Status" Title="SITUAÇÃO">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var isWait = IsThirdPartyWait(context.Status);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                            }
+                                            <span style="@rowStyle">
+                                                <span>@context.Status</span>
+                                                @if (isWait)
+                                                {
+                                                    <span style="display:inline-block; margin-left: 6px; font-size: 0.72rem; color: #718096; background: #EDF2F7; padding: 1px 6px; border-radius: 4px;">⏸ aguardando terceiros</span>
+                                                }
+                                            </span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="City" Title="CIDADE">
+                                        <Template Context="context">
+                                            <span style="@(_hiddenIds.Contains(context.Id) ? "opacity: 0.5;" : "")">@(context.City ?? "—")</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="ContractValue" Title="CONTRATO" TextAlign="Radzen.TextAlign.Right">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                            }
+                                            <span style="@rowStyle">@FmtCompactMoney(context.ContractValue)</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Property="ReceivableValue" Title="A RECEBER" TextAlign="Radzen.TextAlign.Right">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                            }
+                                            <span style="@rowStyle">@FmtCompactMoney(context.ReceivableValue)</span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+
+                                    <RadzenDataGridColumn TItem="DashboardPriorityItem" Title="AÇÃO" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Center">
+                                        <Template Context="context">
+                                            @{
+                                                var isHidden = _hiddenIds.Contains(context.Id);
+                                                var rowStyle = isHidden ? "opacity: 0.5;" : "";
+                                            }
+                                            <span style="@rowStyle">
+                                                <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => ToggleHide(context.Id))">
+                                                    @(isHidden ? "Reexibir" : "Ocultar")
+                                                </MudButton>
+                                            </span>
+                                        </Template>
+                                    </RadzenDataGridColumn>
+                                </Columns>
+                            </RadzenDataGrid>
                             </ChildContent>
                             </SmartTableFilter>
 
@@ -688,6 +774,7 @@
 
 @code {
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
     private readonly SemaphoreSlim _dashboardLoadGate = new(1, 1);
     private bool _loading = true;
     private bool _hideValues;
