@@ -1,5 +1,6 @@
 @page "/condicoes-pagamento"
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject ICondicaoPagamentoService Service
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -22,36 +23,39 @@
                                   ProcessOnClient="false" TotalCount="_result.TotalItems"
                                   OnStateChanged="OnSmartTableStateChanged">
                 <ChildContent Context="smartItems">
-                <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-                    <HeaderContent>
-                        <MudTh>Nome</MudTh><MudTh>Parcelas</MudTh><MudTh>Intervalo</MudTh>
-                        <MudTh Class="text-right">Ações</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Nome"><strong>@context.Nome</strong></MudTd>
-                        <MudTd DataLabel="Parcelas">@context.QuantidadeParcelas</MudTd>
-                        <MudTd DataLabel="Intervalo">
-                            @if (context.Indefinido)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Default">A definir</MudChip>
-                            }
-                            else
-                            {
-                                <span>@context.IntervaloDias dias</span>
-                            }
-                        </MudTd>
-                        <MudTd DataLabel="Ações" Class="text-right">
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary"
-                                           Size="Size.Small" OnClick="@(() => Edit(context))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
-                                           Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
-                        </MudTd>
-                    </RowTemplate>
-                    <NoRecordsContent>
-                        <EmptyState Title="Nenhuma condição cadastrada"
-                                    Message="Crie opções como À vista, 2x ou Mensal." />
-                    </NoRecordsContent>
-                </MudTable>
+                <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CondicaoPagamentoDto"
+                                Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                                AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                                AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                                FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                                Density="Radzen.Density.Compact" EmptyText="Nenhuma condição cadastrada"
+                                GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                                ColumnsShowingText="colunas visíveis">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Property="Nome" Title="Nome">
+                            <Template Context="context"><strong>@context.Nome</strong></Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Property="QuantidadeParcelas" Title="Parcelas" />
+                        <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Property="IntervaloDias" Title="Intervalo">
+                            <Template Context="context">
+                                @if (context.Indefinido)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default">A definir</MudChip>
+                                }
+                                else
+                                {
+                                    <span>@context.IntervaloDias dias</span>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="120px">
+                            <Template Context="context">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
                 </ChildContent>
                 </SmartTableFilter>
 
@@ -96,7 +100,9 @@
 </GlobalSkeleton>
 
 @code {
+    private RadzenDataGrid<CondicaoPagamentoDto>? _grid;
     private PagedResult<CondicaoPagamentoDto> _result = new([], 1, 1000, 0);
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
     private string? _sortKey;
     private bool _sortDescending;
     private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
@@ -111,14 +117,13 @@
     private bool _saving;
     private bool _editing;
 
-    private const int PageSize = 1000;
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
-            _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, 1, PageSize, _sortKey, _sortDescending));
+            _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, 1, 0, _sortKey, _sortDescending));
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }

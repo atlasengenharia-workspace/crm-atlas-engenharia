@@ -1,5 +1,6 @@
 @page "/financeiro/lancamentos"
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject ILancamentoService Service
 @inject ICadastroServicoService CadastroServicoService
 @inject IPrestadorService PrestadorService
@@ -97,48 +98,57 @@ else
                       ProcessOnClient="false" TotalCount="_result.TotalItems"
                       OnStateChanged="OnSmartTableStateChanged">
     <ChildContent Context="smartItems">
-    <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0"
-              Breakpoint="Breakpoint.Md" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-        <HeaderContent>
-            <MudTh>Data</MudTh><MudTh>Lançamento</MudTh><MudTh>Tipo</MudTh>
-            <MudTh>Status</MudTh><MudTh Class="text-right">Valor</MudTh>
-            <MudTh Class="text-right">Ações</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Data">@context.Data.ToString("dd/MM/yyyy")</MudTd>
-            <MudTd DataLabel="Lançamento">
-                <MudText Typo="Typo.body2"><strong>@context.Descricao</strong></MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @context.Codigo @(!string.IsNullOrWhiteSpace(context.CodigoServico) ? $"• {context.CodigoServico}" : "")
-                </MudText>
-            </MudTd>
-            <MudTd DataLabel="Tipo">
-                <MudChip T="string" Size="Size.Small"
-                         Color="@(context.Tipo == LancamentoTipo.ENTRADA ? Color.Success : Color.Error)">
-                    @(context.Tipo == LancamentoTipo.ENTRADA ? "Entrada" : "Saída")
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="Status">
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@StatusLabel(context.Status)</MudChip>
-            </MudTd>
-            <MudTd DataLabel="Valor" Class="text-right"><strong>@Money(context.Valor)</strong></MudTd>
-            <MudTd DataLabel="Ações" Class="text-right">
-                @if (!string.IsNullOrWhiteSpace(context.ComprovanteUrl))
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Href="@context.ComprovanteUrl"
-                                   Target="_blank" Size="Size.Small" aria-label="Abrir comprovante" />
-                }
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                               OnClick="@(() => Edit(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => DeleteAsync(context))" />
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <EmptyState Title="Nenhum lançamento encontrado"
-                        Message="Registre uma entrada ou saída para começar o controle financeiro." />
-        </NoRecordsContent>
-    </MudTable>
+    <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="LancamentoDto"
+                    Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                    AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                    AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                    FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                    Density="Radzen.Density.Compact" EmptyText="Nenhum lançamento encontrado"
+                    GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                    ColumnsShowingText="colunas visíveis">
+        <Columns>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Data" Title="Data">
+                <Template Context="context">@context.Data.ToString("dd/MM/yyyy")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Descricao" Title="Lançamento">
+                <Template Context="context">
+                    <MudText Typo="Typo.body2"><strong>@context.Descricao</strong></MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @context.Codigo @(!string.IsNullOrWhiteSpace(context.CodigoServico) ? $"• {context.CodigoServico}" : "")
+                    </MudText>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Tipo" Title="Tipo">
+                <Template Context="context">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.Tipo == LancamentoTipo.ENTRADA ? Color.Success : Color.Error)">
+                        @(context.Tipo == LancamentoTipo.ENTRADA ? "Entrada" : "Saída")
+                    </MudChip>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Status" Title="Status">
+                <Template Context="context">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@StatusLabel(context.Status)</MudChip>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Valor" Title="Valor" TextAlign="Radzen.TextAlign.Right">
+                <Template Context="context"><strong>@Money(context.Valor)</strong></Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right">
+                <Template Context="context">
+                    @if (!string.IsNullOrWhiteSpace(context.ComprovanteUrl))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Href="@context.ComprovanteUrl"
+                                       Target="_blank" Size="Size.Small" aria-label="Abrir comprovante" />
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="@(() => Edit(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
     </ChildContent>
     </SmartTableFilter>
     <MudDivider />
@@ -247,6 +257,8 @@ else
 </MudDrawer>
 
 @code {
+    private RadzenDataGrid<LancamentoDto>? _grid;
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
     private PagedResult<LancamentoDto> _result = new([], 1, 20, 0);
     private IReadOnlyList<LancamentoDto> _summaryItems = [];
     private readonly IReadOnlyList<SmartFilterColumn<LancamentoDto>> _filterColumns =
@@ -278,14 +290,13 @@ else
 
     private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
 
-    private const int PageSize = 1000;
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
-            _result = await Service.ListAsync(CurrentFilter(1, PageSize));
+            _result = await Service.ListAsync(CurrentFilter(1, 0));
             _summaryItems = _result.Items;
         }
         catch (Exception ex)
@@ -319,7 +330,7 @@ else
                 Snackbar.Add("A data inicial não pode ser posterior à data final.", Severity.Warning);
                 return;
             }
-            _result = await Service.ListAsync(CurrentFilter(1, PageSize));
+            _result = await Service.ListAsync(CurrentFilter(1, 0));
             _summaryItems = _result.Items;
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }

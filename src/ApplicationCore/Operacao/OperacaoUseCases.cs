@@ -46,13 +46,16 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
-        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var all = filter?.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
         var page = Math.Max(1, filter?.Page ?? 1);
         var total = await repository.CountAsync(query, ct);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
+        var items = all
+            ? await repository.ToListAsync(query, ct)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
         var dtos = items.Select(Map).ToList();
 
-        return PagedResult<OrcamentoDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<OrcamentoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<OrcamentoDto> SaveAsync(OrcamentoDto dto, CancellationToken ct = default)
@@ -155,13 +158,16 @@ public sealed class PrestadorService(
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
-        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var all = filter?.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
         var page = Math.Max(1, filter?.Page ?? 1);
         var total = await repository.CountAsync(query, ct);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
+        var items = all
+            ? await repository.ToListAsync(query, ct)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
         var dtos = items.Select(Map).ToList();
 
-        return PagedResult<PrestadorDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<PrestadorDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default)

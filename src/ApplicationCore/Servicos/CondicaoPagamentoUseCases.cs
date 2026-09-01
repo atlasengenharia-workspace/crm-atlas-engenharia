@@ -38,13 +38,16 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
-        var pageSize = CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
+        var all = filter?.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter?.PageSize ?? 20);
         var page = Math.Max(1, filter?.Page ?? 1);
         var total = await repository.CountAsync(query, cancellationToken);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var items = all
+            ? await repository.ToListAsync(query, cancellationToken)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
         var dtos = items.Select(ToDto).ToList();
 
-        return PagedResult<CondicaoPagamentoDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<CondicaoPagamentoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>

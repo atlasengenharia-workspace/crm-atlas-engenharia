@@ -1,5 +1,6 @@
 @page "/clientes"
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject IClienteService ClienteService
 @inject ICepLookupService CepLookupService
 @inject ISnackbar Snackbar
@@ -66,44 +67,77 @@
                                       ProcessOnClient="false" TotalCount="_result.TotalItems"
                                       OnStateChanged="OnSmartTableStateChanged">
                     <ChildContent Context="smartItems">
-                    <MudTable Items="smartItems" Hover="true" Loading="_loading" Breakpoint="Breakpoint.Sm"
-                              Elevation="0" Class="atlas-data-table" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-                        <HeaderContent>
-                            <MudTh>Código</MudTh>
-                            <MudTh>Cliente</MudTh>
-                            <MudTh>Documento</MudTh>
-                            <MudTh>Contato</MudTh>
-                            <MudTh>Localidade</MudTh>
-                            <MudTh Class="text-right">Ações</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Código">
-                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">#@context.Id</MudChip>
-                            </MudTd>
-                            <MudTd DataLabel="Cliente">
-                                <MudText Typo="Typo.body2"><strong>@context.RazaoSocial</strong></MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.NomeContato</MudText>
-                            </MudTd>
-                            <MudTd DataLabel="Documento">@context.CnpjCpf</MudTd>
-                            <MudTd DataLabel="Contato">
-                                <MudText Typo="Typo.body2">@context.Telefone</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Email</MudText>
-                            </MudTd>
-                            <MudTd DataLabel="Localidade">@Location(context)</MudTd>
-                            <MudTd DataLabel="Ações" Class="text-right">
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                               Color="Color.Primary" OnClick="@(() => Edit(context))"
-                                               aria-label="Editar cliente" />
-                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small"
-                                               Color="Color.Error" OnClick="@(() => DeleteAsync(context))"
-                                               aria-label="Excluir cliente" />
-                            </MudTd>
-                        </RowTemplate>
-                        <NoRecordsContent>
+                    <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="ClienteDto"
+                                    Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                                    AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                                    AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                                    FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                                    Density="Radzen.Density.Compact" EmptyText="Nenhum cliente cadastrado"
+                                    GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                                    ColumnsShowingText="colunas visíveis">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="ClienteDto" Property="Id" Title="Código">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Código</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">#@context.Id</MudChip>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="ClienteDto" Property="RazaoSocial" Title="Cliente">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Cliente</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">
+                                    <MudText Typo="Typo.body2"><strong>@context.RazaoSocial</strong></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.NomeContato</MudText>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="ClienteDto" Property="CnpjCpf" Title="Documento">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Documento</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">@context.CnpjCpf</Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="ClienteDto" Property="Telefone" Title="Contato">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Contato</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">
+                                    <MudText Typo="Typo.body2">@context.Telefone</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Email</MudText>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="ClienteDto" Property="Cidade" Title="Localidade">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Localidade</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">@Location(context)</Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn TItem="ClienteDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="120px">
+                                <HeaderTemplate>
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap; text-align:right;">Ações</MudText>
+                                </HeaderTemplate>
+                                <Template Context="context">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   Color="Color.Primary" OnClick="@(() => Edit(context))"
+                                                   aria-label="Editar cliente" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="@(() => DeleteAsync(context))"
+                                                   aria-label="Excluir cliente" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                        <EmptyTemplate>
                             <EmptyState Title="Nenhum cliente cadastrado"
                                         Message="Cadastre empresas e pessoas para vincular a serviços e orçamentos." />
-                        </NoRecordsContent>
-                    </MudTable>
+                        </EmptyTemplate>
+                    </RadzenDataGrid>
                     </ChildContent>
                     </SmartTableFilter>
                 </MudPaper>
@@ -215,6 +249,7 @@
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
     private static readonly string[] Ufs =
         ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+    private RadzenDataGrid<ClienteDto>? _grid;
     private PagedResult<ClienteDto> _result = new([], 1, 20, 0);
     private readonly IReadOnlyList<SmartFilterColumn<ClienteDto>> _filterColumns =
     [
@@ -234,7 +269,7 @@
     private string? _estado;
     private string? _sortKey;
     private bool _sortDescending;
-    private const int PageSize = 1000;
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -245,7 +280,7 @@
         {
             _result = await ClienteService.ListAsync(new(
                 null, _search, _search, _search, _search, null, _estado,
-                1, PageSize, _sortKey, _sortDescending));
+                1, PageSize: 0, _sortKey, _sortDescending));
             _statistics = await ClienteService.GetStatisticsAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }

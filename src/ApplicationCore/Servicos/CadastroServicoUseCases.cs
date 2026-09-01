@@ -132,13 +132,16 @@ public sealed class CadastroServicoService(
 
         query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
-        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var all = filter.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter.PageSize);
         var page = Math.Max(1, filter.Page);
         var total = await repository.CountAsync(query, cancellationToken);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var items = all
+            ? await repository.ToListAsync(query, cancellationToken)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
         var dtos = items.Select(ToDto).ToList();
 
-        return PagedResult<CadastroServicoDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<CadastroServicoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(

@@ -1,5 +1,6 @@
 @page "/orcamentos"
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject IOrcamentoService Service
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -24,19 +25,59 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Loading="_loading" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-            <HeaderContent><MudTh>Código</MudTh><MudTh>Cliente</MudTh><MudTh>Contato</MudTh><MudTh>Data</MudTh><MudTh>Tipo</MudTh><MudTh>Situação</MudTh><MudTh>Valor</MudTh><MudTh>Ações</MudTh></HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd><MudTd DataLabel="Cliente">@context.Nome</MudTd>
-                <MudTd DataLabel="Contato"><MudText Typo="Typo.body2">@(context.Telefone ?? "—")</MudText><MudText Typo="Typo.caption">@(context.Email ?? "—")</MudText></MudTd>
-                <MudTd DataLabel="Data">@context.Data?.ToString("dd/MM/yyyy")</MudTd>
-                <MudTd DataLabel="Tipo">@context.TipoServico</MudTd><MudTd DataLabel="Situação"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.Situacao</MudChip></MudTd>
-                <MudTd DataLabel="Valor">@Money(context.ValorTotal ?? 0)</MudTd>
-                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => Edit(context))" aria-label="@($"Editar orçamento {context.Codigo}")" />
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" aria-label="@($"Excluir orçamento {context.Codigo}")" /></MudTd>
-            </RowTemplate>
-            <NoRecordsContent><EmptyState Title="Nenhum orçamento" Message="Cadastre a primeira proposta comercial." /></NoRecordsContent>
-        </MudTable>
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="OrcamentoDto"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                        AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                        FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                        Density="Radzen.Density.Compact" EmptyText="Nenhum orçamento encontrado"
+                        GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                        ColumnsShowingText="colunas visíveis">
+            <Columns>
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Codigo" Title="Código">
+                    <Template Context="context"><strong>@context.Codigo</strong></Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Nome" Title="Cliente">
+                    <Template Context="context">@context.Nome</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Telefone" Title="Contato">
+                    <Template Context="context">
+                        <MudText Typo="Typo.body2">@(context.Telefone ?? "—")</MudText>
+                        <MudText Typo="Typo.caption">@(context.Email ?? "—")</MudText>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Data" Title="Data">
+                    <Template Context="context">@context.Data?.ToString("dd/MM/yyyy")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="TipoServico" Title="Tipo">
+                    <Template Context="context">@context.TipoServico</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Situacao" Title="Situação">
+                    <Template Context="context">
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.Situacao</MudChip>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="ValorTotal" Title="Valor">
+                    <Template Context="context">@Money(context.ValorTotal ?? 0)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Title="Ações" Sortable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right">
+                    <Template Context="context">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => Edit(context))" aria-label="@($"Editar orçamento {context.Codigo}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(() => DeleteAsync(context))" aria-label="@($"Excluir orçamento {context.Codigo}")" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+            <EmptyTemplate>
+                <EmptyState Title="Nenhum orçamento" Message="Cadastre a primeira proposta comercial." />
+            </EmptyTemplate>
+        </RadzenDataGrid>
         </ChildContent>
         </SmartTableFilter>
 
@@ -68,7 +109,17 @@
     </div>
 </MudDrawer>
 
+<style>
+    .excel-grid .rz-grid-table { border-collapse: collapse; border: 1px solid #d1d5db; width: 100%; }
+    .excel-grid .rz-grid-table th { background: #e5e7eb !important; border: 1px solid #d1d5db; font-weight: 600; font-size: .78rem; padding: 4px 6px; }
+    .excel-grid .rz-grid-table td { border: 1px solid #e5e7eb; font-size: .8rem; padding: 3px 6px; vertical-align: middle; }
+    .excel-grid .rz-grid-table tr:nth-child(even) td { background: #f3f4f6; }
+    .excel-grid .rz-grid-table tr:hover td { background: #e0e7ff; }
+</style>
+
 @code {
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private RadzenDataGrid<OrcamentoDto>? _grid;
     private PagedResult<OrcamentoDto> _result = new([], 1, 1000, 0);
     private string? _sortKey;
     private bool _sortDescending;
@@ -80,14 +131,13 @@
         new("tipo","Tipo",x=>x.TipoServico,5),new("situacao","Situação",x=>x.Situacao,6),new("valor","Valor",x=>x.ValorTotal,7,true)
     ];
     private bool _loading,_open,_saving,_valid; private string? _search;
-    private const int PageSize = 1000;
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync()
     {
         _loading=true;
         try
         {
-            _result = await Service.ListAsync(new OrcamentoFilter(_search, 1, PageSize, _sortKey, _sortDescending));
+            _result = await Service.ListAsync(new OrcamentoFilter(_search, 1, 0, _sortKey, _sortDescending));
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
         finally{_loading=false;}

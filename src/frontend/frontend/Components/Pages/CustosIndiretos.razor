@@ -1,5 +1,6 @@
 @page "/financeiro/custos-indiretos"
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject ICustoIndiretoService Service
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -131,41 +132,73 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Striped="true" Loading="_loading" Elevation="0" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-            <HeaderContent>
-                <MudTh style="width: 70px;">#ID</MudTh>
-                <MudTh>Data</MudTh>
-                <MudTh>Descrição</MudTh>
-                <MudTh>Categoria</MudTh>
-                <MudTh Class="text-right">Valor (R$)</MudTh>
-                <MudTh Class="text-right" style="width: 110px;">Ações</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="#ID" Class="font-mono text-caption">#@context.Id</MudTd>
-                <MudTd DataLabel="Data">@context.Data.ToString("dd/MM/yyyy")</MudTd>
-                <MudTd DataLabel="Descrição">
-                    <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Descricao</MudText>
-                </MudTd>
-                <MudTd DataLabel="Categoria">
-                    <MudChip T="string" Size="Size.Small" Color="@GetCategoryChipColor(context.Categoria)" Variant="Variant.Outlined">
-                        @context.Categoria
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="Valor" Class="text-right font-weight-bold color-error">
-                    @Money(context.Valor)
-                </MudTd>
-                <MudTd DataLabel="Ações" Class="text-right">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => Edit(context))" aria-label="Editar custo" />
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(context))" aria-label="Excluir custo" />
-                </MudTd>
-            </RowTemplate>
-            <NoRecordsContent>
-                <EmptyState Title="Nenhum custo indireto encontrado"
-                            Message="Ajuste os filtros de busca ou cadastre uma nova despesa." />
-            </NoRecordsContent>
-        </MudTable>
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CustoIndiretoDto"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                        AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                        FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                        Density="Radzen.Density.Compact" EmptyText="Nenhum custo indireto encontrado"
+                        GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                        ColumnsShowingText="colunas visíveis">
+            <Columns>
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Property="Id" Title="#ID" Width="70px">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">#ID</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <span class="font-mono text-caption">#@context.Id</span>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Property="Data" Title="Data">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Data</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@context.Data.ToString("dd/MM/yyyy")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Property="Descricao" Title="Descrição">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Descrição</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Descricao</MudText>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Property="Categoria" Title="Categoria">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Categoria</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudChip T="string" Size="Size.Small" Color="@GetCategoryChipColor(context.Categoria)" Variant="Variant.Outlined">
+                            @context.Categoria
+                        </MudChip>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Property="Valor" Title="Valor (R$)">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Valor (R$)</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudText Typo="Typo.body2" Class="font-weight-bold color-error">@Money(context.Valor)</MudText>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CustoIndiretoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="110px">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap; text-align:right;">Ações</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => Edit(context))" aria-label="Editar custo" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteAsync(context))" aria-label="Excluir custo" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
         </ChildContent>
         </SmartTableFilter>
 
@@ -287,6 +320,8 @@
 
 @code {
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private RadzenDataGrid<CustoIndiretoDto>? _grid;
 
     private static readonly string[] Categories =
         ["Aluguel", "Energia", "Água", "Internet e telefonia", "Software", "Combustível", "Materiais", "Marketing", "Contabilidade", "Impostos", "Outros"];
@@ -327,7 +362,6 @@
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
-    private const int PageSize = 1000;
     private async Task OnSmartTableStateChanged(SmartTableState state)
     {
         _search = state.Search;
@@ -393,10 +427,10 @@
             var searchCategoryFilter = !string.IsNullOrWhiteSpace(_selectedCategory) ? _selectedCategory : _search;
 
             _result = await Service.ListAsync(new CustoIndiretoFilter(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, PageSize, _sortKey, _sortDescending));
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, Page: 1, PageSize: 0, SortKey: _sortKey, SortDescending: _sortDescending));
 
             _analytics = (await Service.ListAsync(new CustoIndiretoFilter(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, 1, 1000))).Items;
+                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, Page: 1, PageSize: 0))).Items;
 
             var allGroups = _analytics
                 .Where(x => !string.IsNullOrWhiteSpace(x.Categoria))

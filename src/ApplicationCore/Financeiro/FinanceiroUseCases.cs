@@ -109,13 +109,16 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
 
         query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
-        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var all = filter.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter.PageSize);
         var page = Math.Max(1, filter.Page);
         var total = await repository.CountAsync(query, cancellationToken);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var items = all
+            ? await repository.ToListAsync(query, cancellationToken)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
         var dtos = items.Select(ToDto).ToList();
 
-        return PagedResult<CustoIndiretoDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<CustoIndiretoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<CustoIndiretoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -242,13 +245,16 @@ public sealed class LancamentoService(
 
         query = ApplySort(query, filter.SortKey, filter.SortDescending);
 
-        var pageSize = CursorPagination.ClampPageSize(filter.PageSize);
+        var all = filter.PageSize == 0;
+        var pageSize = all ? 0 : CursorPagination.ClampPageSize(filter.PageSize);
         var page = Math.Max(1, filter.Page);
         var total = await repository.CountAsync(query, cancellationToken);
-        var items = await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
+        var items = all
+            ? await repository.ToListAsync(query, cancellationToken)
+            : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
         var dtos = items.Select(ToDto).ToList();
 
-        return PagedResult<LancamentoDto>.Create(dtos, page, pageSize, total);
+        return PagedResult<LancamentoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
     public async Task<LancamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>

@@ -1,4 +1,5 @@
 @attribute [Authorize]
+@using Radzen.Blazor
 @inject IJSRuntime JS
 @inject ICadastroServicoService Service
 @inject IClienteService ClienteService
@@ -65,42 +66,91 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <MudTable Items="smartItems" Hover="true" Loading="_loading" Elevation="0"
-                  Breakpoint="Breakpoint.Md" RowsPerPage="1000" Virtualize="true" ItemSize="52">
-            <HeaderContent>
-                <MudTh>Código</MudTh><MudTh>Empresa</MudTh><MudTh>Serviço</MudTh><MudTh>Situação</MudTh>
-                <MudTh>Contrato</MudTh><MudTh>Semanas</MudTh><MudTh>Entrada</MudTh><MudTh Class="text-right">Ações</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Código"><strong>@context.Codigo</strong></MudTd>
-                <MudTd DataLabel="Empresa">
-                    <MudText Typo="Typo.body2"><strong>@context.RazaoSocialEmpresa</strong></MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.DocumentoEmpresa</MudText>
-                </MudTd>
-                <MudTd DataLabel="Serviço">
-                    <MudChip T="string" Size="Size.Small" Color="@TypeColor(context.TipoServico)">@TypeLabel(context.TipoServico)</MudChip>
-                    <MudText Typo="Typo.caption" Class="ml-1">@context.Subtipo</MudText>
-                </MudTd>
-                <MudTd DataLabel="Situação">
-                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.SituacaoInicial)">
-                        @(context.SituacaoInicial ?? "Não informada")
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="Contrato">@Money(context.ValorContrato ?? 0)</MudTd>
-                <MudTd DataLabel="Semanas">@WeeksSince(context.DataEntrada)</MudTd>
-                <MudTd DataLabel="Entrada">@context.DataEntrada.ToString("dd/MM/yyyy")</MudTd>
-                <MudTd DataLabel="Ações" Class="text-right">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                   OnClick="@(() => Edit(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => DeleteAsync(context))" />
-                </MudTd>
-            </RowTemplate>
-            <NoRecordsContent>
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CadastroServicoDto"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                        AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                        FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                        Density="Radzen.Density.Compact" EmptyText="Nenhum serviço encontrado"
+                        GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                        ColumnsShowingText="colunas visíveis">
+            <Columns>
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="Codigo" Title="Código">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Código</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context"><strong>@context.Codigo</strong></Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="RazaoSocialEmpresa" Title="Empresa">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Empresa</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudText Typo="Typo.body2"><strong>@context.RazaoSocialEmpresa</strong></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.DocumentoEmpresa</MudText>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="Subtipo" Title="Serviço">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Serviço</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudChip T="string" Size="Size.Small" Color="@TypeColor(context.TipoServico)">@TypeLabel(context.TipoServico)</MudChip>
+                        <MudText Typo="Typo.caption" Class="ml-1">@context.Subtipo</MudText>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="SituacaoInicial" Title="Situação">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Situação</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.SituacaoInicial)">
+                            @(context.SituacaoInicial ?? "Não informada")
+                        </MudChip>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="ValorContrato" Title="Contrato">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Contrato</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@Money(context.ValorContrato ?? 0)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="DataEntrada" Title="Semanas" Sortable="false" Filterable="false">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Semanas</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@WeeksSince(context.DataEntrada)</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="DataEntrada" Title="Entrada">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Entrada</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">@context.DataEntrada.ToString("dd/MM/yyyy")</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="120px">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap; text-align:right;">Ações</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => Edit(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteAsync(context))" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+            <EmptyTemplate>
                 <EmptyState Title="Nenhum serviço encontrado"
                             Message="Cadastre o primeiro contrato para iniciar a operação." />
-            </NoRecordsContent>
-        </MudTable>
+            </EmptyTemplate>
+        </RadzenDataGrid>
         </ChildContent>
         </SmartTableFilter>
 
@@ -381,6 +431,8 @@
 
 @code {
     private PagedResult<CadastroServicoDto> _result = new([], 1, 20, 0);
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private RadzenDataGrid<CadastroServicoDto>? _grid;
     private readonly IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
@@ -465,14 +517,13 @@
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
     }
 
-    private const int PageSize = 1000;
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
             _result = await Service.ListAsync(new(
-                _search, _search, _tipo, 1, PageSize, _situacao, _ocultarConcluidos, null, _sortKey, _sortDescending));
+                _search, _search, _tipo, 1, 0, _situacao, _ocultarConcluidos, null, _sortKey, _sortDescending));
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _loading = false; }
