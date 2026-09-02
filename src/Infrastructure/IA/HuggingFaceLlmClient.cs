@@ -14,7 +14,7 @@ namespace CrmAtlas.Infrastructure.IA;
 public sealed class HuggingFaceLlmClient(IHttpClientFactory httpClientFactory, IOptions<AtlasAiOptions> options) : ILlmClient
 {
     private const string DefaultEndpoint = "https://router.huggingface.co/v1/chat/completions";
-    private const string DefaultModel = "google/gemma-2-2b-it";
+    private const string DefaultModel = "meta-llama/Llama-3.1-8B-Instruct";
 
     public IAsyncEnumerable<string> CompleteStreamingAsync(
         IReadOnlyList<AtlasAiMessage> messages,
