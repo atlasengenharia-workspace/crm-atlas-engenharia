@@ -134,6 +134,31 @@ else
             <RadzenDataGridColumn TItem="LancamentoDto" Property="Valor" Title="Valor" TextAlign="Radzen.TextAlign.Right">
                 <Template Context="context"><strong>@Money(context.Valor)</strong></Template>
             </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="CodigoServico" Title="Código serviço" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="NomeCliente" Title="Cliente" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="NumeroParcela" Title="Parcela" TextAlign="Radzen.TextAlign.Center">
+                <Template Context="context">@(context.NumeroParcela is null ? "—" : $"{context.NumeroParcela}")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="NomePrestador" Title="Prestador" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="FormaPagamento" Title="Forma de pagamento" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Plataforma" Title="Banco / plataforma" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Empresa" Title="Empresa" />
+            <RadzenDataGridColumn TItem="LancamentoDto" Property="Observacao" Title="Observação">
+                <Template Context="context">@(context.Observacao ?? "—")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="LancamentoDto" Title="Comprovante" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Center">
+                <Template Context="context">
+                    @if (!string.IsNullOrWhiteSpace(context.ComprovanteUrl))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Href="@context.ComprovanteUrl"
+                                       Target="_blank" Size="Size.Small" aria-label="Abrir comprovante" />
+                    }
+                    else
+                    {
+                        <span>—</span>
+                    }
+                </Template>
+            </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="LancamentoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right">
                 <Template Context="context">
                     @if (!string.IsNullOrWhiteSpace(context.ComprovanteUrl))
