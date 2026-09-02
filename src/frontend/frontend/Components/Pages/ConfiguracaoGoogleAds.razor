@@ -1,0 +1,277 @@
+@page "/configuracao/google-ads"
+@attribute [Authorize]
+@using CrmAtlas.ApplicationCore.Integracoes
+@inject IGoogleAdsIntegrationService Service
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Configuração Google Ads | CRM Atlas</PageTitle>
+<PageHeader Title="Configuração Google Ads" Subtitle="Conecte e gerencie a integração com Google Ads." />
+
+@if (_loading)
+{
+    <MudSkeleton Width="100%" Height="400px" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Outlined="true" Class="pa-5">
+                <MudForm @ref="_form" @bind-IsValid="_valid">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.Key" Label="Chave" Required="true" RequiredError="Chave obrigatória" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.Name" Label="Nome" Required="true" RequiredError="Nome obrigatório" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_model.Description" Label="Descrição" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.DeveloperToken" Label="Developer Token" Required="true" Variant="Variant.Outlined" InputType="InputType.Password" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.LoginCustomerId" Label="Login Customer ID (conta da agência)" Required="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.ClientId" Label="Client ID OAuth" Required="true" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.ClientSecret" Label="Client Secret OAuth" Required="true" Variant="Variant.Outlined" InputType="InputType.Password" />
+                        </MudItem>
+                        @if (!string.IsNullOrWhiteSpace(_model.RefreshToken))
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">Integração conectada. Token de refresh salvo.</MudAlert>
+                            </MudItem>
+                        }
+                        <MudItem xs="12" sm="6">
+                            <MudSwitch @bind-Value="_model.AutoSync" Color="Color.Primary" Label="Sincronização automática" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField @bind-Value="_model.SyncIntervalMin" Label="Intervalo (min)" Min="15" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSwitch @bind-Value="_model.ImportLeadsAsBudgets" Color="Color.Primary" Label="Importar leads como orçamentos" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudSwitch @bind-Value="_model.CreateFinancialEntries" Color="Color.Primary" Label="Criar lançamento de investimento" />
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+
+                <MudStack Row="true" Class="mt-5" Spacing="2" Wrap="Wrap.Wrap">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_saving || !_valid">
+                        @if (_saving)
+                        {
+                            <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                        }
+                        Salvar
+                    </MudButton>
+                    @if (_model.Id is not null)
+                    {
+                        <MudButton Color="Color.Info" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Link" OnClick="ConnectAsync" Disabled="_connecting">
+                            @if (_connecting)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                            }
+                            Conectar com Google
+                        </MudButton>
+                        <MudButton Color="Color.Secondary" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Sync" OnClick="SyncAsync" Disabled="_syncing">
+                            @if (_syncing)
+                            {
+                                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                            }
+                            Sincronizar agora
+                        </MudButton>
+                        <MudButton Color="Color.Error" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteAsync" Disabled="_saving">
+                            Excluir
+                        </MudButton>
+                    }
+                </MudStack>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-3">@_error</MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Outlined="true" Class="pa-5">
+                <MudText Typo="Typo.h6" Class="mb-3">Como conectar</MudText>
+                <MudText Typo="Typo.body2">
+                    1. Crie um projeto no <MudLink Href="https://console.cloud.google.com/" Target="_blank">Google Cloud Console</MudLink>.<br />
+                    2. Ative a Google Ads API.<br />
+                    3. Crie credenciais OAuth 2.0 e obtenha Client ID/Secret.<br />
+                    4. Pegue o Developer Token na conta Google Ads.<br />
+                    5. Informe o Login Customer ID da conta gerenciadora.<br />
+                    6. Salve e clique em "Conectar com Google".<br />
+                    7. Depois de autorizar, sincronize campanhas.
+                </MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private bool _connecting;
+    private bool _syncing;
+    private bool _valid;
+    private string? _error;
+    private MudForm? _form;
+    private GoogleAdsIntegrationFormModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Service.ListAsync(new GoogleAdsIntegrationFilter(PageSize: 1));
+            var existing = result.Items.FirstOrDefault();
+            if (existing is not null)
+            {
+                _model = new GoogleAdsIntegrationFormModel(existing);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Erro ao carregar: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _saving = true;
+        try
+        {
+            var dto = _model.ToDto();
+            if (_model.Id is null)
+            {
+                var created = await Service.CreateAsync(dto);
+                _model = new GoogleAdsIntegrationFormModel(created);
+                Snackbar.Add("Integração criada.", Severity.Success);
+            }
+            else
+            {
+                var updated = await Service.UpdateAsync(_model.Id.Value, dto);
+                _model = new GoogleAdsIntegrationFormModel(updated);
+                Snackbar.Add("Integração atualizada.", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ConnectAsync()
+    {
+        if (_model.Id is null) return;
+        _connecting = true;
+        _error = null;
+        try
+        {
+            var redirectUri = $"{Navigation.BaseUri}configuracao/google-ads/callback";
+            var state = _model.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var url = await Service.GetAuthorizationUrlAsync(_model.Id.Value, redirectUri, state);
+            Navigation.NavigateTo(url, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _connecting = false;
+        }
+    }
+
+    private async Task SyncAsync()
+    {
+        if (_model.Id is null) return;
+        _syncing = true;
+        _error = null;
+        try
+        {
+            await Service.SyncAsync(_model.Id.Value, "sistema");
+            Snackbar.Add("Sincronização concluída.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_model.Id is null) return;
+
+        try
+        {
+            await Service.DeleteAsync(_model.Id.Value);
+            Navigation.NavigateTo("/gestao-ads");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private sealed class GoogleAdsIntegrationFormModel
+    {
+        public long? Id { get; set; }
+        public string Key { get; set; } = "google-ads";
+        public string Name { get; set; } = "Google Ads";
+        public string Description { get; set; } = string.Empty;
+        public GoogleIntegrationStatus Status { get; set; } = GoogleIntegrationStatus.DISCONNECTED;
+        public string? DeveloperToken { get; set; }
+        public string? ClientId { get; set; }
+        public string? ClientSecret { get; set; }
+        public string? RefreshToken { get; set; }
+        public string? LoginCustomerId { get; set; }
+        public bool AutoSync { get; set; } = false;
+        public int SyncIntervalMin { get; set; } = 60;
+        public bool ImportLeadsAsBudgets { get; set; } = true;
+        public bool CreateFinancialEntries { get; set; } = true;
+
+        public GoogleAdsIntegrationFormModel() { }
+
+        public GoogleAdsIntegrationFormModel(GoogleAdsIntegrationDto dto)
+        {
+            Id = dto.Id;
+            Key = dto.Key;
+            Name = dto.Name;
+            Description = dto.Description;
+            Status = dto.Status;
+            DeveloperToken = dto.DeveloperToken;
+            ClientId = dto.ClientId;
+            ClientSecret = dto.ClientSecret;
+            RefreshToken = dto.RefreshToken;
+            LoginCustomerId = dto.LoginCustomerId;
+            AutoSync = dto.AutoSync;
+            SyncIntervalMin = dto.SyncIntervalMin;
+            ImportLeadsAsBudgets = dto.ImportLeadsAsBudgets;
+            CreateFinancialEntries = dto.CreateFinancialEntries;
+        }
+
+        public GoogleAdsIntegrationDto ToDto() =>
+            new(Id, Key, Name, Description, Status, DeveloperToken, ClientId, ClientSecret, RefreshToken, LoginCustomerId,
+                AutoSync, SyncIntervalMin, ImportLeadsAsBudgets, CreateFinancialEntries, null, null);
+    }
+}

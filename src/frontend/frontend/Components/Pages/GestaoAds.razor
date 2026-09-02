@@ -1,60 +1,140 @@
 @page "/gestao-ads"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.ApplicationCore.Integracoes
+@inject IGoogleAdsIntegrationService Service
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
 <PageTitle>Gestão Ads | CRM Atlas</PageTitle>
-<PageHeader Title="Gestão Ads" Subtitle="Contexto independente para campanhas e aquisição de oportunidades.">
-    <Actions><MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add">Nova campanha</MudButton></Actions>
+<PageHeader Title="Gestão Ads" Subtitle="Campanhas e aquisição de oportunidades integradas com Google Ads.">
+    <Actions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Settings" OnClick="GoToConfig">
+            Configurar integração
+        </MudButton>
+    </Actions>
 </PageHeader>
-<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-5">Este módulo permanece isolado dos fluxos financeiros e operacionais do CRM.</MudAlert>
-<MudGrid>
-    <MudItem xs="6" md="3"><MetricCard Title="Investimento" Value="R$ 12.480" Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" /></MudItem>
-    <MudItem xs="6" md="3"><MetricCard Title="Leads" Value="184" Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Info" /></MudItem>
-    <MudItem xs="6" md="3"><MetricCard Title="CPL médio" Value="R$ 67,82" Icon="@Icons.Material.Filled.Analytics" Color="Color.Warning" /></MudItem>
-    <MudItem xs="6" md="3"><MetricCard Title="Conversões" Value="22" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
-</MudGrid>
-<MudPaper Outlined="true" Class="pa-5 mt-5"><MudText Typo="Typo.h6">Campanhas ativas</MudText>
-    <SmartTableFilter TItem="Campaign" Items="_campaigns" Columns="_filterColumns" TableKey="gestao-ads">
-    <ChildContent Context="smartItems">
-    <RadzenDataGrid @ref="_grid" Data="@smartItems" TItem="Campaign"
-                    Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
-                    AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
-                    AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
-                    FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
-                    Density="Radzen.Density.Compact" EmptyText="Nenhuma campanha cadastrada"
-                    GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
-                    ColumnsShowingText="colunas visíveis">
-        <Columns>
-            <RadzenDataGridColumn TItem="Campaign" Property="Name" Title="Campanha" />
-            <RadzenDataGridColumn TItem="Campaign" Property="Channel" Title="Canal" />
-            <RadzenDataGridColumn TItem="Campaign" Property="Status" Title="Status">
-                <Template Context="context">
-                    <MudChip T="string" Color="Color.Success" Size="Size.Small">@context.Status</MudChip>
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Campaign" Property="Leads" Title="Leads" />
-            <RadzenDataGridColumn TItem="Campaign" Property="Spend" Title="Investimento" />
-        </Columns>
-    </RadzenDataGrid>
-    </ChildContent>
-    </SmartTableFilter>
-</MudPaper>
+
+@if (_integration is null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-5">
+        Nenhuma integração Google Ads configurada. Configure uma para começar a sincronizar campanhas.
+    </MudAlert>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="GoToConfig">
+        Nova integração Google Ads
+    </MudButton>
+}
+else
+{
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" md="3"><MetricCard Title="Investimento" Value="@TotalCostText" Icon="@Icons.Material.Filled.Payments" Color="Color.Primary" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="Leads" Value="@TotalLeadsText" Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Info" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="CPL médio" Value="@CplText" Icon="@Icons.Material.Filled.Analytics" Color="Color.Warning" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="Conversões" Value="@TotalConversionsText" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
+    </MudGrid>
+
+    <MudPaper Outlined="true" Class="pa-5 mt-5">
+        <MudToolBar Class="pa-0 mb-3">
+            <MudText Typo="Typo.h6">Campanhas ativas</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Sync" OnClick="SyncAsync" Disabled="_syncing">
+                @if (_syncing)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                }
+                Sincronizar
+            </MudButton>
+        </MudToolBar>
+
+        @if (!string.IsNullOrWhiteSpace(_integration.ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3">@_integration.ErrorMessage</MudAlert>
+        }
+
+        <RadzenDataGrid @ref="_grid" Data="@_campaigns" TItem="GoogleAdsCampaignDto"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                        AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                        FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                        Density="Radzen.Density.Compact" EmptyText="Nenhuma campanha sincronizada"
+                        GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                        ColumnsShowingText="colunas visíveis">
+            <Columns>
+                <RadzenDataGridColumn TItem="GoogleAdsCampaignDto" Property="Name" Title="Campanha" />
+                <RadzenDataGridColumn TItem="GoogleAdsCampaignDto" Property="Channel" Title="Canal" />
+                <RadzenDataGridColumn TItem="GoogleAdsCampaignDto" Property="Status" Title="Status">
+                    <Template Context="context">
+                        <MudChip T="string" Color="@StatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="GoogleAdsCampaignDto" Property="Leads" Title="Leads" />
+                <RadzenDataGridColumn TItem="GoogleAdsCampaignDto" Property="Spend" Title="Investimento" />
+            </Columns>
+        </RadzenDataGrid>
+    </MudPaper>
+}
+
 @code {
-    private readonly Campaign[] _campaigns =
-    [
-        new("Regularização AVCB SP", "Google Ads", "Ativa", 96, "R$ 6.850"),
-        new("CLCB para comércios", "Meta Ads", "Ativa", 54, "R$ 3.420"),
-        new("Projetos e obras", "Google Ads", "Ativa", 34, "R$ 2.210")
-    ];
+    private GoogleAdsIntegrationDto? _integration;
+    private GoogleAdsDashboardSummary? _summary;
+    private IReadOnlyList<GoogleAdsCampaignDto> _campaigns = [];
+    private bool _syncing;
     private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
-    private RadzenDataGrid<Campaign>? _grid;
-    private readonly IReadOnlyList<SmartFilterColumn<Campaign>> _filterColumns =
-    [
-        new("campanha", "Campanha", x => x.Name, 1),
-        new("canal", "Canal", x => x.Channel, 2),
-        new("status", "Status", x => x.Status, 3),
-        new("leads", "Leads", x => x.Leads, 4),
-        new("investimento", "Investimento", x => x.Spend, 5)
-    ];
-    private sealed record Campaign(string Name, string Channel, string Status, int Leads, string Spend);
+    private RadzenDataGrid<GoogleAdsCampaignDto>? _grid;
+
+    private string TotalCostText => (_summary?.TotalCost ?? 0).ToString("C2", _ptBr);
+    private string TotalLeadsText => (_summary?.TotalLeads ?? 0).ToString("N0", _ptBr);
+    private string CplText => (_summary?.Cpl ?? 0).ToString("C2", _ptBr);
+    private string TotalConversionsText => (_summary?.TotalConversions ?? 0).ToString("N2", _ptBr);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Service.ListAsync(new GoogleAdsIntegrationFilter(PageSize: 1));
+            _integration = result.Items.FirstOrDefault();
+
+            if (_integration is not null && _integration.Id is not null)
+            {
+                _summary = await Service.GetDashboardSummaryAsync(_integration.Id.Value);
+                _campaigns = await Service.ListCampaignsAsync(_integration.Id.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Não foi possível carregar a integração Google Ads: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void GoToConfig() => Navigation.NavigateTo("/configuracao/google-ads");
+
+    private async Task SyncAsync()
+    {
+        if (_integration?.Id is null) return;
+        _syncing = true;
+        try
+        {
+            await Service.SyncAsync(_integration.Id.Value, "sistema");
+            _summary = await Service.GetDashboardSummaryAsync(_integration.Id.Value);
+            _campaigns = await Service.ListCampaignsAsync(_integration.Id.Value);
+            Snackbar.Add("Sincronização concluída.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro na sincronização: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private static Color StatusColor(string status) =>
+        status.ToUpperInvariant() switch
+        {
+            "ENABLED" => Color.Success,
+            "PAUSED" => Color.Warning,
+            "REMOVED" => Color.Error,
+            _ => Color.Default
+        };
 }

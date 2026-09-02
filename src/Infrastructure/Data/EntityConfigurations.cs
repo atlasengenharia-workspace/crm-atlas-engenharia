@@ -416,4 +416,64 @@ internal sealed class IntegrationConfiguration :
         builder.Property(x => x.Actor).HasMaxLength(120).IsRequired();
         builder.Property(x => x.Message).HasMaxLength(500);
     }
+
+    public void Configure(EntityTypeBuilder<GoogleAdsIntegration> builder)
+    {
+        builder.ToTable("google_ads_integrations");
+        builder.HasIndex(x => x.Key).IsUnique();
+        builder.Property(x => x.Key).HasColumnName("integration_key").HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Description).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.DeveloperToken).HasMaxLength(255);
+        builder.Property(x => x.ClientId).HasMaxLength(255);
+        builder.Property(x => x.EncryptedClientSecret).HasColumnName("client_secret").HasColumnType("text");
+        builder.Property(x => x.EncryptedRefreshToken).HasColumnName("refresh_token").HasColumnType("text");
+        builder.Property(x => x.LoginCustomerId).HasMaxLength(40);
+        builder.Property(x => x.ErrorMessage).HasMaxLength(500);
+        builder.HasMany(x => x.Campaigns).WithOne(x => x.Integration)
+            .HasForeignKey(x => x.IntegrationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.Metrics).WithOne(x => x.Integration)
+            .HasForeignKey(x => x.IntegrationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.Leads).WithOne(x => x.Integration)
+            .HasForeignKey(x => x.IntegrationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.Audits).WithOne(x => x.Integration)
+            .HasForeignKey(x => x.IntegrationId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    public void Configure(EntityTypeBuilder<GoogleAdsCampaign> builder)
+    {
+        builder.ToTable("google_ads_campaigns");
+        builder.HasIndex(x => new { x.IntegrationId, x.ExternalCampaignId }).IsUnique()
+            .HasDatabaseName("uk_google_ads_campaign_external");
+        builder.Property(x => x.Name).HasMaxLength(255).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Channel).HasMaxLength(60);
+    }
+
+    public void Configure(EntityTypeBuilder<GoogleAdsCampaignMetric> builder)
+    {
+        builder.ToTable("google_ads_campaign_metrics");
+        builder.HasIndex(x => new { x.CampaignId, x.Date }).IsUnique()
+            .HasDatabaseName("uk_google_ads_metric_campaign_date");
+    }
+
+    public void Configure(EntityTypeBuilder<GoogleAdsLead> builder)
+    {
+        builder.ToTable("google_ads_leads");
+        builder.Property(x => x.GclId).HasMaxLength(120);
+        builder.Property(x => x.Name).HasMaxLength(200);
+        builder.Property(x => x.Email).HasMaxLength(200);
+        builder.Property(x => x.Phone).HasMaxLength(60);
+        builder.Property(x => x.Message).HasColumnType("text");
+    }
+
+    public void Configure(EntityTypeBuilder<GoogleAdsIntegrationAudit> builder)
+    {
+        builder.ToTable("google_ads_integration_audit");
+        builder.Property(x => x.Action).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.ResultStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.Actor).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Message).HasMaxLength(500);
+    }
 }

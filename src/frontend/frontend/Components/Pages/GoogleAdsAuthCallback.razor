@@ -1,0 +1,53 @@
+@page "/configuracao/google-ads/callback"
+@attribute [Authorize]
+@using CrmAtlas.ApplicationCore.Integracoes
+@inject IGoogleAdsIntegrationService Service
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Conectando Google Ads... | CRM Atlas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+    <MudPaper Outlined="true" Class="pa-8 text-center">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" Class="mb-4" />
+        <MudText Typo="Typo.h5">Conectando com Google Ads...</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Aguarde enquanto trocamos o código de autorização.</MudText>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        var code = query.Get("code");
+        var state = query.Get("state");
+        var error = query.Get("error");
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            Snackbar.Add($"Autorização cancelada ou negada: {error}", Severity.Error);
+            Navigation.NavigateTo("/configuracao/google-ads");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(code) || !long.TryParse(state, out var id))
+        {
+            Snackbar.Add("Código ou estado inválido no retorno do Google.", Severity.Error);
+            Navigation.NavigateTo("/configuracao/google-ads");
+            return;
+        }
+
+        try
+        {
+            var redirectUri = $"{Navigation.BaseUri}configuracao/google-ads/callback";
+            await Service.SaveRefreshTokenAsync(id, code, redirectUri);
+            Snackbar.Add("Conta Google Ads conectada com sucesso.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Erro ao conectar: {ex.Message}", Severity.Error);
+        }
+
+        Navigation.NavigateTo("/configuracao/google-ads");
+    }
+}

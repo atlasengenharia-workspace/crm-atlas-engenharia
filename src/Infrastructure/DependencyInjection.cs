@@ -4,6 +4,8 @@ using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Operacao;
+using CrmAtlas.ApplicationCore.Integracoes;
+using CrmAtlas.Infrastructure.Integracoes;
 using CrmAtlas.Infrastructure.Integrations;
 using CrmAtlas.Infrastructure.Files;
 using CrmAtlas.Infrastructure.Documents;
@@ -92,6 +94,8 @@ public static class DependencyInjection
         services.AddTransient<IGlobalSearchService, GlobalSearchService>();
         services.AddTransient<IDashboardQueryService, DashboardQueryService>();
         services.AddTransient<ISistemaAtualizacaoService, SistemaAtualizacaoService>();
+        services.AddTransient<IGoogleAdsIntegrationService, GoogleAdsIntegrationService>();
+        services.AddTransient<IGoogleAdsApiClient, GoogleAdsApiClient>();
         services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
         services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
         {

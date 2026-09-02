@@ -45,6 +45,11 @@ public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options) : D
     public DbSet<GoogleSheetReportMetadata> GoogleSheetReports => Set<GoogleSheetReportMetadata>();
     public DbSet<WhatsAppMetaIntegration> WhatsAppIntegrations => Set<WhatsAppMetaIntegration>();
     public DbSet<WhatsAppMetaIntegrationAudit> WhatsAppIntegrationAudits => Set<WhatsAppMetaIntegrationAudit>();
+    public DbSet<GoogleAdsIntegration> GoogleAdsIntegrations => Set<GoogleAdsIntegration>();
+    public DbSet<GoogleAdsCampaign> GoogleAdsCampaigns => Set<GoogleAdsCampaign>();
+    public DbSet<GoogleAdsCampaignMetric> GoogleAdsCampaignMetrics => Set<GoogleAdsCampaignMetric>();
+    public DbSet<GoogleAdsLead> GoogleAdsLeads => Set<GoogleAdsLead>();
+    public DbSet<GoogleAdsIntegrationAudit> GoogleAdsIntegrationAudits => Set<GoogleAdsIntegrationAudit>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
