@@ -608,7 +608,13 @@
         if(value.Contains("vistoria",StringComparison.OrdinalIgnoreCase)||value.Contains("protoc",StringComparison.OrdinalIgnoreCase))return Color.Secondary;
         return Color.Info;
     }
-    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private bool _initialized;
+    protected override async Task OnInitializedAsync()
+    {
+        if (_initialized) return;
+        _initialized = true;
+        await LoadAsync();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -641,6 +647,7 @@
 
     private async Task OnSmartTableStateChanged(SmartTableState state)
     {
+        if (_loading) return;
         _search = state.Search;
         if (!string.IsNullOrWhiteSpace(state.SortKey))
         {

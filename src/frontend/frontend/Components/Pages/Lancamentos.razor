@@ -335,8 +335,11 @@ else
         }
     }
 
+    private bool _initialized;
     protected override async Task OnInitializedAsync()
     {
+        if (_initialized) return;
+        _initialized = true;
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
@@ -369,6 +372,7 @@ else
 
     private async Task OnSmartTableStateChanged(SmartTableState state)
     {
+        if (_initialLoading || _loading) return;
         _search = state.Search;
         _sortKey = state.SortKey;
         _sortDescending = state.SortDescending;

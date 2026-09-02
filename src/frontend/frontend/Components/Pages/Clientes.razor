@@ -270,8 +270,14 @@
     private string? _sortKey;
     private bool _sortDescending;
     private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private bool _initialized;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (_initialized) return;
+        _initialized = true;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -289,6 +295,7 @@
 
     private async Task OnSmartTableStateChanged(SmartTableState state)
     {
+        if (_loading) return;
         _search = state.Search;
         _sortKey = state.SortKey;
         _sortDescending = state.SortDescending;

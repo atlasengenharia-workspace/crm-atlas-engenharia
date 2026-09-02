@@ -140,6 +140,7 @@
     private string? _value;
     private SmartFilterOperator _operator = SmartFilterOperator.Contains;
     private bool _loaded;
+    private bool _firstRender = true;
     private SmartTableState _state = new(null, null, false, 1, new HashSet<string>(StringComparer.OrdinalIgnoreCase), []);
 
     private string StorageKey => $"atlas.table.{TableKey ?? typeof(TItem).Name}";
@@ -187,6 +188,7 @@
     {
         if (!firstRender || _loaded) return;
         _loaded = true;
+        _firstRender = false;
         try
         {
             var json = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
@@ -294,6 +296,7 @@
     private async Task SaveAndNotifyAsync()
     {
         await SaveAsync();
+        if (_firstRender) return;
         if (OnStateChanged.HasDelegate) await OnStateChanged.InvokeAsync(_state);
     }
 
