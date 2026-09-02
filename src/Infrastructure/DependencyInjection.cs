@@ -99,7 +99,9 @@ public static class DependencyInjection
         services.AddTransient<IGoogleAdsIntegrationService, GoogleAdsIntegrationService>();
         services.AddTransient<IGoogleAdsApiClient, GoogleAdsApiClient>();
         services.AddTransient<IContextRetriever, AtlasAiContextRetriever>();
-        services.AddTransient<ILlmClient, OpenAiLlmClient>();
+        services.AddTransient<OpenAiLlmClient>();
+        services.AddTransient<HuggingFaceLlmClient>();
+        services.AddTransient<ILlmClient, ProviderBasedLlmClient>();
         services.AddTransient<IAtlasAiService, AtlasAiService>();
         services.Configure<AtlasAiOptions>(configuration.GetSection("AI"));
         services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
