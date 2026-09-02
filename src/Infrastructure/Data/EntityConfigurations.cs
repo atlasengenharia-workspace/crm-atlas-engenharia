@@ -33,7 +33,9 @@ internal sealed class ServicosConfiguration :
     IEntityTypeConfiguration<CadastroServico>,
     IEntityTypeConfiguration<CadastroServicoParcela>,
     IEntityTypeConfiguration<Prestador>,
-    IEntityTypeConfiguration<CadastroServicoPrestador>
+    IEntityTypeConfiguration<CadastroServicoPrestador>,
+    IEntityTypeConfiguration<CadastroServicoCodigoHistorico>,
+    IEntityTypeConfiguration<ServicoTipoCampoConfig>
 {
     public void Configure(EntityTypeBuilder<Avcb> builder)
     {
@@ -124,6 +126,14 @@ internal sealed class ServicosConfiguration :
     {
         builder.HasIndex("Codigo").IsUnique();
         builder.Property("Codigo").IsRequired();
+    }
+
+    public void Configure(EntityTypeBuilder<CadastroServicoCodigoHistorico> builder)
+    {
+        builder.ToTable("cadastro_servico_codigo_historico");
+        builder.Property(x => x.CodigoAnterior).HasColumnType("text");
+        builder.Property(x => x.CodigoNovo).HasColumnType("text");
+        builder.Property(x => x.Responsavel).HasColumnType("text");
     }
 
     public void Configure(EntityTypeBuilder<ServicoTipoCampoConfig> builder)
