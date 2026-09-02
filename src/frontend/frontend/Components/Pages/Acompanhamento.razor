@@ -198,6 +198,28 @@
                     </Template>
                 </RadzenDataGridColumn>
 
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Title="Pendências" Sortable="false" Filterable="false" Visible="@(!_hiddenColumns.Contains("Pendências"))" Width="220px">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Pendências</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        @{
+                            var pendentes = context.Itens.Where(i => !i.Concluida).Select(i => i.Label).ToList();
+                        }
+                        @if (pendentes.Count == 0)
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            var texto = string.Join("; ", pendentes);
+                            <MudTooltip Text="@texto">
+                                <MudText Typo="Typo.body2" Style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@texto</MudText>
+                            </MudTooltip>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+
                 <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Descricao" Title="Observações" Visible="@(!_hiddenColumns.Contains("Observações"))">
                     <HeaderTemplate>
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Observações</MudText>
@@ -518,16 +540,18 @@
     private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
-        new("codigo","Código",x=>x.Codigo,1), new("cliente","Cliente",x=>x.Cliente,2),
-        new("endereco","Endereço",x=>x.Endereco,3), new("telefone","Telefone",x=>x.Telefone,4),
-        new("servico","Serviço",x=>x.Servico,5), new("valorContrato","R$ Contrato",x=>x.ValorContrato,6),
-        new("dataContrato","Data Contrato",x=>x.DataContrato,7), new("nf","NF",x=>x.NotaFiscal,8),
-        new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,9),
-        new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,10),
-        new("situacao","Situação",x=>x.Situacao,11), new("observacoes","Observações",x=>x.Descricao,12),
-        new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,13),
-        new("areceber","A receber",x=>x.AReceber,14), new("recebido","Recebido",x=>x.Recebido,15),
-        new("custos","Custos",x=>x.Custos,15), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),16)
+        new("codigo","Código",x=>x.Codigo,2), new("cliente","Cliente",x=>x.Cliente,3),
+        new("endereco","Endereço",x=>x.Endereco,4), new("telefone","Telefone",x=>x.Telefone,5),
+        new("servico","Serviço",x=>x.Servico,6), new("valorContrato","R$ Contrato",x=>x.ValorContrato,7),
+        new("dataContrato","Data Contrato",x=>x.DataContrato,8), new("nf","NF",x=>x.NotaFiscal,9),
+        new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,10),
+        new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,11),
+        new("situacao","Situação",x=>x.Situacao,12),
+        new("pendencias","Pendências",x=>string.Join(" ", x.Itens.Where(i=>!i.Concluida).Select(i=>i.Label)),13),
+        new("observacoes","Observações",x=>x.Descricao,14),
+        new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,15),
+        new("areceber","A receber",x=>x.AReceber,16), new("recebido","Recebido",x=>x.Recebido,17),
+        new("custos","Custos",x=>x.Custos,18), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),19)
     ];
     private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing,_parsingImport;
     private bool _hideCompleted=true;

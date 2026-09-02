@@ -104,7 +104,8 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
                     (x.Subtipo != null && x.Subtipo.Contains(term)) ||
                     x.Situacao.Contains(term) ||
                     (x.Descricao != null && x.Descricao.Contains(term)) ||
-                    (x.ProximaParcelaTexto != null && x.ProximaParcelaTexto.Contains(term)));
+                    (x.ProximaParcelaTexto != null && x.ProximaParcelaTexto.Contains(term)) ||
+                    x.Pendencias.Any(p => p.Label.Contains(term)));
             }
 
             query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
