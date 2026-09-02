@@ -124,7 +124,32 @@ public static class DependencyInjection
         var redis = configuration.GetConnectionString("Redis")
             ?? Environment.GetEnvironmentVariable("ConnectionStrings__Redis")
             ?? Environment.GetEnvironmentVariable("REDIS_URL");
-        return redis;
+
+        if (string.IsNullOrWhiteSpace(redis) || !redis.StartsWith("redis://", StringComparison.OrdinalIgnoreCase))
+            return redis;
+
+        return ConvertRedisUrlToConnectionString(redis);
+    }
+
+    private static string ConvertRedisUrlToConnectionString(string url)
+    {
+        var uri = new Uri(url);
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 6379;
+
+        var parts = new List<string> { $"{host}:{port}" };
+        if (!string.IsNullOrWhiteSpace(username) && username != "default")
+            parts.Add($"user={username}");
+        if (!string.IsNullOrWhiteSpace(password))
+            parts.Add($"password={password}");
+        parts.Add("ssl=false");
+        parts.Add("abortConnect=false");
+        parts.Add("connectTimeout=5000");
+
+        return string.Join(",", parts);
     }
 
     private static string ConvertPostgresUrlToConnectionString(string url)
