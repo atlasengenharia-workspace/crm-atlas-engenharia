@@ -291,8 +291,16 @@
                                                      Label="Valor" Min="0" Step="0.01M" Format="C2" Culture="PtBr" Variant="Variant.Outlined" />
                                 </MudItem>
                                 <MudItem xs="10" sm="3">
-                                    <MudDatePicker @bind-Date="installment.Vencimento"
-                                                   Label="Vencimento" Variant="Variant.Outlined" />
+                                    @if (index == 0)
+                                    {
+                                        <MudDatePicker Date="installment.Vencimento" DateChanged="OnFirstInstallmentDateChanged"
+                                                       Label="Vencimento" Variant="Variant.Outlined" />
+                                    }
+                                    else
+                                    {
+                                        <MudDatePicker @bind-Date="installment.Vencimento"
+                                                       Label="Vencimento" Variant="Variant.Outlined" />
+                                    }
                                 </MudItem>
                                 <MudItem xs="10" sm="3">
                                     <MudTextField @bind-Value="installment.FormaPagamento"
@@ -555,6 +563,32 @@
     {
         _model.DataContrato = value;
         GenerateInstallments(false);
+    }
+    private void OnFirstInstallmentDateChanged(DateTime? value)
+    {
+        if (_model.Parcelas.Count == 0 || value is null) return;
+        _model.Parcelas[0].Vencimento = value;
+
+        var interval = GetInstallmentInterval();
+        for (int i = 1; i < _model.Parcelas.Count; i++)
+            _model.Parcelas[i].Vencimento = value.Value.AddDays(interval * i);
+    }
+    private int GetInstallmentInterval()
+    {
+        if (_model.CondicaoPagamentoId is not null)
+        {
+            var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
+            if (condition is not null) return condition.IntervaloDias ?? 30;
+        }
+        if (_model.Parcelas.Count >= 2 &&
+            _model.Parcelas[0].Vencimento is not null &&
+            _model.Parcelas[1].Vencimento is not null)
+        {
+            var first = _model.Parcelas[0].Vencimento!.Value;
+            var second = _model.Parcelas[1].Vencimento!.Value;
+            return (second - first).Days;
+        }
+        return 30;
     }
     private void GenerateInstallments(bool force)
     {
