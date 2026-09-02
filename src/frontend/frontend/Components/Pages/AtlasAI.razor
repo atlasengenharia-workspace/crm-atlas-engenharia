@@ -1,45 +1,26 @@
 @page "/atlas-ai"
 @attribute [Authorize]
 @using CrmAtlas.ApplicationCore.IA
-@using System.Text
+@using Radzen.Blazor
 @inject IAtlasAiService AiService
 @inject ISnackbar Snackbar
 
 <PageTitle>Atlas IA | CRM Atlas</PageTitle>
 <PageHeader Title="Atlas IA" Subtitle="Assistente inteligente para consultar a operação e acelerar tarefas." />
+
 <MudGrid>
     <MudItem xs="12" lg="8">
-        <MudPaper Outlined="true" Class="pa-5" Style="min-height:520px; display:flex; flex-direction:column;">
-            <div class="d-flex align-center gap-3 mb-5">
-                <MudAvatar Color="Color.Primary"><MudIcon Icon="@Icons.Material.Filled.AutoAwesome" /></MudAvatar>
-                <div>
-                    <MudText Typo="Typo.subtitle1"><strong>Assistente Atlas</strong></MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Success">@(_loading ? "Pensando..." : "Pronto para ajudar")</MudText>
-                </div>
-            </div>
-
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4">
-                A IA responde com base em dados autorizados do CRM. Alterações continuam exigindo sua confirmação.
-            </MudAlert>
-
-            <MudPaper Class="pa-4" Elevation="0" Style="background:var(--mud-palette-background); flex-grow:1; overflow:auto; max-height:480px;">
-                @if (string.IsNullOrWhiteSpace(_answer) && _loading)
-                {
-                    <div class="d-flex align-center gap-2">
-                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">Buscando contexto e gerando resposta...</MudText>
-                    </div>
-                }
-                <MudText Style="white-space:pre-wrap;">@_answer</MudText>
-            </MudPaper>
-
-            <div class="d-flex align-end gap-2 mt-6">
-                <MudTextField T="string" @bind-Value="_prompt" Label="Pergunte sobre sua operação" Variant="Variant.Outlined" Lines="2" FullWidth="true"
-                              OnKeyDown="OnKeyDown" Disabled="_loading" />
-                <MudIconButton Icon="@Icons.Material.Filled.Send" Color="Color.Primary" Size="Size.Large"
-                               OnClick="AskAsync" Disabled="_loading || string.IsNullOrWhiteSpace(_prompt)" aria-label="Enviar pergunta" />
-            </div>
-        </MudPaper>
+        <RadzenCard Variant="Radzen.Variant.Outlined" Class="rz-p-4" Style="height: 620px;">
+            <RadzenAIChat @ref="_chat"
+                          Title="Assistente Atlas"
+                          Placeholder="Pergunte sobre sua operação..."
+                          EmptyMessage="Olá! Posso ajudar a localizar serviços com pendências, resumir o financeiro ou conferir orçamentos."
+                          UserAvatarText="EU"
+                          AssistantAvatarText="AI"
+                          ShowClearButton="true"
+                          Style="height: 100%;"
+                          MessageSent="@OnMessageSent" />
+        </RadzenCard>
     </MudItem>
 
     <MudItem xs="12" lg="4">
@@ -56,53 +37,47 @@
 </MudGrid>
 
 @code {
-    private string? _prompt;
-    private string _answer = "Olá! Posso ajudar a localizar serviços com pendências, resumir o financeiro ou conferir orçamentos.";
-    private bool _loading;
+    private RadzenAIChat? _chat;
+    private bool _responding;
 
-    private async Task AskPendencias() => await Ask("Quais serviços têm pendências críticas?");
-    private async Task AskFinanceiro() => await Ask("Resuma o financeiro deste mês");
-    private async Task AskVistorias() => await Ask("Quais vistorias estão previstas para os próximos 7 dias?");
-    private async Task AskOrcamentos() => await Ask("Quais orçamentos estão sem retorno?");
+    private async Task AskPendencias() => await SendSuggestion("Quais serviços têm pendências críticas?");
+    private async Task AskFinanceiro() => await SendSuggestion("Resuma o financeiro deste mês");
+    private async Task AskVistorias() => await SendSuggestion("Quais vistorias estão previstas para os próximos 7 dias?");
+    private async Task AskOrcamentos() => await SendSuggestion("Quais orçamentos estão sem retorno?");
 
-    private async Task Ask(string question)
+    private async Task SendSuggestion(string question)
     {
-        _prompt = question;
-        await AskAsync();
+        if (_chat is null) return;
+        await _chat.SendMessage(question);
     }
 
-    private async Task AskAsync()
+    private async Task OnMessageSent(string message)
     {
-        if (string.IsNullOrWhiteSpace(_prompt)) return;
+        if (_chat is null || string.IsNullOrWhiteSpace(message) || _responding) return;
 
-        _loading = true;
-        _answer = string.Empty;
+        _responding = true;
+        var assistantMessage = _chat.AddMessage("", isUser: false);
+        assistantMessage.IsStreaming = true;
 
         try
         {
-            var sb = new StringBuilder();
-            await foreach (var chunk in AiService.AskAsync(_prompt.Trim()))
+            var sb = new System.Text.StringBuilder();
+            await foreach (var chunk in AiService.AskAsync(message.Trim()))
             {
                 sb.Append(chunk);
-                _answer = sb.ToString();
+                assistantMessage.Content = sb.ToString();
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
+            assistantMessage.Content = $"Erro ao consultar a IA: {ex.Message}";
             Snackbar.Add($"Erro ao consultar a IA: {ex.Message}", Severity.Error);
         }
         finally
         {
-            _loading = false;
-        }
-    }
-
-    private async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e is { Key: "Enter", ShiftKey: false })
-        {
-            await AskAsync();
+            assistantMessage.IsStreaming = false;
+            _responding = false;
         }
     }
 }
