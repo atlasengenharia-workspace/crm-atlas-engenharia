@@ -7,6 +7,7 @@
 @inject IReceiptStorage ReceiptStorage
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IJSRuntime JS
 
 <PageTitle>Lançamentos | CRM Atlas</PageTitle>
 
@@ -83,6 +84,10 @@ else
                 Aplicar filtros
             </MudButton>
         </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
+                       OnClick="AutoFitColumnsAsync">Auto ajuste colunas</MudButton>
+        </MudItem>
     </MudGrid>
 </MudPaper>
 
@@ -98,6 +103,7 @@ else
                       ProcessOnClient="false" TotalCount="_result.TotalItems"
                       OnStateChanged="OnSmartTableStateChanged">
     <ChildContent Context="smartItems">
+    <div id="lancamentos-table-wrapper" class="atlas-operational-table-scroll">
     <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="LancamentoDto"
                     Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                     AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
@@ -174,6 +180,7 @@ else
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+    </div>
     </ChildContent>
     </SmartTableFilter>
     <MudDivider />
@@ -345,6 +352,19 @@ else
         {
             _initialLoading = false;
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Task.Delay(300);
+        try { await JS.InvokeVoidAsync("resizableTable.restore", "lancamentos-table-wrapper", "lancamentos.colWidths"); }
+        catch { }
+    }
+
+    private async Task AutoFitColumnsAsync()
+    {
+        try { await JS.InvokeVoidAsync("resizableTable.autoFit", "lancamentos-table-wrapper", "lancamentos.colWidths"); }
+        catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
     }
 
     private async Task OnSmartTableStateChanged(SmartTableState state)
