@@ -12,6 +12,7 @@ public sealed class ProviderBasedLlmClient(IServiceProvider services, IOptions<A
         {
             "openai" => (ILlmClient?)services.GetService(typeof(OpenAiLlmClient)),
             "huggingface" => (ILlmClient?)services.GetService(typeof(HuggingFaceLlmClient)),
+            "n8n" => (ILlmClient?)services.GetService(typeof(N8nLlmClient)),
             _ => (ILlmClient?)services.GetService(typeof(OpenAiLlmClient))
         };
 
