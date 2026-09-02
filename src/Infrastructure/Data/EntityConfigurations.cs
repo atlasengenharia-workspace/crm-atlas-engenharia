@@ -102,6 +102,8 @@ internal sealed class ServicosConfiguration :
             .HasForeignKey(x => x.CadastroServicoId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(x => x.Prestadores).WithOne(x => x.CadastroServico)
             .HasForeignKey(x => x.CadastroServicoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.CodigoHistorico).WithOne(x => x.Servico)
+            .HasForeignKey(x => x.ServicoId).OnDelete(DeleteBehavior.Cascade);
     }
 
     public void Configure(EntityTypeBuilder<CadastroServicoParcela> builder) =>

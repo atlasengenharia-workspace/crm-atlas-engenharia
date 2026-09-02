@@ -145,10 +145,22 @@ public sealed class CadastroServico : Entity
     public DateOnly? DataContrato { get; set; }
     public string? NomeCondicaoPagamento { get; set; }
     public decimal? ValorNotaFiscal { get; set; }
+    public string? Observacao { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public ICollection<CadastroServicoParcela> Parcelas { get; set; } = [];
     public ICollection<CadastroServicoPrestador> Prestadores { get; set; } = [];
+    public ICollection<CadastroServicoCodigoHistorico> CodigoHistorico { get; set; } = [];
+}
+
+public sealed class CadastroServicoCodigoHistorico : Entity
+{
+    public long ServicoId { get; set; }
+    public CadastroServico Servico { get; set; } = null!;
+    public string? CodigoAnterior { get; set; }
+    public string? CodigoNovo { get; set; }
+    public string? Responsavel { get; set; }
+    public DateTime AlteradoEm { get; set; }
 }
 
 public sealed class CadastroServicoParcela : Entity

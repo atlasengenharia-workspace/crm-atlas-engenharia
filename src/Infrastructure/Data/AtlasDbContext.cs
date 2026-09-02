@@ -25,6 +25,7 @@ public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options) : D
     public DbSet<CadastroServicoParcela> CadastroServicoParcelas => Set<CadastroServicoParcela>();
     public DbSet<Prestador> Prestadores => Set<Prestador>();
     public DbSet<CadastroServicoPrestador> CadastroServicoPrestadores => Set<CadastroServicoPrestador>();
+    public DbSet<CadastroServicoCodigoHistorico> CadastroServicoCodigoHistoricos => Set<CadastroServicoCodigoHistorico>();
     public DbSet<AcompanhamentoServico> Acompanhamentos => Set<AcompanhamentoServico>();
     public DbSet<AcompanhamentoServicoHistorico> AcompanhamentoHistoricos => Set<AcompanhamentoServicoHistorico>();
     public DbSet<AcompanhamentoServicoSituacaoConfig> AcompanhamentoSituacoes => Set<AcompanhamentoServicoSituacaoConfig>();

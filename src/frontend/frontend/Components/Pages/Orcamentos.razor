@@ -86,7 +86,7 @@
 </GlobalSkeleton>
 
 <MudDrawer @bind-Open="_open" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="min(560px, 100vw)" Elevation="8">
-    <div class="pa-5">
+    <div class="pa-5" style="background-color: @TypeBackgroundColor(_model.TipoServico); min-height: 100%;">
         <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo orçamento" : "Editar orçamento")</MudText>
             <MudSpacer />
@@ -164,6 +164,13 @@
     private static bool Closed(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)||s.Contains("recus",StringComparison.OrdinalIgnoreCase);
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
+    private static string TypeBackgroundColor(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.AVCB => "#FEF2F2",
+        AcompanhamentoServicoTipo.CLCB => "#FFFBEB",
+        AcompanhamentoServicoTipo.OBRAS => "#EFF6FF",
+        _ => "#F3F4F6"
+    };
     private sealed class BudgetModel{public long? Id{get;set;}public string Codigo{get;set;}="";public string? Nome{get;set;}public string? Descricao{get;set;}public string Situacao{get;set;}="Em análise";public string? Telefone{get;set;}public string? Email{get;set;}public DateTime? Data{get;set;}=DateTime.Today;public AcompanhamentoServicoTipo TipoServico{get;set;}public decimal? ValorTotal{get;set;}
         public static BudgetModel From(OrcamentoDto x)=>new(){Id=x.Id,Codigo=x.Codigo,Nome=x.Nome,Descricao=x.Descricao,Situacao=x.Situacao,Telefone=x.Telefone,Email=x.Email,Data=x.Data?.ToDateTime(TimeOnly.MinValue),TipoServico=x.TipoServico,ValorTotal=x.ValorTotal};
         public OrcamentoDto ToDto()=>new(Id,Codigo,Nome,Descricao,Situacao,Telefone,TipoServico,ValorTotal,Data is null?null:DateOnly.FromDateTime(Data.Value),Email);}

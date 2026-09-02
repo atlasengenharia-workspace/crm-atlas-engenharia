@@ -60,6 +60,7 @@ public sealed record CadastroServicoDto(
     DateOnly? DataContrato,
     string? NomeCondicaoPagamento,
     decimal? ValorNotaFiscal,
+    string? Observacao,
     IReadOnlyList<CadastroServicoParcelaDto> Parcelas,
     IReadOnlyList<CadastroServicoPrestadorDto> Prestadores,
     DateTime? CreatedAt);
@@ -102,7 +103,8 @@ public sealed class CadastroServicoService(
     IRepository<Cliente> clientes,
     IRepository<Orcamento> orcamentos,
     IRepository<CondicaoPagamento> condicoes,
-    IRepository<Prestador> prestadores) : ICadastroServicoService
+    IRepository<Prestador> prestadores,
+    IUserAccessor userAccessor) : ICadastroServicoService
 {
     public async Task<PagedResult<CadastroServicoDto>> ListAsync(
         CadastroServicoFilter filter,
@@ -221,7 +223,19 @@ public sealed class CadastroServicoService(
         entity.ClienteId = dto.ClienteId;
         entity.Orcamento = await ResolveNavigationAsync(entity.Orcamento, orcamentos, dto.OrcamentoId, "Orçamento", cancellationToken);
         entity.OrcamentoId = dto.OrcamentoId;
-        entity.Codigo = Clean(dto.Codigo) ?? entity.Codigo;
+        var novoCodigo = Clean(dto.Codigo);
+        if (!string.IsNullOrWhiteSpace(novoCodigo) && !string.Equals(entity.Codigo, novoCodigo, StringComparison.OrdinalIgnoreCase))
+        {
+            entity.CodigoHistorico.Add(new CadastroServicoCodigoHistorico
+            {
+                Servico = entity,
+                CodigoAnterior = entity.Codigo,
+                CodigoNovo = novoCodigo,
+                Responsavel = await userAccessor.GetUserNameAsync(cancellationToken),
+                AlteradoEm = DateTime.UtcNow
+            });
+            entity.Codigo = novoCodigo;
+        }
         entity.CondicaoPagamento = await ResolveNavigationAsync(
             entity.CondicaoPagamento, condicoes, dto.CondicaoPagamentoId, "Condição de pagamento", cancellationToken);
         entity.CondicaoPagamentoId = dto.CondicaoPagamentoId;
@@ -261,6 +275,7 @@ public sealed class CadastroServicoService(
         entity.DataContrato = dto.DataContrato;
         entity.NomeCondicaoPagamento = Clean(dto.NomeCondicaoPagamento);
         entity.ValorNotaFiscal = dto.ValorNotaFiscal;
+        entity.Observacao = Clean(dto.Observacao);
 
         entity.Parcelas.Clear();
         foreach (var item in dto.Parcelas)
@@ -381,7 +396,7 @@ public sealed class CadastroServicoService(
         x.EnderecoEmpresaEstado, x.EnderecoEmpresaCep, x.EnderecoServico, x.EnderecoServicoRua,
         x.EnderecoServicoNumero, x.EnderecoServicoBairro, x.EnderecoServicoComplemento,
         x.EnderecoServicoCidade, x.EnderecoServicoEstado, x.EnderecoServicoCep, x.MesmoEnderecoEmpresa,
-        x.ValorContrato, x.DataContrato, x.NomeCondicaoPagamento, x.ValorNotaFiscal,
+        x.ValorContrato, x.DataContrato, x.NomeCondicaoPagamento, x.ValorNotaFiscal, x.Observacao,
         x.Parcelas.Select(p => new CadastroServicoParcelaDto(
             p.Id, p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
         x.Prestadores.Select(p => new CadastroServicoPrestadorDto(

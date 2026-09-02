@@ -9,7 +9,7 @@
 
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(820px, 100vw)" Elevation="8">
-    <div class="pa-5">
+    <div class="pa-5" style="background-color: @TypeBackgroundColor(_model.TipoServico); min-height: 100%;">
         <MudToolBar Class="pa-0 mb-3">
             <MudStack Spacing="0">
                 <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo serviço" : $"Editar {_model.Codigo}")</MudText>
@@ -27,7 +27,7 @@
                         <MudItem xs="12" sm="6">
                             <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
                                           Required="true" RequiredError="Informe o código usado pela empresa."
-                                          ReadOnly="@(_model.Id is not null)" Variant="Variant.Outlined"
+                                          Variant="Variant.Outlined" OnBlur="OnCodigoBlurAsync"
                                           HelperText="Ex.: 2.15, 3.209 ou 3141" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
@@ -181,6 +181,11 @@
                                              Format="C2" Variant="Variant.Outlined" />
                         </MudItem>
                     </MudGrid>
+                </MudPaper>
+                <MudPaper Outlined="true" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Observações</MudText>
+                    <MudTextField @bind-Value="_model.Observacao" Label="Observação"
+                                  Variant="Variant.Outlined" Lines="4" />
                 </MudPaper>
                 <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Parcelas</MudText>
                     <div class="d-flex justify-space-between align-center mb-3">
@@ -421,6 +426,20 @@
                 || x.Contains(value, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .AsEnumerable());
+    private async Task OnCodigoBlurAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Codigo)) return;
+        try
+        {
+            var result = await Service.ListAsync(new(_model.Codigo, null, null, 1, 10, null, false));
+            var existing = result.Items.FirstOrDefault(x =>
+                x.Id != _model.Id &&
+                string.Equals(x.Codigo, _model.Codigo, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+                Snackbar.Add($"Código '{_model.Codigo}' já está em uso no serviço {existing.Codigo}.", Severity.Warning);
+        }
+        catch { }
+    }
     private void AddInstallment() => _model.Parcelas.Add(new()
     {
         Numero = _model.Parcelas.Count + 1,
@@ -532,6 +551,13 @@
         AcompanhamentoServicoTipo.CLCB => Color.Warning,
         AcompanhamentoServicoTipo.OBRAS => Color.Info,
         _ => Color.Secondary
+    };
+    private static string TypeBackgroundColor(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.AVCB => "#FEF2F2",
+        AcompanhamentoServicoTipo.CLCB => "#FFFBEB",
+        AcompanhamentoServicoTipo.OBRAS => "#EFF6FF",
+        _ => "#F3F4F6"
     };
     private static string Money(decimal value) => value.ToString("C2", PtBr);
     private static string ServiceSaveError(Exception exception, string? code)
@@ -736,6 +762,7 @@
         public string? EnderecoServicoEstado { get; set; }
         public string? EnderecoServicoCep { get; set; }
         public bool MesmoEnderecoEmpresa { get; set; } = true;
+        public string? Observacao { get; set; }
         public decimal? ValorContrato { get; set; }
         public DateTime? DataContrato { get; set; } = DateTime.Today;
         public decimal? ValorNotaFiscal { get; set; }
@@ -766,6 +793,7 @@
             ValorContrato = x.ValorContrato,
             DataContrato = x.DataContrato?.ToDateTime(TimeOnly.MinValue),
             ValorNotaFiscal = x.ValorNotaFiscal,
+            Observacao = x.Observacao,
             Parcelas = x.Parcelas.Select(p => new InstallmentModel
             {
                 Id = p.Id, Numero = p.NumeroParcela, Valor = p.Valor,
@@ -790,7 +818,7 @@
             EnderecoServicoRua, EnderecoServicoNumero, EnderecoServicoBairro, EnderecoServicoComplemento,
             EnderecoServicoCidade, EnderecoServicoEstado, EnderecoServicoCep,
             MesmoEnderecoEmpresa, ValorContrato, DateOnly.FromDateTime(DataContrato!.Value),
-            null, ValorNotaFiscal,
+            null, ValorNotaFiscal, Observacao,
             Parcelas.Select(p => new CadastroServicoParcelaDto(
                 p.Id, p.Numero, p.Valor,
                 p.Vencimento is null ? null : DateOnly.FromDateTime(p.Vencimento.Value),

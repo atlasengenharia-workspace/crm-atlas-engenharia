@@ -1,4 +1,5 @@
 using CrmAtlas.ApplicationCore.Common;
+using CrmAtlas.Infrastructure.Common;
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
@@ -32,6 +33,7 @@ public static class DependencyInjection
             ?? Environment.GetEnvironmentVariable("DATABASE_URL");
 
         services.TryAddSingleton<IRealtimeNotifier, NullRealtimeNotifier>();
+        services.TryAddScoped<IUserAccessor, NullUserAccessor>();
         services.AddSingleton<RealtimeSaveChangesInterceptor>();
 
         if (!string.IsNullOrWhiteSpace(connectionString))
