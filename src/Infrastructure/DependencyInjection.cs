@@ -109,11 +109,6 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        services.AddHttpClient<ILlmClient, OpenAiLlmClient>(client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(2);
-        });
-
         return services;
     }
 
