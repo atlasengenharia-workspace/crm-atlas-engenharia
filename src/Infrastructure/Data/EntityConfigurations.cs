@@ -70,6 +70,7 @@ internal sealed class ServicosConfiguration :
         builder.ToTable("condicoes_pagamento");
         builder.HasIndex(x => x.Nome).IsUnique();
         builder.Property(x => x.Nome).IsRequired();
+        builder.Property(x => x.TipoValorParcela).HasConversion<string>().HasMaxLength(16);
     }
 
     public void Configure(EntityTypeBuilder<Orcamento> builder)

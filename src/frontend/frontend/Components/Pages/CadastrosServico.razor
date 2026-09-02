@@ -739,10 +739,8 @@
         if (_model.CondicaoPagamentoId is null) return;
         var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
         if (condition is null) return;
-        var name = condition.Nome ?? "";
-        var (count, interval) = ParseCondition(name);
-        if (count <= 0) return;
 
+        var count = Math.Max(1, condition.QuantidadeParcelas);
         var net = NetValue;
         if (net <= 0)
         {
@@ -756,16 +754,23 @@
 
         _model.Parcelas.Clear();
         var baseDate = _model.DataContrato ?? DateTime.Today;
-        var installmentValue = net / count;
+        var intervalDays = condition.IntervaloDias ?? 30;
+
+        decimal installmentValue;
+        if (condition.ValorParcela > 0)
+        {
+            installmentValue = condition.TipoValorParcela == CondicaoPagamentoValorTipo.Percentual
+                ? net * (condition.ValorParcela.Value / 100)
+                : condition.ValorParcela.Value;
+        }
+        else
+        {
+            installmentValue = net / count;
+        }
+
         for (int i = 0; i < count; i++)
         {
-            var dueDate = interval switch
-            {
-                "semanal" => baseDate.AddDays(7 * i),
-                "mensal" => baseDate.AddMonths(i),
-                "anual" => baseDate.AddYears(i),
-                _ => baseDate.AddMonths(i)
-            };
+            var dueDate = condition.Indefinido ? (DateTime?)null : baseDate.AddDays(intervalDays * i);
             _model.Parcelas.Add(new()
             {
                 Numero = i + 1,

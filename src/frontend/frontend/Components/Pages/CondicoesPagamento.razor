@@ -48,6 +48,22 @@
                                 }
                             </Template>
                         </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Title="Valor parcela">
+                            <Template Context="context">
+                                @if (context.ValorParcela is null)
+                                {
+                                    <span>—</span>
+                                }
+                                else if (context.TipoValorParcela == CondicaoPagamentoValorTipo.Reais)
+                                {
+                                    <span>@Money(context.ValorParcela.Value)</span>
+                                }
+                                else
+                                {
+                                    <span>@context.ValorParcela.Value.ToString("F2") %</span>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="CondicaoPagamentoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="120px">
                             <Template Context="context">
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Edit(context))" />
@@ -85,6 +101,13 @@
                             <MudNumericField T="int?" @bind-Value="_model.IntervaloDias"
                                              Label="Intervalo entre parcelas (dias)" Min="1"
                                              Disabled="_model.Indefinido" Variant="Variant.Outlined" />
+                            <MudSelect T="CondicaoPagamentoValorTipo" @bind-Value="_model.TipoValorParcela" Label="Valor da parcela" Variant="Variant.Outlined">
+                                <MudSelectItem Value="@CondicaoPagamentoValorTipo.Reais">Reais</MudSelectItem>
+                                <MudSelectItem Value="@CondicaoPagamentoValorTipo.Percentual">Percentual (%)</MudSelectItem>
+                            </MudSelect>
+                            <MudNumericField T="decimal?" @bind-Value="_model.ValorParcela"
+                                             Label="@(_model.TipoValorParcela == CondicaoPagamentoValorTipo.Reais ? "Valor de cada parcela (R$)" : "Percentual de cada parcela (%)")"
+                                             Min="0.01M" Step="0.01M" Format="@(_model.TipoValorParcela == CondicaoPagamentoValorTipo.Reais ? "C2" : "N2")" Variant="Variant.Outlined" />
                         </MudStack>
                     </MudForm>
                     <MudDivider Class="mt-5 mb-4" />
@@ -108,7 +131,8 @@
     private readonly IReadOnlyList<SmartFilterColumn<CondicaoPagamentoDto>> _filterColumns =
     [
         new("nome","Nome",x=>x.Nome,1),new("parcelas","Parcelas",x=>x.QuantidadeParcelas,2,true),
-        new("intervalo","Intervalo",x=>x.Indefinido?"A definir":$"{x.IntervaloDias} dias",3)
+        new("intervalo","Intervalo",x=>x.Indefinido?"A definir":$"{x.IntervaloDias} dias",3),
+        new("valor","Valor parcela",x=>x.ValorParcela is null?"—":x.TipoValorParcela==CondicaoPagamentoValorTipo.Reais?Money(x.ValorParcela.Value):$"{x.ValorParcela:F2}%",4)
     ];
     private ConditionModel _model = new();
     private MudForm? _form;
@@ -140,7 +164,7 @@
     private void Edit(CondicaoPagamentoDto x)
     {
         _model = new() { Id = x.Id, Nome = x.Nome, QuantidadeParcelas = x.QuantidadeParcelas,
-            IntervaloDias = x.IntervaloDias, Indefinido = x.Indefinido };
+            IntervaloDias = x.IntervaloDias, Indefinido = x.Indefinido, ValorParcela = x.ValorParcela, TipoValorParcela = x.TipoValorParcela };
         _editing = true;
     }
     private void Cancel() => _editing = false;
@@ -153,7 +177,8 @@
         try
         {
             var dto = new CondicaoPagamentoDto(
-                _model.Id, _model.Nome, _model.QuantidadeParcelas, _model.IntervaloDias, _model.Indefinido);
+                _model.Id, _model.Nome, _model.QuantidadeParcelas, _model.IntervaloDias, _model.Indefinido,
+                _model.ValorParcela, _model.TipoValorParcela);
             if (_model.Id is null) await Service.CreateAsync(dto);
             else await Service.UpdateAsync(_model.Id.Value, dto);
             Snackbar.Add("Condição salva com sucesso.", Severity.Success);
@@ -173,6 +198,8 @@
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
+    private static string Money(decimal v) => v.ToString("C2", new System.Globalization.CultureInfo("pt-BR"));
+
     private sealed class ConditionModel
     {
         public long? Id { get; set; }
@@ -180,5 +207,7 @@
         public int QuantidadeParcelas { get; set; } = 1;
         public int? IntervaloDias { get; set; } = 30;
         public bool Indefinido { get; set; }
+        public decimal? ValorParcela { get; set; }
+        public CondicaoPagamentoValorTipo TipoValorParcela { get; set; } = CondicaoPagamentoValorTipo.Reais;
     }
 }

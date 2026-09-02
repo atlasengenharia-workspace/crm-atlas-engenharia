@@ -117,6 +117,9 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_cep text;
                 ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS observacao text;
 
+                ALTER TABLE condicoes_pagamento ADD COLUMN IF NOT EXISTS valor_parcela numeric(18,2);
+                ALTER TABLE condicoes_pagamento ADD COLUMN IF NOT EXISTS tipo_valor_parcela character varying(16) NOT NULL DEFAULT 'Reais';
+
                 ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS subtipo character varying(80);
                 ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS servico_convertido_id bigint;
                 ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS servico_convertido_codigo character varying(80);

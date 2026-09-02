@@ -79,6 +79,8 @@ public sealed class CondicaoPagamento : Entity
     public int? QuantidadeParcelas { get; set; }
     public int? IntervaloDias { get; set; }
     public bool Indefinido { get; set; }
+    public decimal? ValorParcela { get; set; }
+    public CondicaoPagamentoValorTipo TipoValorParcela { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

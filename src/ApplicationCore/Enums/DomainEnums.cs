@@ -22,5 +22,6 @@ public enum SituacaoClcb { PENDENTE, EM_ANDAMENTO, CONCLUIDO, CANCELADO }
 public enum SituacaoObra { PENDENTE, EM_ANDAMENTO, CONCLUIDO, CANCELADO }
 public enum SituacaoProcesso { PENDENTE, EM_ANDAMENTO, CONCLUIDO, CANCELADO }
 public enum UserRole { ADMIN, USER }
+public enum CondicaoPagamentoValorTipo { Reais, Percentual }
 public enum WhatsAppMetaIntegrationAction { CONNECT, DISCONNECT, TEST, SYNC }
 public enum WhatsAppMetaIntegrationStatus { CONNECTED, DISCONNECTED, ERROR, PENDING }

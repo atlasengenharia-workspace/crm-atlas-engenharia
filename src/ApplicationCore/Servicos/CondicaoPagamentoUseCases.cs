@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using CrmAtlas.ApplicationCore.Common;
+using CrmAtlas.ApplicationCore.Enums;
 
 namespace CrmAtlas.ApplicationCore.Servicos;
 
@@ -8,7 +9,9 @@ public sealed record CondicaoPagamentoDto(
     [Required] string Nome,
     [Range(1, int.MaxValue)] int QuantidadeParcelas,
     int? IntervaloDias,
-    bool Indefinido);
+    bool Indefinido,
+    decimal? ValorParcela = null,
+    CondicaoPagamentoValorTipo TipoValorParcela = CondicaoPagamentoValorTipo.Reais);
 
 public sealed record CondicaoPagamentoFilter(
     string? Search = null,
@@ -105,6 +108,8 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         entity.QuantidadeParcelas = dto.QuantidadeParcelas;
         entity.IntervaloDias = intervalo;
         entity.Indefinido = dto.Indefinido;
+        entity.ValorParcela = dto.ValorParcela;
+        entity.TipoValorParcela = dto.TipoValorParcela;
     }
 
     private async Task<CondicaoPagamento> FindAsync(long id, CancellationToken cancellationToken) =>
@@ -127,5 +132,5 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
     }
 
     private static CondicaoPagamentoDto ToDto(CondicaoPagamento x) =>
-        new(x.Id, x.Nome, x.QuantidadeParcelas ?? 1, x.IntervaloDias, x.Indefinido);
+        new(x.Id, x.Nome, x.QuantidadeParcelas ?? 1, x.IntervaloDias, x.Indefinido, x.ValorParcela, x.TipoValorParcela);
 }
