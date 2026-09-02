@@ -13,7 +13,7 @@ namespace CrmAtlas.Infrastructure.IA;
 
 public sealed class HuggingFaceLlmClient(IHttpClientFactory httpClientFactory, IOptions<AtlasAiOptions> options) : ILlmClient
 {
-    private const string DefaultEndpoint = "https://api-inference.huggingface.co/models/";
+    private const string DefaultEndpoint = "https://router.huggingface.co/hf-inference/models/";
     private const string DefaultModel = "mistralai/Mistral-7B-Instruct-v0.2";
 
     public IAsyncEnumerable<string> CompleteStreamingAsync(
@@ -31,23 +31,34 @@ public sealed class HuggingFaceLlmClient(IHttpClientFactory httpClientFactory, I
         if (string.IsNullOrWhiteSpace(apiKey))
             return await new FallbackLlmClient().CompleteAsync(messages, cancellationToken);
 
-        var request = BuildRequest(messages);
-        using var client = httpClientFactory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+        try
+        {
+            var request = BuildRequest(messages);
+            using var client = httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-        var model = string.IsNullOrWhiteSpace(options.Value.Model) ? DefaultModel : options.Value.Model;
-        var endpoint = string.IsNullOrWhiteSpace(options.Value.Endpoint) ? DefaultEndpoint + model : options.Value.Endpoint;
+            var model = string.IsNullOrWhiteSpace(options.Value.Model) ? DefaultModel : options.Value.Model;
+            var endpoint = string.IsNullOrWhiteSpace(options.Value.Endpoint) ? DefaultEndpoint + model : options.Value.Endpoint;
 
-        var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions, cancellationToken);
+            var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions, cancellationToken);
 
-        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                return "Limite de requisições atingido na Hugging Face. " + await new FallbackLlmClient().CompleteAsync(messages, cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            var completion = await response.Content.ReadFromJsonAsync<IReadOnlyList<HuggingFaceCompletionResponse>>(JsonOptions, cancellationToken);
+            return completion?.FirstOrDefault()?.GeneratedText?.Trim()
+                   ?? "Não foi possível obter resposta do modelo.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+        {
             return "Limite de requisições atingido na Hugging Face. " + await new FallbackLlmClient().CompleteAsync(messages, cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        var completion = await response.Content.ReadFromJsonAsync<IReadOnlyList<HuggingFaceCompletionResponse>>(JsonOptions, cancellationToken);
-        return completion?.FirstOrDefault()?.GeneratedText?.Trim()
-               ?? "Não foi possível obter resposta do modelo.";
+        }
+        catch (Exception ex)
+        {
+            return $"Não foi possível acessar a Hugging Face ({ex.Message}). Resposta local:\n\n" + await new FallbackLlmClient().CompleteAsync(messages, cancellationToken);
+        }
     }
 
     private async Task StreamAsync(ChannelWriter<string> writer, IReadOnlyList<AtlasAiMessage> messages, CancellationToken cancellationToken)
@@ -93,6 +104,11 @@ public sealed class HuggingFaceLlmClient(IHttpClientFactory httpClientFactory, I
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
         {
             await writer.WriteAsync("Limite de requisições atingido na Hugging Face. Vou responder com base nos dados do CRM.\n\n", cancellationToken);
+            await StreamFallbackAsync(writer, messages, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await writer.WriteAsync($"Não foi possível acessar a Hugging Face ({ex.Message}). Resposta local:\n\n", cancellationToken);
             await StreamFallbackAsync(writer, messages, cancellationToken);
         }
         finally
