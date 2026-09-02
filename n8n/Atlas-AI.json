@@ -23,6 +23,8 @@
         "method": "POST",
         "url": "https://app-prd-stage-desenvolvimento.up.railway.app/api/n8n/context",
         "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
             {
@@ -32,6 +34,7 @@
           ]
         },
         "sendHeaders": true,
+        "specifyHeaders": "keypair",
         "headerParameters": {
           "parameters": [
             {
