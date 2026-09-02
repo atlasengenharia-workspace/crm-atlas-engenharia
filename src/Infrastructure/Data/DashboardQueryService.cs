@@ -1,11 +1,15 @@
+using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Dashboard;
 using CrmAtlas.ApplicationCore.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace CrmAtlas.Infrastructure.Data;
 
-internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQueryService
+internal sealed class DashboardQueryService(AtlasDbContext db, ICrmCache cache) : IDashboardQueryService
 {
     // Rotulos amigaveis das linhas de servico. Os graficos do frontend pintam
     // cada linha por esse nome; quando a consulta devolvia o nome do enum
@@ -30,6 +34,10 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         DashboardFilter filter,
         CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"dashboard:{GetFilterHash(filter)}";
+        var cached = await cache.GetAsync<DashboardSnapshot>(cacheKey, cancellationToken);
+        if (cached is not null) return cached;
+
         var types = filter.ServiceTypes.Count == 0
             ? Enum.GetValues<AcompanhamentoServicoTipo>()
             : filter.ServiceTypes;
@@ -348,7 +356,7 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
         var closedContractsValuePrevious = prevContracts.Sum(x => x.ValorContrato ?? 0);
         var closedContractsCount = contracts.Count;
 
-        return new DashboardSnapshot(
+        var snapshot = new DashboardSnapshot(
             new DashboardKpis(
                 revenue, revenuePrevious, directCosts, indirectTotal, result,
                 revenue == 0 ? 0 : result / revenue,
@@ -372,6 +380,9 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             monthlyIndirectCosts,
             quantityEvolution,
             receivableByService);
+
+        await cache.SetAsync(cacheKey, snapshot, TimeSpan.FromMinutes(5), cancellationToken);
+        return snapshot;
     }
 
     // O preset "Tudo" do dashboard vai de 01/01/2020 ate hoje — mais de 70
@@ -416,6 +427,13 @@ internal sealed class DashboardQueryService(AtlasDbContext db) : IDashboardQuery
             DashboardGranularity.Ano => period.Year.ToString(),
             _ => $"{ci.DateTimeFormat.AbbreviatedMonthNames[period.Month - 1].TrimEnd('.').ToLowerInvariant()}./{period.Year % 100:00}"
         };
+    }
+
+    private static string GetFilterHash(DashboardFilter filter)
+    {
+        var json = JsonSerializer.Serialize(filter, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(bytes)[..16];
     }
 
     private static bool InPeriod(DateOnly? date, DateOnly period, DashboardGranularity g)
