@@ -198,10 +198,20 @@ public interface IPrestadorService
 public sealed class PrestadorService(
     IRepository<Prestador> repository,
     IRepository<CadastroServico> servicos,
-    IRepository<Lancamento> lancamentos) : IPrestadorService
+    IRepository<Lancamento> lancamentos,
+    ICrmCache cache) : IPrestadorService
 {
+    private const string PrestadoresCacheKey = "prestadores:all";
+
     public async Task<PagedResult<PrestadorDto>> ListAsync(PrestadorFilter? filter = null, CancellationToken ct = default)
     {
+        var cacheable = filter is null || (filter.PageSize == 0 && string.IsNullOrWhiteSpace(filter.Search));
+        if (cacheable)
+        {
+            var cached = await cache.GetAsync<PagedResult<PrestadorDto>>(PrestadoresCacheKey, ct);
+            if (cached is not null) return cached;
+        }
+
         var query = repository.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter?.Search))
@@ -226,7 +236,10 @@ public sealed class PrestadorService(
             : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
         var dtos = items.Select(Map).ToList();
 
-        return PagedResult<PrestadorDto>.Create(dtos, page, all ? total : pageSize, total);
+        var result = PagedResult<PrestadorDto>.Create(dtos, page, all ? total : pageSize, total);
+        if (cacheable)
+            await cache.SetAsync(PrestadoresCacheKey, result, TimeSpan.FromHours(1), ct);
+        return result;
     }
 
     public async Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default)
@@ -275,12 +288,15 @@ public sealed class PrestadorService(
         entity.MetodoPagamento=dto.MetodoPagamento; entity.ChavePix=dto.ChavePix; entity.Banco=dto.Banco;
         entity.Agencia=dto.Agencia; entity.Conta=dto.Conta; entity.UpdatedAt=DateTime.UtcNow;
         if(dto.Id is null) await repository.AddAsync(entity,ct); else repository.Update(entity);
-        await repository.SaveChangesAsync(ct); return Map(entity);
+        await repository.SaveChangesAsync(ct);
+        await cache.RemoveAsync(PrestadoresCacheKey, ct);
+        return Map(entity);
     }
     public async Task DeleteAsync(long id,CancellationToken ct=default)
     {
         var entity=await repository.GetByIdAsync(id,ct)??throw new NotFoundException("Prestador não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
+        await cache.RemoveAsync(PrestadoresCacheKey, ct);
     }
 
     private static IQueryable<Prestador> ApplySort(IQueryable<Prestador> query, string? sortKey, bool descending)
