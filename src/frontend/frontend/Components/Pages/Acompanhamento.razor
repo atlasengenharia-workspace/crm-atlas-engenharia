@@ -212,10 +212,20 @@
                         }
                         else
                         {
-                            var texto = string.Join("; ", pendentes);
-                            <MudTooltip Text="@texto">
-                                <MudText Typo="Typo.body2" Style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@texto</MudText>
-                            </MudTooltip>
+                            var restantes = pendentes.Count - 3;
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="max-width: 220px; flex-wrap: wrap;">
+                                @foreach (var label in pendentes.Take(3))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" title="@label">@label</MudChip>
+                                }
+                                @if (restantes > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                                        +@restantes
+                                    </MudChip>
+                                }
+                            </MudStack>
+                            <MudText Typo="Typo.caption" Class="d-none">@string.Join("; ", pendentes)</MudText>
                         }
                     </Template>
                 </RadzenDataGridColumn>
