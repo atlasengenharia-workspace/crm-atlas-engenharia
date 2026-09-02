@@ -24,25 +24,8 @@
         "url": "https://app-prd-stage-desenvolvimento.up.railway.app/api/n8n/context",
         "sendBody": true,
         "contentType": "json",
-        "specifyBody": "keypair",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "question",
-              "value": "={{ $json.query }}"
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "specifyHeaders": "keypair",
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-N8N-SECRET",
-              "value": "={{ $vars.N8N_SECRET }}"
-            }
-          ]
-        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ question: $json.query, secret: $vars.N8N_SECRET }) }}",
         "options": {
           "timeout": 60000
         }

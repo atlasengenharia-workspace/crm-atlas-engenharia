@@ -15,7 +15,7 @@ public sealed class N8nController(IAtlasAiService aiService, IContextRetriever c
         [FromBody] N8nQueryRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        if (!ValidateSecret())
+        if (!ValidateSecret(request.Secret))
         {
             yield return "Unauthorized";
             yield break;
@@ -33,7 +33,7 @@ public sealed class N8nController(IAtlasAiService aiService, IContextRetriever c
         [FromBody] N8nQueryRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ValidateSecret())
+        if (!ValidateSecret(request.Secret))
             return Unauthorized();
 
         var question = request.Question ?? request.Payload?.ToString() ?? string.Empty;
@@ -46,7 +46,7 @@ public sealed class N8nController(IAtlasAiService aiService, IContextRetriever c
         [FromBody] N8nQueryRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ValidateSecret())
+        if (!ValidateSecret(request.Secret))
             return Unauthorized();
 
         var question = request.Question ?? request.Payload?.ToString() ?? string.Empty;
@@ -55,23 +55,23 @@ public sealed class N8nController(IAtlasAiService aiService, IContextRetriever c
     }
 
     [AllowAnonymous, HttpPost("trigger")]
-    public IActionResult Trigger([FromBody] object payload)
+    public IActionResult Trigger([FromBody] N8nQueryRequest request)
     {
-        if (!ValidateSecret())
+        if (!ValidateSecret(request.Secret))
             return Unauthorized();
 
         return Ok(new { received = true });
     }
 
-    private bool ValidateSecret()
+    private bool ValidateSecret(string? bodySecret = null)
     {
         var configured = options.Value.IncomingSecret;
         if (string.IsNullOrWhiteSpace(configured)) return true;
 
         var header = Request.Headers["X-N8N-SECRET"].FirstOrDefault();
         var query = Request.Query["secret"].FirstOrDefault();
-        return header == configured || query == configured;
+        return header == configured || query == configured || bodySecret == configured;
     }
 
-    public sealed record N8nQueryRequest(string? Question, object? Payload);
+    public sealed record N8nQueryRequest(string? Question, object? Payload, string? Secret = null);
 }
