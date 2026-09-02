@@ -365,14 +365,14 @@
                         @if (Visivel(ServicoCampo.DataContrato))
                         {
                             <MudItem xs="12" sm="6">
-                                <MudDatePicker @bind-Date="_model.DataContrato" Label="Data do contrato"
+                                <MudDatePicker Date="_model.DataContrato" DateChanged="OnDataContratoChanged" Label="Data do contrato"
                                                Required="@Obrigatorio(ServicoCampo.DataContrato)" Variant="Variant.Outlined" />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.ValorContrato))
                         {
                             <MudItem xs="12" sm="6">
-                                <MudNumericField T="decimal?" @bind-Value="_model.ValorContrato"
+                                <MudNumericField T="decimal?" Value="_model.ValorContrato" ValueChanged="OnValorContratoChanged"
                                                  Label="Valor do contrato" Required="@Obrigatorio(ServicoCampo.ValorContrato)" Min="0"
                                                  Format="C2" Variant="Variant.Outlined" />
                             </MudItem>
@@ -393,7 +393,7 @@
                         @if (Visivel(ServicoCampo.ValorNotaFiscal))
                         {
                             <MudItem xs="12" sm="6">
-                                <MudNumericField T="decimal?" @bind-Value="_model.ValorNotaFiscal"
+                                <MudNumericField T="decimal?" Value="_model.ValorNotaFiscal" ValueChanged="OnValorNotaFiscalChanged"
                                                  Label="Desconto / retenção NF" Min="0"
                                                  Format="C2" Variant="Variant.Outlined" />
                             </MudItem>
@@ -717,9 +717,24 @@
     private void ConditionChanged(long? id)
     {
         _model.CondicaoPagamentoId = id;
-        GenerateInstallments();
+        GenerateInstallments(true);
     }
-    private void GenerateInstallments()
+    private void OnValorContratoChanged(decimal? value)
+    {
+        _model.ValorContrato = value;
+        GenerateInstallments(false);
+    }
+    private void OnValorNotaFiscalChanged(decimal? value)
+    {
+        _model.ValorNotaFiscal = value;
+        GenerateInstallments(false);
+    }
+    private void OnDataContratoChanged(DateTime? value)
+    {
+        _model.DataContrato = value;
+        GenerateInstallments(false);
+    }
+    private void GenerateInstallments(bool force)
     {
         if (_model.CondicaoPagamentoId is null) return;
         var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
@@ -727,9 +742,21 @@
         var name = condition.Nome ?? "";
         var (count, interval) = ParseCondition(name);
         if (count <= 0) return;
+
+        var net = NetValue;
+        if (net <= 0)
+        {
+            if (force)
+            {
+                _model.Parcelas.Clear();
+                AddInstallment();
+            }
+            return;
+        }
+
         _model.Parcelas.Clear();
         var baseDate = _model.DataContrato ?? DateTime.Today;
-        var installmentValue = NetValue / count;
+        var installmentValue = net / count;
         for (int i = 0; i < count; i++)
         {
             var dueDate = interval switch
@@ -742,7 +769,7 @@
             _model.Parcelas.Add(new()
             {
                 Numero = i + 1,
-                Valor = i == count - 1 ? NetValue - (installmentValue * (count - 1)) : installmentValue,
+                Valor = i == count - 1 ? net - (installmentValue * (count - 1)) : installmentValue,
                 Vencimento = dueDate,
                 FormaPagamento = "Boleto"
             });
