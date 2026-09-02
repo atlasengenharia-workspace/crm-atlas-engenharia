@@ -36,7 +36,7 @@ public sealed class OpenAiLlmClient(IHttpClientFactory httpClientFactory, IOptio
         if (!string.IsNullOrWhiteSpace(orgId))
             client.DefaultRequestHeaders.Add("OpenAI-Organization", orgId);
 
-        var endpoint = options.Value.Endpoint ?? DefaultEndpoint;
+        var endpoint = string.IsNullOrWhiteSpace(options.Value.Endpoint) ? DefaultEndpoint : options.Value.Endpoint;
         var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -72,7 +72,7 @@ public sealed class OpenAiLlmClient(IHttpClientFactory httpClientFactory, IOptio
         if (!string.IsNullOrWhiteSpace(orgId))
             client.DefaultRequestHeaders.Add("OpenAI-Organization", orgId);
 
-        var endpoint = options.Value.Endpoint ?? DefaultEndpoint;
+        var endpoint = string.IsNullOrWhiteSpace(options.Value.Endpoint) ? DefaultEndpoint : options.Value.Endpoint;
         var response = await client.PostAsJsonAsync(endpoint, request, JsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();
 
@@ -83,7 +83,7 @@ public sealed class OpenAiLlmClient(IHttpClientFactory httpClientFactory, IOptio
 
     private OpenAiRequest BuildRequest(IReadOnlyList<AtlasAiMessage> messages, bool stream) =>
         new(
-            options.Value.Model ?? DefaultModel,
+            string.IsNullOrWhiteSpace(options.Value.Model) ? DefaultModel : options.Value.Model,
             [.. messages.Select(m => new OpenAiMessage(m.Role, m.Content))],
             stream,
             0.2,
