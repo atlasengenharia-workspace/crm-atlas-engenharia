@@ -205,11 +205,13 @@ else
                 <MudItem xs="12" sm="6">
                     <MudSelect T="long?" Value="_model.PrestadorId" ValueChanged="ProviderChanged"
                                Label="Prestador" Variant="Variant.Outlined" Clearable="true">
-                        @foreach (var item in _providers)
+                        @foreach (var item in FilteredProviders)
                         {
                             <MudSelectItem T="long?" Value="@item.Id">@item.Nome</MudSelectItem>
                         }
                     </MudSelect>
+                    <MudCheckBox T="bool" @bind-Value="_showAllProviders" Color="Color.Primary"
+                                 Label="Exibir todos os prestadores" Dense="true" Class="mt-1" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="string" @bind-Value="_model.FormaPagamento" Label="Forma de pagamento" Variant="Variant.Outlined" Clearable="true">
@@ -287,8 +289,19 @@ else
     private DateTime? _endDate;
     private string? _sortKey;
     private bool _sortDescending;
+    private bool _showAllProviders;
 
     private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
+    private IEnumerable<PrestadorDto> FilteredProviders => _showAllProviders ? _providers : FilteredServiceProviders;
+    private IEnumerable<PrestadorDto> FilteredServiceProviders
+    {
+        get
+        {
+            if (SelectedService is null) return [];
+            var ids = SelectedService.Prestadores.Select(p => p.PrestadorId).Where(id => id is not null).ToHashSet();
+            return _providers.Where(p => ids.Contains(p.Id));
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -379,6 +392,17 @@ else
         _model.Descricao = service is null
             ? string.Empty
             : $"{service.Codigo} — {service.Subtipo} — {service.RazaoSocialEmpresa}";
+
+        if (!_showAllProviders && service is not null)
+        {
+            var ids = service.Prestadores.Select(p => p.PrestadorId).Where(id => id is not null).ToHashSet();
+            if (!ids.Contains(_model.PrestadorId))
+            {
+                _model.PrestadorId = null;
+                _model.NomePrestador = null;
+                _model.MetodoPagamento = null;
+            }
+        }
     }
     private void InstallmentChanged(int? number)
     {
