@@ -4,7 +4,9 @@ using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Operacao;
+using CrmAtlas.ApplicationCore.IA;
 using CrmAtlas.ApplicationCore.Integracoes;
+using CrmAtlas.Infrastructure.IA;
 using CrmAtlas.Infrastructure.Integracoes;
 using CrmAtlas.Infrastructure.Integrations;
 using CrmAtlas.Infrastructure.Files;
@@ -96,11 +98,20 @@ public static class DependencyInjection
         services.AddTransient<ISistemaAtualizacaoService, SistemaAtualizacaoService>();
         services.AddTransient<IGoogleAdsIntegrationService, GoogleAdsIntegrationService>();
         services.AddTransient<IGoogleAdsApiClient, GoogleAdsApiClient>();
+        services.AddTransient<IContextRetriever, AtlasAiContextRetriever>();
+        services.AddTransient<ILlmClient, OpenAiLlmClient>();
+        services.AddTransient<IAtlasAiService, AtlasAiService>();
+        services.Configure<AtlasAiOptions>(configuration.GetSection("AI"));
         services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
         services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
         {
             client.BaseAddress = new Uri("https://viacep.com.br/ws/");
             client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
+        services.AddHttpClient<ILlmClient, OpenAiLlmClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
         });
 
         return services;
