@@ -104,6 +104,7 @@ public sealed class CadastroServicoService(
     IRepository<Orcamento> orcamentos,
     IRepository<CondicaoPagamento> condicoes,
     IRepository<Prestador> prestadores,
+    IRepository<OrcamentoHistorico> historico,
     IUserAccessor userAccessor) : ICadastroServicoService
 {
     public async Task<PagedResult<CadastroServicoDto>> ListAsync(
@@ -189,6 +190,7 @@ public sealed class CadastroServicoService(
         await ApplyAsync(entity, dto, cancellationToken);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await LinkOrcamentoAsync(entity, cancellationToken);
         return ToDto(entity);
     }
 
@@ -205,6 +207,7 @@ public sealed class CadastroServicoService(
             throw new ArgumentException($"Já existe um serviço com o código {entity.Codigo}.");
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await LinkOrcamentoAsync(entity, cancellationToken);
         return ToDto(entity);
     }
 
@@ -364,6 +367,28 @@ public sealed class CadastroServicoService(
         if (id is null) return null;
         if (current?.Id == id.Value) return current;
         return await ResolveAsync(source, id, resource, cancellationToken);
+    }
+
+    private async Task LinkOrcamentoAsync(CadastroServico entity, CancellationToken cancellationToken)
+    {
+        if (entity.OrcamentoId is null) return;
+        var orcamento = await orcamentos.FindAsync(x => x.Id == entity.OrcamentoId, cancellationToken);
+        if (orcamento is null) return;
+        orcamento.ServicoConvertidoId = entity.Id;
+        orcamento.ServicoConvertidoCodigo = entity.Codigo;
+        orcamento.ConvertidoEm = DateTime.UtcNow;
+        orcamentos.Update(orcamento);
+        await orcamentos.SaveChangesAsync(cancellationToken);
+
+        await historico.AddAsync(new OrcamentoHistorico
+        {
+            Orcamento = orcamento,
+            Tipo = "Conversao",
+            ValorNovo = entity.Codigo,
+            Responsavel = await userAccessor.GetUserNameAsync(cancellationToken),
+            AlteradoEm = DateTime.UtcNow
+        }, cancellationToken);
+        await historico.SaveChangesAsync(cancellationToken);
     }
 
     private static IQueryable<CadastroServico> ApplySort(IQueryable<CadastroServico> query, string? sortKey, bool descending)

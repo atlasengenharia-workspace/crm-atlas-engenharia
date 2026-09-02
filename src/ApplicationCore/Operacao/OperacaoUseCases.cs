@@ -11,14 +11,17 @@ namespace CrmAtlas.ApplicationCore.Operacao;
 
 public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? Nome, string? Descricao,
     [Required] string Situacao, string? Telefone, AcompanhamentoServicoTipo TipoServico, decimal? ValorTotal,
-    DateOnly? Data = null, [EmailAddress] string? Email = null);
+    DateOnly? Data = null, [EmailAddress] string? Email = null,
+    long? ServicoConvertidoId = null, string? ServicoConvertidoCodigo = null, DateTime? ConvertidoEm = null,
+    string? Subtipo = null);
 
 public sealed record OrcamentoFilter(
     string? Search = null,
     int Page = 1,
     int PageSize = 20,
     string? SortKey = null,
-    bool SortDescending = false);
+    bool SortDescending = false,
+    bool OcultarConcluidos = false);
 
 public interface IOrcamentoService
 {
@@ -27,7 +30,10 @@ public interface IOrcamentoService
     Task DeleteAsync(long id, CancellationToken ct = default);
 }
 
-public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcamentoService
+public sealed class OrcamentoService(
+    IRepository<Orcamento> repository,
+    IRepository<OrcamentoHistorico> historico,
+    IUserAccessor userAccessor) : IOrcamentoService
 {
     public async Task<PagedResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default)
     {
@@ -41,8 +47,12 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
                 (x.Nome != null && x.Nome.Contains(term)) ||
                 (x.Descricao != null && x.Descricao.Contains(term)) ||
                 (x.Telefone != null && x.Telefone.Contains(term)) ||
-                (x.Email != null && x.Email.Contains(term)));
+                (x.Email != null && x.Email.Contains(term)) ||
+                (x.Subtipo != null && x.Subtipo.Contains(term)));
         }
+
+        if (filter?.OcultarConcluidos == true)
+            query = query.Where(x => !Closed(x.Situacao));
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
@@ -69,10 +79,26 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
             throw new ArgumentException($"Já existe um orçamento com o código {code}. Informe outro código.");
         var entity = dto.Id is null ? new Orcamento { CreatedAt = DateTime.UtcNow } :
             await repository.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
+        var responsavel = await userAccessor.GetUserNameAsync(ct);
+        if (dto.Id is not null)
+        {
+            await TrackChangesAsync(entity, dto, responsavel, ct);
+        }
+        else
+        {
+            await historico.AddAsync(new OrcamentoHistorico
+            {
+                Orcamento = entity,
+                Tipo = "Criacao",
+                ValorNovo = $"{entity.Codigo} | {entity.Nome}",
+                Responsavel = responsavel,
+                AlteradoEm = DateTime.UtcNow
+            }, ct);
+        }
         entity.Codigo = code; entity.Nome = dto.Nome?.Trim(); entity.Descricao = dto.Descricao?.Trim();
         entity.Situacao = dto.Situacao.Trim(); entity.Telefone = dto.Telefone; entity.Email = dto.Email?.Trim();
         entity.Data = dto.Data ?? DateOnly.FromDateTime(DateTime.Today); entity.TipoServico = dto.TipoServico;
-        entity.ValorTotal = dto.ValorTotal; entity.UpdatedAt = DateTime.UtcNow;
+        entity.Subtipo = dto.Subtipo; entity.ValorTotal = dto.ValorTotal; entity.UpdatedAt = DateTime.UtcNow;
         if (dto.Id is null) await repository.AddAsync(entity, ct); else repository.Update(entity);
         await repository.SaveChangesAsync(ct); return Map(entity);
     }
@@ -81,6 +107,38 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
     {
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
+    }
+
+    private static bool Closed(string? s) => s is not null &&
+        (s.Contains("aprov", StringComparison.OrdinalIgnoreCase) || s.Contains("recus", StringComparison.OrdinalIgnoreCase));
+
+    private async Task TrackChangesAsync(Orcamento entity, OrcamentoDto dto, string? responsavel, CancellationToken ct)
+    {
+        async Task Add(string tipo, string? anterior, string? novo)
+        {
+            if (string.Equals(anterior, novo, StringComparison.Ordinal)) return;
+            await historico.AddAsync(new OrcamentoHistorico
+            {
+                Orcamento = entity,
+                Tipo = tipo,
+                ValorAnterior = anterior,
+                ValorNovo = novo,
+                Responsavel = responsavel,
+                AlteradoEm = DateTime.UtcNow
+            }, ct);
+        }
+
+        await Task.WhenAll(
+            Add("Codigo", entity.Codigo, dto.Codigo.Trim()),
+            Add("Nome", entity.Nome, dto.Nome?.Trim()),
+            Add("Descricao", entity.Descricao, dto.Descricao?.Trim()),
+            Add("Situacao", entity.Situacao, dto.Situacao.Trim()),
+            Add("Telefone", entity.Telefone, dto.Telefone),
+            Add("Email", entity.Email, dto.Email?.Trim()),
+            Add("Data", entity.Data?.ToString("O"), (dto.Data ?? DateOnly.FromDateTime(DateTime.Today)).ToString("O")),
+            Add("TipoServico", entity.TipoServico.ToString(), dto.TipoServico.ToString()),
+            Add("Subtipo", entity.Subtipo, dto.Subtipo),
+            Add("ValorTotal", entity.ValorTotal?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture), dto.ValorTotal?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     private static IQueryable<Orcamento> ApplySort(IQueryable<Orcamento> query, string? sortKey, bool descending)
@@ -103,7 +161,8 @@ public sealed class OrcamentoService(IRepository<Orcamento> repository) : IOrcam
         return ordered.ThenBy(x => x.Id);
     }
 
-    private static OrcamentoDto Map(Orcamento x) => new(x.Id, x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.TipoServico, x.ValorTotal, x.Data, x.Email);
+    private static OrcamentoDto Map(Orcamento x) => new(x.Id, x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.TipoServico, x.ValorTotal, x.Data, x.Email,
+        x.ServicoConvertidoId, x.ServicoConvertidoCodigo, x.ConvertidoEm, x.Subtipo);
 }
 
 public sealed record PrestadorDto(long? Id, [Required] string Nome, string? CnpjCpf, string? Telefone,

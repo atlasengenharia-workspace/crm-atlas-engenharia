@@ -35,7 +35,8 @@ internal sealed class ServicosConfiguration :
     IEntityTypeConfiguration<Prestador>,
     IEntityTypeConfiguration<CadastroServicoPrestador>,
     IEntityTypeConfiguration<CadastroServicoCodigoHistorico>,
-    IEntityTypeConfiguration<ServicoTipoCampoConfig>
+    IEntityTypeConfiguration<ServicoTipoCampoConfig>,
+    IEntityTypeConfiguration<OrcamentoHistorico>
 {
     public void Configure(EntityTypeBuilder<Avcb> builder)
     {
@@ -76,8 +77,11 @@ internal sealed class ServicosConfiguration :
         builder.ToTable("orcamentos");
         ConfigureUniqueCode(builder);
         builder.Property(x => x.Descricao).HasMaxLength(2000);
+        builder.Property(x => x.Subtipo).HasMaxLength(80);
         builder.Property(x => x.Situacao).HasMaxLength(64).IsRequired();
         builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ServicoConvertidoCodigo).HasMaxLength(80);
+        builder.HasIndex(x => x.ServicoConvertidoId).HasDatabaseName("idx_orcamentos_servico");
     }
 
     public void Configure(EntityTypeBuilder<OrcamentoSituacao> builder)
@@ -134,6 +138,16 @@ internal sealed class ServicosConfiguration :
         builder.Property(x => x.CodigoAnterior).HasColumnType("text");
         builder.Property(x => x.CodigoNovo).HasColumnType("text");
         builder.Property(x => x.Responsavel).HasColumnType("text");
+    }
+
+    public void Configure(EntityTypeBuilder<OrcamentoHistorico> builder)
+    {
+        builder.ToTable("orcamento_historico");
+        builder.Property(x => x.Tipo).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.ValorAnterior).HasColumnType("text");
+        builder.Property(x => x.ValorNovo).HasColumnType("text");
+        builder.Property(x => x.Responsavel).HasColumnType("text");
+        builder.HasOne(x => x.Orcamento).WithMany().HasForeignKey(x => x.OrcamentoId).OnDelete(DeleteBehavior.Cascade);
     }
 
     public void Configure(EntityTypeBuilder<ServicoTipoCampoConfig> builder)

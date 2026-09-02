@@ -311,14 +311,11 @@
                         @if (Visivel(ServicoCampo.Orcamento))
                         {
                             <MudItem xs="12">
-                                <MudSelect T="long?" Value="_model.OrcamentoId" ValueChanged="BudgetChanged"
-                                           Label="Converter orçamento existente" Clearable="true"
-                                           Variant="Variant.Outlined" HelperText="Tipo, cliente e valor serão aproveitados automaticamente.">
-                                    @foreach (var budget in _budgets.Where(x => !ClosedBudget(x.Situacao)))
-                                    {
-                                        <MudSelectItem T="long?" Value="@budget.Id">@budget.Codigo — @budget.Nome — @Money(budget.ValorTotal ?? 0)</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                <MudAutocomplete T="OrcamentoDto" Value="_selectedBudget" ValueChanged="BudgetChanged"
+                                                 Label="Converter orçamento existente" Clearable="true"
+                                                 Variant="Variant.Outlined" HelperText="Busque por código, cliente, telefone ou descrição."
+                                                 SearchFunc="SearchBudgetsAsync"
+                                                 ToStringFunc="@(x => x is null ? "" : $"{x.Codigo} — {x.Nome} — {Money(x.ValorTotal ?? 0)}")" />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.Tipo))
@@ -767,10 +764,11 @@
         _model.Prestadores[index].PrestadorId = id;
         _model.Prestadores[index].NomePrestador = _providers.FirstOrDefault(x => x.Id == id)?.Nome;
     }
-    private void BudgetChanged(long? id)
+    private OrcamentoDto? _selectedBudget;
+    private void BudgetChanged(OrcamentoDto? budget)
     {
-        _model.OrcamentoId = id;
-        var budget = _budgets.FirstOrDefault(x => x.Id == id);
+        _selectedBudget = budget;
+        _model.OrcamentoId = budget?.Id;
         if (budget is null) return;
         _model.TipoServico = budget.TipoServico;
         _model.Subtipo = CurrentSubtypes.FirstOrDefault() ?? _model.Subtipo;
@@ -778,6 +776,21 @@
         if (!string.IsNullOrWhiteSpace(budget.Nome)) _model.RazaoSocialEmpresa = budget.Nome;
         if (!string.IsNullOrWhiteSpace(budget.Telefone)) _model.Telefone = budget.Telefone;
         if (!string.IsNullOrWhiteSpace(budget.Email)) _model.Email = budget.Email;
+    }
+    private Task<IEnumerable<OrcamentoDto>> SearchBudgetsAsync(string value, CancellationToken cancellationToken)
+    {
+        var term = value?.Trim() ?? "";
+        var result = _budgets
+            .Where(x => !ClosedBudget(x.Situacao))
+            .Where(x =>
+                string.IsNullOrWhiteSpace(term)
+                || (x.Codigo != null && x.Codigo.Contains(term, StringComparison.OrdinalIgnoreCase))
+                || (x.Nome != null && x.Nome.Contains(term, StringComparison.OrdinalIgnoreCase))
+                || (x.Telefone != null && x.Telefone.Contains(term, StringComparison.OrdinalIgnoreCase))
+                || (x.Descricao != null && x.Descricao.Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(x => x.Id)
+            .AsEnumerable();
+        return Task.FromResult(result);
     }
 
     private async Task SaveAsync()
@@ -1008,7 +1021,8 @@
                 : Color.Default;
     private static bool ClosedBudget(string status) =>
         status.Contains("fech", StringComparison.OrdinalIgnoreCase)
-        || status.Contains("recus", StringComparison.OrdinalIgnoreCase);
+        || status.Contains("recus", StringComparison.OrdinalIgnoreCase)
+        || status.Contains("aprov", StringComparison.OrdinalIgnoreCase);
 
     private sealed class ServiceModel
     {

@@ -93,9 +93,24 @@ public sealed class Orcamento : Entity
     public string? Email { get; set; }
     public DateOnly? Data { get; set; }
     public AcompanhamentoServicoTipo TipoServico { get; set; }
+    public string? Subtipo { get; set; }
     public decimal? ValorTotal { get; set; }
+    public long? ServicoConvertidoId { get; set; }
+    public string? ServicoConvertidoCodigo { get; set; }
+    public DateTime? ConvertidoEm { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class OrcamentoHistorico : Entity
+{
+    public long OrcamentoId { get; set; }
+    public Orcamento? Orcamento { get; set; }
+    public string Tipo { get; set; } = string.Empty;
+    public string? ValorAnterior { get; set; }
+    public string? ValorNovo { get; set; }
+    public string? Responsavel { get; set; }
+    public DateTime AlteradoEm { get; set; }
 }
 
 public sealed class OrcamentoSituacao : Entity

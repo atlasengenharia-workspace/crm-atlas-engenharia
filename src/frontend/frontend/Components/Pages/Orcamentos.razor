@@ -19,8 +19,11 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true" OnKeyDown="SearchOnEnter"
-                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3" />
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3" Spacing="2">
+            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true" OnKeyDown="SearchOnEnter"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="flex:1" />
+            <MudSwitch T="bool" Value="_ocultarConcluidos" ValueChanged="async (bool v) => { _ocultarConcluidos = v; await LoadAsync(); }" Color="Color.Primary" Label="Ocultar aprovados/recusados" />
+        </MudStack>
         <SmartTableFilter TItem="OrcamentoDto" Items="_result.Items" Columns="_filterColumns"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
@@ -53,8 +56,16 @@
                     <Template Context="context">@context.Data?.ToString("dd/MM/yyyy")</Template>
                 </RadzenDataGridColumn>
 
+                <RadzenDataGridColumn TItem="OrcamentoDto" Title="Semanas" Sortable="false" Filterable="false">
+                    <Template Context="context">@WeeksSince(context.Data)</Template>
+                </RadzenDataGridColumn>
+
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="TipoServico" Title="Tipo">
                     <Template Context="context">@context.TipoServico</Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Subtipo" Title="Subtipo">
+                    <Template Context="context">@(context.Subtipo ?? "—")</Template>
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="Situacao" Title="Situação">
@@ -96,6 +107,7 @@
         <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Codigo" Label="Código" Required="true" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_model.TipoServico" Label="Tipo" Variant="Variant.Outlined">@foreach(var t in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@t">@t</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Subtipo" Label="Subtipo" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Nome" Label="Cliente / nome da proposta" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" /></MudItem>
@@ -128,16 +140,16 @@
     [
         new("codigo","Código",x=>x.Codigo,1),new("cliente","Cliente",x=>x.Nome,2),
         new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("data","Data",x=>x.Data,4),
-        new("tipo","Tipo",x=>x.TipoServico,5),new("situacao","Situação",x=>x.Situacao,6),new("valor","Valor",x=>x.ValorTotal,7,true)
+        new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>x.TipoServico,6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
     ];
-    private bool _loading,_open,_saving,_valid; private string? _search;
+    private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
     protected override async Task OnInitializedAsync()=>await LoadAsync();
     private async Task LoadAsync()
     {
         _loading=true;
         try
         {
-            _result = await Service.ListAsync(new OrcamentoFilter(_search, 1, 0, _sortKey, _sortDescending));
+            _result = await Service.ListAsync(new OrcamentoFilter(_search, 1, 0, _sortKey, _sortDescending, _ocultarConcluidos));
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
         finally{_loading=false;}
@@ -156,7 +168,7 @@
         if (args.Key == "Enter") { await LoadAsync(); }
     }
 
-    private void New(){_model=new(){Codigo=$"ORC-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
+    private void New(){_model=new(){Codigo=$"ORC-{BudgetTypeSigla(_model.TipoServico)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
     private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
     private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
     private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
@@ -164,6 +176,15 @@
     private static bool Closed(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)||s.Contains("recus",StringComparison.OrdinalIgnoreCase);
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
+    private static int WeeksSince(DateOnly? start) => start is null ? 0 : Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.Value.DayNumber) / 7);
+    private static string BudgetTypeSigla(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.AVCB => "AVCB",
+        AcompanhamentoServicoTipo.CLCB => "CLCB",
+        AcompanhamentoServicoTipo.OBRAS => "OBRA",
+        AcompanhamentoServicoTipo.PROCESSOS_ADM => "ADM",
+        _ => type.ToString().ToUpperInvariant()
+    };
     private static string TypeBackgroundColor(AcompanhamentoServicoTipo type) => type switch
     {
         AcompanhamentoServicoTipo.AVCB => "#FEF2F2",
@@ -171,7 +192,7 @@
         AcompanhamentoServicoTipo.OBRAS => "#EFF6FF",
         _ => "#F3F4F6"
     };
-    private sealed class BudgetModel{public long? Id{get;set;}public string Codigo{get;set;}="";public string? Nome{get;set;}public string? Descricao{get;set;}public string Situacao{get;set;}="Em análise";public string? Telefone{get;set;}public string? Email{get;set;}public DateTime? Data{get;set;}=DateTime.Today;public AcompanhamentoServicoTipo TipoServico{get;set;}public decimal? ValorTotal{get;set;}
-        public static BudgetModel From(OrcamentoDto x)=>new(){Id=x.Id,Codigo=x.Codigo,Nome=x.Nome,Descricao=x.Descricao,Situacao=x.Situacao,Telefone=x.Telefone,Email=x.Email,Data=x.Data?.ToDateTime(TimeOnly.MinValue),TipoServico=x.TipoServico,ValorTotal=x.ValorTotal};
-        public OrcamentoDto ToDto()=>new(Id,Codigo,Nome,Descricao,Situacao,Telefone,TipoServico,ValorTotal,Data is null?null:DateOnly.FromDateTime(Data.Value),Email);}
+    private sealed class BudgetModel{public long? Id{get;set;}public string Codigo{get;set;}="";public string? Nome{get;set;}public string? Descricao{get;set;}public string? Subtipo{get;set;}public string Situacao{get;set;}="Em análise";public string? Telefone{get;set;}public string? Email{get;set;}public DateTime? Data{get;set;}=DateTime.Today;public AcompanhamentoServicoTipo TipoServico{get;set;}public decimal? ValorTotal{get;set;}
+        public static BudgetModel From(OrcamentoDto x)=>new(){Id=x.Id,Codigo=x.Codigo,Nome=x.Nome,Descricao=x.Descricao,Subtipo=x.Subtipo,Situacao=x.Situacao,Telefone=x.Telefone,Email=x.Email,Data=x.Data?.ToDateTime(TimeOnly.MinValue),TipoServico=x.TipoServico,ValorTotal=x.ValorTotal};
+        public OrcamentoDto ToDto()=>new(Id,Codigo,Nome,Descricao,Situacao,Telefone,TipoServico,ValorTotal,Data is null?null:DateOnly.FromDateTime(Data.Value),Email, null, null, null, Subtipo);}
 }
