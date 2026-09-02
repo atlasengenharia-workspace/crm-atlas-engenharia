@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 namespace CrmAtlas.Web.Api;
 
 [ApiController, Route("api/n8n")]
-public sealed class N8nController(IAtlasAiService aiService, IOptions<N8nOptions> options) : ControllerBase
+public sealed class N8nController(IAtlasAiService aiService, IContextRetriever contextRetriever, IOptions<N8nOptions> options) : ControllerBase
 {
     [AllowAnonymous, HttpPost("query")]
     public async IAsyncEnumerable<string> Query(
@@ -28,14 +28,38 @@ public sealed class N8nController(IAtlasAiService aiService, IOptions<N8nOptions
         }
     }
 
+    [AllowAnonymous, HttpPost("ask")]
+    public async Task<IActionResult> Ask(
+        [FromBody] N8nQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ValidateSecret())
+            return Unauthorized();
+
+        var question = request.Question ?? request.Payload?.ToString() ?? string.Empty;
+        var answer = await aiService.AskNonStreamingAsync(question, cancellationToken);
+        return Ok(new { question, answer });
+    }
+
+    [AllowAnonymous, HttpPost("context")]
+    public async Task<IActionResult> Context(
+        [FromBody] N8nQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ValidateSecret())
+            return Unauthorized();
+
+        var question = request.Question ?? request.Payload?.ToString() ?? string.Empty;
+        var context = await contextRetriever.RetrieveAsync(question, cancellationToken);
+        return Ok(new { question, context });
+    }
+
     [AllowAnonymous, HttpPost("trigger")]
     public IActionResult Trigger([FromBody] object payload)
     {
         if (!ValidateSecret())
             return Unauthorized();
 
-        // O payload pode ser processado aqui (ex: salvar log, executar uma ação).
-        // Por padrão, apenas aceitamos o trigger e retornamos 200.
         return Ok(new { received = true });
     }
 
