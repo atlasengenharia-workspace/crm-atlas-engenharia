@@ -60,6 +60,8 @@ public sealed record CadastroServicoDto(
     DateOnly? DataContrato,
     string? NomeCondicaoPagamento,
     decimal? ValorNotaFiscal,
+    bool ValorNotaFiscalDividido,
+    int? ValorNotaFiscalParcela,
     string? Observacao,
     IReadOnlyList<CadastroServicoParcelaDto> Parcelas,
     IReadOnlyList<CadastroServicoPrestadorDto> Prestadores,
@@ -278,6 +280,8 @@ public sealed class CadastroServicoService(
         entity.DataContrato = dto.DataContrato;
         entity.NomeCondicaoPagamento = Clean(dto.NomeCondicaoPagamento);
         entity.ValorNotaFiscal = dto.ValorNotaFiscal;
+        entity.ValorNotaFiscalDividido = dto.ValorNotaFiscalDividido;
+        entity.ValorNotaFiscalParcela = dto.ValorNotaFiscalParcela;
         entity.Observacao = Clean(dto.Observacao);
 
         entity.Parcelas.Clear();
@@ -421,7 +425,8 @@ public sealed class CadastroServicoService(
         x.EnderecoEmpresaEstado, x.EnderecoEmpresaCep, x.EnderecoServico, x.EnderecoServicoRua,
         x.EnderecoServicoNumero, x.EnderecoServicoBairro, x.EnderecoServicoComplemento,
         x.EnderecoServicoCidade, x.EnderecoServicoEstado, x.EnderecoServicoCep, x.MesmoEnderecoEmpresa,
-        x.ValorContrato, x.DataContrato, x.NomeCondicaoPagamento, x.ValorNotaFiscal, x.Observacao,
+        x.ValorContrato, x.DataContrato, x.NomeCondicaoPagamento, x.ValorNotaFiscal,
+        x.ValorNotaFiscalDividido, x.ValorNotaFiscalParcela, x.Observacao,
         x.Parcelas.Select(p => new CadastroServicoParcelaDto(
             p.Id, p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
         x.Prestadores.Select(p => new CadastroServicoPrestadorDto(

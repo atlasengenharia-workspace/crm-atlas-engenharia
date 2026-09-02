@@ -81,6 +81,7 @@ public sealed class CondicaoPagamento : Entity
     public bool Indefinido { get; set; }
     public decimal? ValorParcela { get; set; }
     public CondicaoPagamentoValorTipo TipoValorParcela { get; set; }
+    public bool Entrada { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -162,6 +163,8 @@ public sealed class CadastroServico : Entity
     public DateOnly? DataContrato { get; set; }
     public string? NomeCondicaoPagamento { get; set; }
     public decimal? ValorNotaFiscal { get; set; }
+    public bool ValorNotaFiscalDividido { get; set; } = true;
+    public int? ValorNotaFiscalParcela { get; set; }
     public string? Observacao { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

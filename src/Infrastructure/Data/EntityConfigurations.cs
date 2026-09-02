@@ -73,6 +73,7 @@ internal sealed class ServicosConfiguration :
         builder.Property(x => x.TipoValorParcela).HasConversion<string>().HasMaxLength(16);
     }
 
+
     public void Configure(EntityTypeBuilder<Orcamento> builder)
     {
         builder.ToTable("orcamentos");

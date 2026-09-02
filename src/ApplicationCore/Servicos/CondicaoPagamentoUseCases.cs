@@ -11,7 +11,8 @@ public sealed record CondicaoPagamentoDto(
     int? IntervaloDias,
     bool Indefinido,
     decimal? ValorParcela = null,
-    CondicaoPagamentoValorTipo TipoValorParcela = CondicaoPagamentoValorTipo.Reais);
+    CondicaoPagamentoValorTipo TipoValorParcela = CondicaoPagamentoValorTipo.Reais,
+    bool Entrada = false);
 
 public sealed record CondicaoPagamentoFilter(
     string? Search = null,
@@ -110,6 +111,7 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         entity.Indefinido = dto.Indefinido;
         entity.ValorParcela = dto.ValorParcela;
         entity.TipoValorParcela = dto.TipoValorParcela;
+        entity.Entrada = dto.Entrada;
     }
 
     private async Task<CondicaoPagamento> FindAsync(long id, CancellationToken cancellationToken) =>
@@ -132,5 +134,5 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
     }
 
     private static CondicaoPagamentoDto ToDto(CondicaoPagamento x) =>
-        new(x.Id, x.Nome, x.QuantidadeParcelas ?? 1, x.IntervaloDias, x.Indefinido, x.ValorParcela, x.TipoValorParcela);
+        new(x.Id, x.Nome, x.QuantidadeParcelas ?? 1, x.IntervaloDias, x.Indefinido, x.ValorParcela, x.TipoValorParcela, x.Entrada);
 }

@@ -397,6 +397,18 @@
                                                  Label="Desconto / retenção NF" Min="0"
                                                  Format="C2" Variant="Variant.Outlined" />
                             </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudSwitch T="bool" Value="_model.ValorNotaFiscalDividido" ValueChanged="OnValorNotaFiscalDivididoChanged"
+                                           Color="Color.Primary" Label="Dividir retenção em todas as parcelas" />
+                            </MudItem>
+                            @if (!_model.ValorNotaFiscalDividido)
+                            {
+                                <MudItem xs="12" sm="6">
+                                    <MudNumericField T="int?" @bind-Value="_model.ValorNotaFiscalParcela"
+                                                     Label="Parcela que recebe a retenção" Min="1"
+                                                     Variant="Variant.Outlined" />
+                                </MudItem>
+                            }
                         }
                     </MudGrid>
                 </MudPaper>
@@ -570,7 +582,9 @@
             .OrderBy(x => x);
     private IEnumerable<string> CurrentSubtypes =>
         _subtypes.FirstOrDefault(x => x.TipoServico == _model.TipoServico)?.Subtipos ?? [];
-    private decimal NetValue => Math.Max(0, (_model.ValorContrato ?? 0) - (_model.ValorNotaFiscal ?? 0));
+    private decimal NetValue => _model.ValorNotaFiscalDividido
+        ? Math.Max(0, (_model.ValorContrato ?? 0) - (_model.ValorNotaFiscal ?? 0))
+        : (_model.ValorContrato ?? 0);
     private decimal InstallmentTotal => _model.Parcelas.Sum(x => x.Valor ?? 0);
     private decimal ProviderProvisioned => _model.Prestadores.Sum(x => x.ValorProvisionado ?? 0);
     private decimal ProviderActual => _model.Prestadores.Sum(x => x.ValorEfetivo ?? 0);
@@ -729,6 +743,11 @@
         _model.ValorNotaFiscal = value;
         GenerateInstallments(false);
     }
+    private void OnValorNotaFiscalDivididoChanged(bool value)
+    {
+        _model.ValorNotaFiscalDividido = value;
+        GenerateInstallments(false);
+    }
     private void OnDataContratoChanged(DateTime? value)
     {
         _model.DataContrato = value;
@@ -740,7 +759,9 @@
         var condition = _conditions.FirstOrDefault(x => x.Id == _model.CondicaoPagamentoId);
         if (condition is null) return;
 
-        var count = Math.Max(1, condition.QuantidadeParcelas);
+        var parcelCount = Math.Max(1, condition.QuantidadeParcelas);
+        var hasEntrada = condition.Entrada;
+        var count = parcelCount + (hasEntrada ? 1 : 0);
         var net = NetValue;
         if (net <= 0)
         {
@@ -770,7 +791,10 @@
 
         for (int i = 0; i < count; i++)
         {
-            var dueDate = condition.Indefinido ? (DateTime?)null : baseDate.AddDays(intervalDays * i);
+            var isEntrada = hasEntrada && i == 0;
+            var dueDate = condition.Indefinido
+                ? (DateTime?)null
+                : isEntrada ? baseDate : baseDate.AddDays(intervalDays * (hasEntrada ? i - 1 : i));
             _model.Parcelas.Add(new()
             {
                 Numero = i + 1,
@@ -778,6 +802,16 @@
                 Vencimento = dueDate,
                 FormaPagamento = "Boleto"
             });
+        }
+
+        if (!_model.ValorNotaFiscalDividido && _model.ValorNotaFiscal > 0)
+        {
+            var retentionIndex = (_model.ValorNotaFiscalParcela ?? 1) - 1;
+            if (retentionIndex >= 0 && retentionIndex < _model.Parcelas.Count)
+            {
+                var parcel = _model.Parcelas[retentionIndex];
+                parcel.Valor = Math.Max(0, (parcel.Valor ?? 0) - _model.ValorNotaFiscal.Value);
+            }
         }
     }
     private static (int Count, string Interval) ParseCondition(string name)
@@ -1093,6 +1127,8 @@
         public decimal? ValorContrato { get; set; }
         public DateTime? DataContrato { get; set; } = DateTime.Today;
         public decimal? ValorNotaFiscal { get; set; }
+        public bool ValorNotaFiscalDividido { get; set; } = true;
+        public int? ValorNotaFiscalParcela { get; set; } = 1;
         public List<InstallmentModel> Parcelas { get; set; } = [];
         public List<ProviderModel> Prestadores { get; set; } = [];
 
@@ -1120,6 +1156,8 @@
             ValorContrato = x.ValorContrato,
             DataContrato = x.DataContrato?.ToDateTime(TimeOnly.MinValue),
             ValorNotaFiscal = x.ValorNotaFiscal,
+            ValorNotaFiscalDividido = x.ValorNotaFiscalDividido,
+            ValorNotaFiscalParcela = x.ValorNotaFiscalParcela,
             Observacao = x.Observacao,
             Parcelas = x.Parcelas.Select(p => new InstallmentModel
             {
@@ -1145,7 +1183,7 @@
             EnderecoServicoRua, EnderecoServicoNumero, EnderecoServicoBairro, EnderecoServicoComplemento,
             EnderecoServicoCidade, EnderecoServicoEstado, EnderecoServicoCep,
             MesmoEnderecoEmpresa, ValorContrato, DateOnly.FromDateTime(DataContrato!.Value),
-            null, ValorNotaFiscal, Observacao,
+            null, ValorNotaFiscal, ValorNotaFiscalDividido, ValorNotaFiscalParcela, Observacao,
             Parcelas.Select(p => new CadastroServicoParcelaDto(
                 p.Id, p.Numero, p.Valor,
                 p.Vencimento is null ? null : DateOnly.FromDateTime(p.Vencimento.Value),
