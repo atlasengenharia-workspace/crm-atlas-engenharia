@@ -4,11 +4,7 @@ using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Operacao;
-using CrmAtlas.ApplicationCore.IA;
-using CrmAtlas.ApplicationCore.N8n;
 using CrmAtlas.ApplicationCore.Integracoes;
-using CrmAtlas.Infrastructure.IA;
-using CrmAtlas.Infrastructure.N8n;
 using CrmAtlas.Infrastructure.Integracoes;
 using CrmAtlas.Infrastructure.Integrations;
 using CrmAtlas.Infrastructure.Files;
@@ -100,15 +96,7 @@ public static class DependencyInjection
         services.AddTransient<ISistemaAtualizacaoService, SistemaAtualizacaoService>();
         services.AddTransient<IGoogleAdsIntegrationService, GoogleAdsIntegrationService>();
         services.AddTransient<IGoogleAdsApiClient, GoogleAdsApiClient>();
-        services.AddTransient<IContextRetriever, AtlasAiContextRetriever>();
-        services.AddTransient<OpenAiLlmClient>();
-        services.AddTransient<HuggingFaceLlmClient>();
-        services.AddTransient<N8nLlmClient>();
-        services.AddTransient<ILlmClient, ProviderBasedLlmClient>();
-        services.AddTransient<IAtlasAiService, AtlasAiService>();
-        services.Configure<AtlasAiOptions>(configuration.GetSection("AI"));
-        services.Configure<N8nOptions>(configuration.GetSection("N8n"));
-        services.AddHttpClient<IN8nWebhookClient, N8nWebhookClient>();
+
         services.AddScoped<IReceiptStorage, LocalReceiptStorage>();
         services.AddHttpClient<ICepLookupService, ViaCepLookupService>(client =>
         {
