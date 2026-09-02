@@ -68,7 +68,7 @@
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
         <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CadastroServicoDto"
-                        Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                        Class="excel-grid" Style="width:100%;" AllowPaging="false" AllowVirtualization="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
                         FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"

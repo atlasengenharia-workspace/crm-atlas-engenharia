@@ -20,23 +20,37 @@ public interface IServicoTipoCampoConfigService
     Task<IReadOnlyList<ServicoTipoCampoConfigDto>> GetDefaultsAsync(CancellationToken ct = default);
 }
 
-public sealed class ServicoTipoCampoConfigService(IRepository<ServicoTipoCampoConfig> repository)
+public sealed class ServicoTipoCampoConfigService(IRepository<ServicoTipoCampoConfig> repository, ICrmCache cache)
     : IServicoTipoCampoConfigService
 {
+    private static string CacheKeyAll => "servico-tipo-campo-config:all";
+    private static string CacheKeyByTipo(AcompanhamentoServicoTipo tipo) => $"servico-tipo-campo-config:{tipo}";
+
     public async Task<IReadOnlyList<ServicoTipoCampoConfigDto>> ListByTipoAsync(
         AcompanhamentoServicoTipo tipo,
         CancellationToken ct = default)
     {
+        var key = CacheKeyByTipo(tipo);
+        var cached = await cache.GetAsync<IReadOnlyList<ServicoTipoCampoConfigDto>>(key, ct);
+        if (cached is not null) return cached;
+
         var saved = (await repository.ListAsync(ct)).Where(x => x.TipoServico == tipo).ToList();
-        return MergeWithDefaults(tipo, saved);
+        var result = MergeWithDefaults(tipo, saved);
+        await cache.SetAsync(key, result, TimeSpan.FromHours(1), ct);
+        return result;
     }
 
     public async Task<IReadOnlyList<ServicoTipoCampoConfigDto>> ListAsync(CancellationToken ct = default)
     {
+        var cached = await cache.GetAsync<IReadOnlyList<ServicoTipoCampoConfigDto>>(CacheKeyAll, ct);
+        if (cached is not null) return cached;
+
         var saved = await repository.ListAsync(ct);
-        return Enum.GetValues<AcompanhamentoServicoTipo>()
+        var result = Enum.GetValues<AcompanhamentoServicoTipo>()
             .SelectMany(t => MergeWithDefaults(t, saved.Where(x => x.TipoServico == t).ToList()))
             .ToList();
+        await cache.SetAsync(CacheKeyAll, result, TimeSpan.FromHours(1), ct);
+        return result;
     }
 
     public async Task SaveAsync(IEnumerable<ServicoTipoCampoConfigDto> configs, CancellationToken ct = default)
@@ -67,6 +81,10 @@ public sealed class ServicoTipoCampoConfigService(IRepository<ServicoTipoCampoCo
         }
 
         await repository.SaveChangesAsync(ct);
+
+        await cache.RemoveAsync(CacheKeyAll, ct);
+        foreach (var tipo in tipos)
+            await cache.RemoveAsync(CacheKeyByTipo(tipo), ct);
     }
 
     public Task<IReadOnlyList<ServicoTipoCampoConfigDto>> GetDefaultsAsync(CancellationToken ct = default)

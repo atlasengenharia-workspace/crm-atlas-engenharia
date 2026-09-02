@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IRealtimeNotifier, NullRealtimeNotifier>();
         services.TryAddScoped<IUserAccessor, NullUserAccessor>();
         services.AddSingleton<RealtimeSaveChangesInterceptor>();
+        services.AddMemoryCache();
 
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
@@ -104,7 +105,26 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
+        var redis = GetRedisConnectionString(configuration);
+        if (!string.IsNullOrWhiteSpace(redis))
+        {
+            services.AddStackExchangeRedisCache(options => options.Configuration = redis);
+            services.AddSingleton<ICrmCache, RedisCrmCache>();
+        }
+        else
+        {
+            services.AddSingleton<ICrmCache, MemoryCrmCache>();
+        }
+
         return services;
+    }
+
+    private static string? GetRedisConnectionString(IConfiguration configuration)
+    {
+        var redis = configuration.GetConnectionString("Redis")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__Redis")
+            ?? Environment.GetEnvironmentVariable("REDIS_URL");
+        return redis;
     }
 
     private static string ConvertPostgresUrlToConnectionString(string url)

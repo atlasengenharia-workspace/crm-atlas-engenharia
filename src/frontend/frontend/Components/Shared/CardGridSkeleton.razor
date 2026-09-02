@@ -1,0 +1,22 @@
+@using MudBlazor
+
+<MudGrid Class="mb-4">
+    @for (var i = 0; i < Math.Max(1, MetricCount); i++)
+    {
+        <MudItem xs="12" sm="6" lg="4">
+            <MudPaper Class="pa-4" Outlined="true" Style="min-height: 120px;">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudStack Spacing="1" Style="width: 70%;">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" Height="16px" Animation="Animation.Wave" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" Height="24px" Animation="Animation.Wave" />
+                    </MudStack>
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="44px" Height="44px" Animation="Animation.Wave" />
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    [Parameter] public int MetricCount { get; set; } = 3;
+}

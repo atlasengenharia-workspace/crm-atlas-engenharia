@@ -15,11 +15,11 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
     public async Task<int> CountAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default)=>
         await query.CountAsync(ct);
     public Task<AcompanhamentoServico?> GetDetailedAsync(long id,CancellationToken ct=default)=>
-        Query().FirstOrDefaultAsync(x=>x.Id==id,ct);
+        Query().AsNoTracking().FirstOrDefaultAsync(x=>x.Id==id,ct);
     public async Task<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>> ListSituationsAsync(CancellationToken ct=default)=>
         await db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).AsNoTracking().ToListAsync(ct);
     public Task<AcompanhamentoServicoSituacaoConfig?> GetSituationAsync(long id,CancellationToken ct=default)=>
-        db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).FirstOrDefaultAsync(x=>x.Id==id,ct);
+        db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).AsNoTracking().FirstOrDefaultAsync(x=>x.Id==id,ct);
     public async Task AddAsync(AcompanhamentoServico entity,CancellationToken ct=default)=>await db.Acompanhamentos.AddAsync(entity,ct);
     public async Task AddSituationAsync(AcompanhamentoServicoSituacaoConfig entity,CancellationToken ct=default)=>await db.AcompanhamentoSituacoes.AddAsync(entity,ct);
     public void Update(AcompanhamentoServico entity)=>db.Acompanhamentos.Update(entity);

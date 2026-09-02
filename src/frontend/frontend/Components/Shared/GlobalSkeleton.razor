@@ -1,15 +1,33 @@
 @using MudBlazor
 
-<div style="position: relative;">
-    @ChildContent
-
-    @if (IsLoading)
+@if (IsLoading)
+{
+    @switch (Layout)
     {
-        <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" Absolute="true">
-            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
-        </MudOverlay>
+        case SkeletonLayoutType.Dashboard:
+            <DashboardSkeleton />
+            break;
+        case SkeletonLayoutType.Table:
+            <TablePageSkeleton MetricCount="MetricCount" ColumnCount="ColumnCount" RowCount="RowCount" />
+            break;
+        case SkeletonLayoutType.CardGrid:
+            <CardGridSkeleton MetricCount="MetricCount" />
+            break;
+        case SkeletonLayoutType.Form:
+            <FormSkeleton />
+            break;
+        case SkeletonLayoutType.Custom:
+            @CustomSkeleton
+            break;
+        default:
+            <TablePageSkeleton MetricCount="MetricCount" ColumnCount="ColumnCount" RowCount="RowCount" />
+            break;
     }
-</div>
+}
+else
+{
+    @ChildContent
+}
 
 @code {
     [Parameter] public bool IsLoading { get; set; } = true;
