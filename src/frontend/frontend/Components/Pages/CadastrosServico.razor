@@ -191,7 +191,8 @@
                             </MudSelect>
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="_model.DocumentoEmpresa" Label="CPF ou CNPJ"
+                            <MudTextField T="string" Value="_model.DocumentoEmpresa" ValueChanged="OnDocumentoChanged"
+                                          Label="@_documentoLabel" HelperText="@_documentoHelper"
                                           Variant="Variant.Outlined" OnBlur="OnDocumentoBlur" />
                         </MudItem>
                         <MudItem xs="12">
@@ -214,7 +215,7 @@
                             <MudTextField @bind-Value="_model.EnderecoEmpresaCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepAsync" />
                         </MudItem>
                         <MudItem xs="12" sm="7">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Rua" Variant="Variant.Outlined" />
+                            <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Logradouro" Variant="Variant.Outlined" />
                         </MudItem>
                         <MudItem xs="12" sm="2">
                             <MudTextField @bind-Value="_model.EnderecoEmpresaNumero" Label="Número" Variant="Variant.Outlined" />
@@ -238,9 +239,26 @@
                         </MudItem>
                         @if (!_model.MesmoEnderecoEmpresa)
                         {
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="_model.EnderecoServico" Label="Endereço do serviço"
-                                              Variant="Variant.Outlined" />
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="_model.EnderecoServicoCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepServicoAsync" />
+                            </MudItem>
+                            <MudItem xs="12" sm="7">
+                                <MudTextField @bind-Value="_model.EnderecoServicoRua" Label="Logradouro" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <MudTextField @bind-Value="_model.EnderecoServicoNumero" Label="Número" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_model.EnderecoServicoBairro" Label="Bairro" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_model.EnderecoServicoComplemento" Label="Complemento" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="_model.EnderecoServicoCidade" Label="Cidade" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="1">
+                                <MudTextField @bind-Value="_model.EnderecoServicoEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
                             </MudItem>
                         }
                     </MudGrid>
@@ -453,6 +471,8 @@
     private bool _loading;
     private bool _saving;
     private bool _editorOpen;
+    private string _documentoLabel = "CPF ou CNPJ";
+    private string _documentoHelper = "Digite CPF (11 dígitos) ou CNPJ (14 dígitos).";
     private string? _search;
     private AcompanhamentoServicoTipo? _tipo;
     private string? _situacao;
@@ -550,7 +570,8 @@
         _model.ClienteId = id;
         var client = _clientes.FirstOrDefault(x => x.Id == id);
         if (client is null) return;
-        _model.DocumentoEmpresa = client.CnpjCpf;
+        _model.DocumentoEmpresa = client.CnpjCpf ?? "";
+        AtualizarDocumentoLabel(_model.DocumentoEmpresa);
         _model.RazaoSocialEmpresa = client.RazaoSocial;
         _model.ContatoEmpresa = client.NomeContato;
         _model.Telefone = client.Telefone;
@@ -714,11 +735,84 @@
         }
         catch (Exception ex) { Snackbar.Add($"Erro ao consultar CEP: {ex.Message}", Severity.Error); }
     }
-    private void OnDocumentoBlur()
+    private async Task BuscarCepServicoAsync()
+    {
+        var cep = _model.EnderecoServicoCep;
+        if (string.IsNullOrWhiteSpace(cep)) return;
+        try
+        {
+            var result = await JS.InvokeAsync<ViaCepResult?>("buscarCep", cep);
+            if (result is null) return;
+            if (result.erro is true) { Snackbar.Add("CEP não encontrado.", Severity.Warning); return; }
+            _model.EnderecoServicoRua = result.logradouro;
+            _model.EnderecoServicoBairro = result.bairro;
+            _model.EnderecoServicoCidade = result.localidade;
+            _model.EnderecoServicoEstado = result.uf;
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao consultar CEP: {ex.Message}", Severity.Error); }
+    }
+    private void OnDocumentoChanged(string value)
+    {
+        _model.DocumentoEmpresa = value;
+        AtualizarDocumentoLabel(value);
+    }
+    private void AtualizarDocumentoLabel(string? value)
+    {
+        var digits = new string((value ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length <= 11)
+        {
+            _documentoLabel = digits.Length == 11 ? "CPF" : "CPF ou CNPJ";
+            _documentoHelper = digits.Length == 11
+                ? "CPF detectado."
+                : "Digite CPF (11 dígitos) ou CNPJ (14 dígitos).";
+        }
+        else
+        {
+            _documentoLabel = "CNPJ";
+            _documentoHelper = "CNPJ detectado.";
+        }
+    }
+    private async Task OnDocumentoBlur()
     {
         _model.DocumentoEmpresa = FormatCpfCnpj(_model.DocumentoEmpresa);
+        AtualizarDocumentoLabel(_model.DocumentoEmpresa);
         if (!string.IsNullOrWhiteSpace(_model.DocumentoEmpresa) && !IsCpfOrCnpjValid(_model.DocumentoEmpresa))
-            Snackbar.Add("CPF/CNPJ inválido.", Severity.Warning);
+        {
+            Snackbar.Add($"{_documentoLabel} inválido.", Severity.Warning);
+            return;
+        }
+        await BuscarCnpjAsync();
+    }
+    private async Task BuscarCnpjAsync()
+    {
+        var digits = new string(_model.DocumentoEmpresa.Where(char.IsDigit).ToArray());
+        if (digits.Length != 14) return;
+        try
+        {
+            var result = await JS.InvokeAsync<BrasilApiCnpjResult?>("buscarCnpj", _model.DocumentoEmpresa);
+            if (result is null) return;
+            if (result.razao_social is not null && string.IsNullOrWhiteSpace(_model.RazaoSocialEmpresa))
+                _model.RazaoSocialEmpresa = result.razao_social;
+            if (result.ddd_telefone_1 is not null && string.IsNullOrWhiteSpace(_model.Telefone))
+                _model.Telefone = $"({result.ddd_telefone_1[..2]}) {result.ddd_telefone_1[2..]}".Trim();
+            if (result.email is not null && string.IsNullOrWhiteSpace(_model.Email))
+                _model.Email = result.email;
+            if (result.cep is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaCep))
+                _model.EnderecoEmpresaCep = result.cep;
+            if (result.logradouro is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaRua))
+                _model.EnderecoEmpresaRua = $"{result.descricao_tipo_logradouro} {result.logradouro}".Trim();
+            if (result.numero is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaNumero))
+                _model.EnderecoEmpresaNumero = result.numero;
+            if (result.complemento is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaComplemento))
+                _model.EnderecoEmpresaComplemento = result.complemento;
+            if (result.bairro is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaBairro))
+                _model.EnderecoEmpresaBairro = result.bairro;
+            if (result.municipio is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaCidade))
+                _model.EnderecoEmpresaCidade = result.municipio;
+            if (result.uf is not null && string.IsNullOrWhiteSpace(_model.EnderecoEmpresaEstado))
+                _model.EnderecoEmpresaEstado = result.uf;
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao consultar CNPJ: {ex.Message}", Severity.Error); }
     }
     private static bool IsCpfOrCnpjValid(string? value)
     {
@@ -768,6 +862,19 @@
         return value ?? "";
     }
     private sealed record ViaCepResult(string? logradouro, string? bairro, string? localidade, string? uf, bool? erro);
+    private sealed record BrasilApiCnpjResult(
+        string? razao_social,
+        string? nome_fantasia,
+        string? descricao_tipo_logradouro,
+        string? logradouro,
+        string? numero,
+        string? complemento,
+        string? bairro,
+        string? cep,
+        string? municipio,
+        string? uf,
+        string? ddd_telefone_1,
+        string? email);
     private static string ServiceSaveError(Exception exception, string? code)
     {
         var detail = exception.GetBaseException().Message;
@@ -814,6 +921,13 @@
         public string? EnderecoEmpresaEstado { get; set; }
         public string? EnderecoEmpresaCep { get; set; }
         public string? EnderecoServico { get; set; }
+        public string? EnderecoServicoRua { get; set; }
+        public string? EnderecoServicoNumero { get; set; }
+        public string? EnderecoServicoBairro { get; set; }
+        public string? EnderecoServicoComplemento { get; set; }
+        public string? EnderecoServicoCidade { get; set; }
+        public string? EnderecoServicoEstado { get; set; }
+        public string? EnderecoServicoCep { get; set; }
         public bool MesmoEnderecoEmpresa { get; set; } = true;
         public decimal? ValorContrato { get; set; }
         public DateTime? DataContrato { get; set; } = DateTime.Today;
@@ -826,14 +940,22 @@
             Id = x.Id, Codigo = x.Codigo, ClienteId = x.ClienteId, OrcamentoId = x.OrcamentoId,
             CondicaoPagamentoId = x.CondicaoPagamentoId, TipoServico = x.TipoServico,
             Subtipo = x.Subtipo, DataEntrada = x.DataEntrada.ToDateTime(TimeOnly.MinValue),
-            SituacaoInicial = x.SituacaoInicial, DocumentoEmpresa = x.DocumentoEmpresa,
+            SituacaoInicial = x.SituacaoInicial, DocumentoEmpresa = x.DocumentoEmpresa ?? "",
             RazaoSocialEmpresa = x.RazaoSocialEmpresa, ContatoEmpresa = x.ContatoEmpresa,
             Telefone = x.Telefone, Email = x.Email, EnderecoEmpresa = x.EnderecoEmpresa,
             EnderecoEmpresaRua = x.EnderecoEmpresaRua ?? x.EnderecoEmpresa, EnderecoEmpresaNumero = x.EnderecoEmpresaNumero,
             EnderecoEmpresaBairro = x.EnderecoEmpresaBairro, EnderecoEmpresaComplemento = x.EnderecoEmpresaComplemento,
             EnderecoEmpresaCidade = x.EnderecoEmpresaCidade, EnderecoEmpresaEstado = x.EnderecoEmpresaEstado,
             EnderecoEmpresaCep = x.EnderecoEmpresaCep,
-            EnderecoServico = x.EnderecoServico, MesmoEnderecoEmpresa = x.MesmoEnderecoEmpresa,
+            EnderecoServico = x.EnderecoServico,
+            EnderecoServicoRua = x.EnderecoServicoRua ?? x.EnderecoServico,
+            EnderecoServicoNumero = x.EnderecoServicoNumero,
+            EnderecoServicoBairro = x.EnderecoServicoBairro,
+            EnderecoServicoComplemento = x.EnderecoServicoComplemento,
+            EnderecoServicoCidade = x.EnderecoServicoCidade,
+            EnderecoServicoEstado = x.EnderecoServicoEstado,
+            EnderecoServicoCep = x.EnderecoServicoCep,
+            MesmoEnderecoEmpresa = x.MesmoEnderecoEmpresa,
             ValorContrato = x.ValorContrato,
             DataContrato = x.DataContrato?.ToDateTime(TimeOnly.MinValue),
             ValorNotaFiscal = x.ValorNotaFiscal,
@@ -858,6 +980,8 @@
             RazaoSocialEmpresa, ContatoEmpresa, Telefone, Email, EnderecoEmpresa,
             EnderecoEmpresaRua, EnderecoEmpresaNumero, EnderecoEmpresaBairro, EnderecoEmpresaComplemento,
             EnderecoEmpresaCidade, EnderecoEmpresaEstado, EnderecoEmpresaCep, EnderecoServico,
+            EnderecoServicoRua, EnderecoServicoNumero, EnderecoServicoBairro, EnderecoServicoComplemento,
+            EnderecoServicoCidade, EnderecoServicoEstado, EnderecoServicoCep,
             MesmoEnderecoEmpresa, ValorContrato, DateOnly.FromDateTime(DataContrato!.Value),
             null, ValorNotaFiscal,
             Parcelas.Select(p => new CadastroServicoParcelaDto(

@@ -133,6 +133,13 @@ public sealed class CadastroServico : Entity
     public string? EnderecoEmpresaEstado { get; set; }
     public string? EnderecoEmpresaCep { get; set; }
     public string? EnderecoServico { get; set; }
+    public string? EnderecoServicoRua { get; set; }
+    public string? EnderecoServicoNumero { get; set; }
+    public string? EnderecoServicoBairro { get; set; }
+    public string? EnderecoServicoComplemento { get; set; }
+    public string? EnderecoServicoCidade { get; set; }
+    public string? EnderecoServicoEstado { get; set; }
+    public string? EnderecoServicoCep { get; set; }
     public bool MesmoEnderecoEmpresa { get; set; }
     public decimal? ValorContrato { get; set; }
     public DateOnly? DataContrato { get; set; }

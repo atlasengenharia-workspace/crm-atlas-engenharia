@@ -48,6 +48,13 @@ public sealed record CadastroServicoDto(
     [StringLength(2)] string? EnderecoEmpresaEstado,
     string? EnderecoEmpresaCep,
     string? EnderecoServico,
+    string? EnderecoServicoRua,
+    string? EnderecoServicoNumero,
+    string? EnderecoServicoBairro,
+    string? EnderecoServicoComplemento,
+    string? EnderecoServicoCidade,
+    [StringLength(2)] string? EnderecoServicoEstado,
+    string? EnderecoServicoCep,
     bool MesmoEnderecoEmpresa,
     decimal? ValorContrato,
     DateOnly? DataContrato,
@@ -241,7 +248,14 @@ public sealed class CadastroServicoService(
         entity.EnderecoEmpresa = FormatAddress(dto);
         entity.EnderecoServico = dto.MesmoEnderecoEmpresa
             ? entity.EnderecoEmpresa
-            : Clean(dto.EnderecoServico);
+            : FormatServiceAddress(dto);
+        entity.EnderecoServicoRua = Clean(dto.EnderecoServicoRua);
+        entity.EnderecoServicoNumero = Clean(dto.EnderecoServicoNumero);
+        entity.EnderecoServicoBairro = Clean(dto.EnderecoServicoBairro);
+        entity.EnderecoServicoComplemento = Clean(dto.EnderecoServicoComplemento);
+        entity.EnderecoServicoCidade = Clean(dto.EnderecoServicoCidade);
+        entity.EnderecoServicoEstado = Clean(dto.EnderecoServicoEstado)?.ToUpperInvariant();
+        entity.EnderecoServicoCep = Clean(dto.EnderecoServicoCep);
         entity.MesmoEnderecoEmpresa = dto.MesmoEnderecoEmpresa;
         entity.ValorContrato = dto.ValorContrato;
         entity.DataContrato = dto.DataContrato;
@@ -364,7 +378,9 @@ public sealed class CadastroServicoService(
         x.DocumentoEmpresa ?? string.Empty, x.RazaoSocialEmpresa ?? string.Empty, x.ContatoEmpresa,
         x.Telefone, x.Email, x.EnderecoEmpresa, x.EnderecoEmpresaRua, x.EnderecoEmpresaNumero,
         x.EnderecoEmpresaBairro, x.EnderecoEmpresaComplemento, x.EnderecoEmpresaCidade,
-        x.EnderecoEmpresaEstado, x.EnderecoEmpresaCep, x.EnderecoServico, x.MesmoEnderecoEmpresa,
+        x.EnderecoEmpresaEstado, x.EnderecoEmpresaCep, x.EnderecoServico, x.EnderecoServicoRua,
+        x.EnderecoServicoNumero, x.EnderecoServicoBairro, x.EnderecoServicoComplemento,
+        x.EnderecoServicoCidade, x.EnderecoServicoEstado, x.EnderecoServicoCep, x.MesmoEnderecoEmpresa,
         x.ValorContrato, x.DataContrato, x.NomeCondicaoPagamento, x.ValorNotaFiscal,
         x.Parcelas.Select(p => new CadastroServicoParcelaDto(
             p.Id, p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
@@ -458,5 +474,16 @@ public sealed class CadastroServicoService(
             .Where(x => !string.IsNullOrWhiteSpace(x));
         var formatted = string.Join(", ", parts);
         return Clean(formatted) ?? Clean(dto.EnderecoEmpresa);
+    }
+
+    private static string? FormatServiceAddress(CadastroServicoDto dto)
+    {
+        var street = string.Join(", ", new[] { Clean(dto.EnderecoServicoRua), Clean(dto.EnderecoServicoNumero) }
+            .Where(x => x is not null));
+        var locality = string.Join(" - ", new[] { Clean(dto.EnderecoServicoBairro), Clean(dto.EnderecoServicoCidade), Clean(dto.EnderecoServicoEstado)?.ToUpperInvariant() }
+            .Where(x => x is not null));
+        var parts = new[] { street, Clean(dto.EnderecoServicoComplemento), locality, Clean(dto.EnderecoServicoCep) }
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+        return string.Join(", ", parts);
     }
 }

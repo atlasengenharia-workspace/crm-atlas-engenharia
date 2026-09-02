@@ -106,6 +106,14 @@ using (var scope = app.Services.CreateScope())
                 ALTER TABLE acompanhamento_servicos ADD COLUMN IF NOT EXISTS proxima_parcela_texto text;
                 ALTER TABLE acompanhamento_servico_situacao_config ADD COLUMN IF NOT EXISTS cor character varying(16);
 
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_rua text;
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_numero text;
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_bairro text;
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_complemento text;
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_cidade text;
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_estado character varying(2);
+                ALTER TABLE cadastro_servicos ADD COLUMN IF NOT EXISTS endereco_servico_cep text;
+
                 UPDATE acompanhamento_servico_situacao_config SET cor = CASE
                     WHEN lower(nome) LIKE 'agendado%' THEN '#C7D2FE'
                     WHEN lower(nome) LIKE 'aguar%contratante%' OR lower(nome) LIKE 'aguard%cliente%' THEN '#FDE68A'
