@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CrmAtlas.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AtlasDbContext))]
-    [Migration("20260902175645_AddGoogleAdsIntegration")]
+    [Migration("20260902180227_AddGoogleAdsIntegration")]
     partial class AddGoogleAdsIntegration
     {
         /// <inheritdoc />
