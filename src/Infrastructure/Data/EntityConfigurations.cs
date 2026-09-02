@@ -125,6 +125,14 @@ internal sealed class ServicosConfiguration :
         builder.HasIndex("Codigo").IsUnique();
         builder.Property("Codigo").IsRequired();
     }
+
+    public void Configure(EntityTypeBuilder<ServicoTipoCampoConfig> builder)
+    {
+        builder.ToTable("servico_tipo_campo_config");
+        builder.HasIndex(x => new { x.TipoServico, x.Campo }).IsUnique();
+        builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.Campo).HasConversion<string>().HasMaxLength(32);
+    }
 }
 
 internal sealed class AcompanhamentoConfiguration :

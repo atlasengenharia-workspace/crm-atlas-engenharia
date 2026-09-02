@@ -1,5 +1,6 @@
 @inject IJSRuntime JS
 @inject ICadastroServicoService Service
+@inject IServicoTipoCampoConfigService TipoCampoConfigService
 @inject IClienteService ClienteService
 @inject ICondicaoPagamentoService CondicaoService
 @inject IOrcamentoService OrcamentoService
@@ -24,170 +25,232 @@
             <div class="d-flex flex-column gap-4">
                 <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Identificação</MudText>
                     <MudGrid Spacing="2">
-                        <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
-                                          Required="true" RequiredError="Informe o código usado pela empresa."
-                                          Variant="Variant.Outlined" OnBlur="OnCodigoBlurAsync"
-                                          HelperText="Ex.: 2.15, 3.209 ou 3141" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudSelect T="long?" Value="_model.ClienteId" ValueChanged="ClientChanged" Label="Cliente cadastrado"
-                                       Variant="Variant.Outlined" Clearable="true">
-                                @foreach (var cliente in _clientes)
-                                {
-                                    <MudSelectItem T="long?" Value="@cliente.Id">@cliente.RazaoSocial</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudTextField T="string" Value="_model.DocumentoEmpresa" ValueChanged="OnDocumentoChanged"
-                                          Label="@_documentoLabel" HelperText="@_documentoHelper"
-                                          Variant="Variant.Outlined" OnBlur="OnDocumentoBlur" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudTextField @bind-Value="_model.RazaoSocialEmpresa" Label="Razão social"
-                                          Required="true" RequiredError="Informe a razão social."
-                                          Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="_model.ContatoEmpresa" Label="Pessoa de contato"
-                                          Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="3">
-                            <MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="3">
-                            <MudTextField @bind-Value="_model.Email" Label="E-mail" Variant="Variant.Outlined"
-                                          InputType="InputType.Email" />
-                        </MudItem>
-                        <MudItem xs="12" sm="3">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepAsync" />
-                        </MudItem>
-                        <MudItem xs="12" sm="7">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Logradouro" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="2">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaNumero" Label="Número" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="4">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaBairro" Label="Bairro" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="4">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaComplemento" Label="Complemento" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="3">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaCidade" Label="Cidade" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="1">
-                            <MudTextField @bind-Value="_model.EnderecoEmpresaEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudSwitch T="bool" @bind-Value="_model.MesmoEnderecoEmpresa" Color="Color.Primary">
-                                Serviço executado no mesmo endereço
-                            </MudSwitch>
-                        </MudItem>
-                        @if (!_model.MesmoEnderecoEmpresa)
+                        @if (Visivel(ServicoCampo.Codigo))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
+                                              Required="@Obrigatorio(ServicoCampo.Codigo)" RequiredError="Informe o código usado pela empresa."
+                                              Variant="Variant.Outlined" OnBlur="OnCodigoBlurAsync"
+                                              HelperText="Ex.: 2.15, 3.209 ou 3141" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Cliente))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="long?" Value="_model.ClienteId" ValueChanged="ClientChanged" Label="Cliente cadastrado"
+                                           Variant="Variant.Outlined" Clearable="true">
+                                    @foreach (var cliente in _clientes)
+                                    {
+                                        <MudSelectItem T="long?" Value="@cliente.Id">@cliente.RazaoSocial</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Documento))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudTextField T="string" Value="_model.DocumentoEmpresa" ValueChanged="OnDocumentoChanged"
+                                              Label="@_documentoLabel" HelperText="@_documentoHelper"
+                                              Variant="Variant.Outlined" OnBlur="OnDocumentoBlur" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.RazaoSocial))
+                        {
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="_model.RazaoSocialEmpresa" Label="Razão social"
+                                              Required="@Obrigatorio(ServicoCampo.RazaoSocial)" RequiredError="Informe a razão social."
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Contato))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudTextField @bind-Value="_model.ContatoEmpresa" Label="Pessoa de contato"
+                                              Required="@Obrigatorio(ServicoCampo.Contato)"
+                                              Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Telefone))
                         {
                             <MudItem xs="12" sm="3">
-                                <MudTextField @bind-Value="_model.EnderecoServicoCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepServicoAsync" />
+                                <MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined"
+                                              Required="@Obrigatorio(ServicoCampo.Telefone)" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Email))
+                        {
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="_model.Email" Label="E-mail" Variant="Variant.Outlined"
+                                              InputType="InputType.Email"
+                                              Required="@Obrigatorio(ServicoCampo.Email)" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.EnderecoEmpresa))
+                        {
+                            <MudItem xs="12" sm="3">
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepAsync" />
                             </MudItem>
                             <MudItem xs="12" sm="7">
-                                <MudTextField @bind-Value="_model.EnderecoServicoRua" Label="Logradouro" Variant="Variant.Outlined" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaRua" Label="Logradouro" Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="12" sm="2">
-                                <MudTextField @bind-Value="_model.EnderecoServicoNumero" Label="Número" Variant="Variant.Outlined" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaNumero" Label="Número" Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="12" sm="4">
-                                <MudTextField @bind-Value="_model.EnderecoServicoBairro" Label="Bairro" Variant="Variant.Outlined" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaBairro" Label="Bairro" Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="12" sm="4">
-                                <MudTextField @bind-Value="_model.EnderecoServicoComplemento" Label="Complemento" Variant="Variant.Outlined" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaComplemento" Label="Complemento" Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="12" sm="3">
-                                <MudTextField @bind-Value="_model.EnderecoServicoCidade" Label="Cidade" Variant="Variant.Outlined" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaCidade" Label="Cidade" Variant="Variant.Outlined" />
                             </MudItem>
                             <MudItem xs="12" sm="1">
-                                <MudTextField @bind-Value="_model.EnderecoServicoEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
+                                <MudTextField @bind-Value="_model.EnderecoEmpresaEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
                             </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.EnderecoServico))
+                        {
+                            <MudItem xs="12">
+                                <MudSwitch T="bool" @bind-Value="_model.MesmoEnderecoEmpresa" Color="Color.Primary">
+                                    Serviço executado no mesmo endereço
+                                </MudSwitch>
+                            </MudItem>
+                            @if (!_model.MesmoEnderecoEmpresa)
+                            {
+                                <MudItem xs="12" sm="3">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoCep" Label="CEP" Variant="Variant.Outlined" OnBlur="BuscarCepServicoAsync" />
+                                </MudItem>
+                                <MudItem xs="12" sm="7">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoRua" Label="Logradouro" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="2">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoNumero" Label="Número" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="4">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoBairro" Label="Bairro" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="4">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoComplemento" Label="Complemento" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoCidade" Label="Cidade" Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" sm="1">
+                                    <MudTextField @bind-Value="_model.EnderecoServicoEstado" Label="UF" Variant="Variant.Outlined" MaxLength="2" />
+                                </MudItem>
+                            }
                         }
                     </MudGrid>
                 </MudPaper>
                 <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Serviço e contrato</MudText>
                     <MudGrid Spacing="2">
-                        <MudItem xs="12">
-                            <MudSelect T="long?" Value="_model.OrcamentoId" ValueChanged="BudgetChanged"
-                                       Label="Converter orçamento existente" Clearable="true"
-                                       Variant="Variant.Outlined" HelperText="Tipo, cliente e valor serão aproveitados automaticamente.">
-                                @foreach (var budget in _budgets.Where(x => !ClosedBudget(x.Situacao)))
-                                {
-                                    <MudSelectItem T="long?" Value="@budget.Id">@budget.Codigo — @budget.Nome — @Money(budget.ValorTotal ?? 0)</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudSelect T="AcompanhamentoServicoTipo" Value="_model.TipoServico"
-                                       Label="Tipo de serviço" Required="true" Variant="Variant.Outlined"
-                                       ValueChanged="TypeChanged">
-                                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
-                                {
-                                    <MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudSelect T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
-                                       Required="true" RequiredError="Informe o subtipo."
-                                       Variant="Variant.Outlined">
-                                @foreach (var subtype in CurrentSubtypes)
-                                {
-                                    <MudSelectItem Value="@subtype">@subtype</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudDatePicker @bind-Date="_model.DataEntrada" Label="Data de entrada"
-                                           Required="true" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudAutocomplete T="string" @bind-Value="_model.SituacaoInicial"
-                                             Label="Situação" Variant="Variant.Outlined"
-                                             SearchFunc="SearchSituationsAsync"
-                                             CoerceText="true" CoerceValue="true"
-                                             Clearable="true"
-                                             HelperText="Selecione uma situação ou digite uma nova." />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudDatePicker @bind-Date="_model.DataContrato" Label="Data do contrato"
-                                           Required="true" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" @bind-Value="_model.ValorContrato"
-                                             Label="Valor do contrato" Required="true" Min="0"
-                                             Format="C2" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudSelect T="long?" Value="_model.CondicaoPagamentoId" ValueChanged="ConditionChanged"
-                                       Label="Condição de pagamento" Clearable="true"
-                                       Variant="Variant.Outlined">
-                                @foreach (var condition in _conditions)
-                                {
-                                    <MudSelectItem T="long?" Value="@condition.Id">@condition.Nome</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="6">
-                            <MudNumericField T="decimal?" @bind-Value="_model.ValorNotaFiscal"
-                                             Label="Desconto / retenção NF" Min="0"
-                                             Format="C2" Variant="Variant.Outlined" />
-                        </MudItem>
+                        @if (Visivel(ServicoCampo.Orcamento))
+                        {
+                            <MudItem xs="12">
+                                <MudSelect T="long?" Value="_model.OrcamentoId" ValueChanged="BudgetChanged"
+                                           Label="Converter orçamento existente" Clearable="true"
+                                           Variant="Variant.Outlined" HelperText="Tipo, cliente e valor serão aproveitados automaticamente.">
+                                    @foreach (var budget in _budgets.Where(x => !ClosedBudget(x.Situacao)))
+                                    {
+                                        <MudSelectItem T="long?" Value="@budget.Id">@budget.Codigo — @budget.Nome — @Money(budget.ValorTotal ?? 0)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Tipo))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="AcompanhamentoServicoTipo" Value="_model.TipoServico"
+                                           Label="Tipo de serviço" Required="@Obrigatorio(ServicoCampo.Tipo)" Variant="Variant.Outlined"
+                                           ValueChanged="TypeChanged">
+                                    @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                                    {
+                                        <MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Subtipo))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
+                                           Required="@Obrigatorio(ServicoCampo.Subtipo)" RequiredError="Informe o subtipo."
+                                           Variant="Variant.Outlined">
+                                    @foreach (var subtype in CurrentSubtypes)
+                                    {
+                                        <MudSelectItem Value="@subtype">@subtype</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.DataEntrada))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudDatePicker @bind-Date="_model.DataEntrada" Label="Data de entrada"
+                                               Required="@Obrigatorio(ServicoCampo.DataEntrada)" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.Situacao))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudAutocomplete T="string" @bind-Value="_model.SituacaoInicial"
+                                                 Label="Situação" Variant="Variant.Outlined"
+                                                 SearchFunc="SearchSituationsAsync"
+                                                 CoerceText="true" CoerceValue="true"
+                                                 Clearable="true"
+                                                 HelperText="Selecione uma situação ou digite uma nova." />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.DataContrato))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudDatePicker @bind-Date="_model.DataContrato" Label="Data do contrato"
+                                               Required="@Obrigatorio(ServicoCampo.DataContrato)" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.ValorContrato))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudNumericField T="decimal?" @bind-Value="_model.ValorContrato"
+                                                 Label="Valor do contrato" Required="@Obrigatorio(ServicoCampo.ValorContrato)" Min="0"
+                                                 Format="C2" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.CondicaoPagamento))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="long?" Value="_model.CondicaoPagamentoId" ValueChanged="ConditionChanged"
+                                           Label="Condição de pagamento" Clearable="true"
+                                           Variant="Variant.Outlined">
+                                    @foreach (var condition in _conditions)
+                                    {
+                                        <MudSelectItem T="long?" Value="@condition.Id">@condition.Nome</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        }
+                        @if (Visivel(ServicoCampo.ValorNotaFiscal))
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudNumericField T="decimal?" @bind-Value="_model.ValorNotaFiscal"
+                                                 Label="Desconto / retenção NF" Min="0"
+                                                 Format="C2" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
                     </MudGrid>
                 </MudPaper>
-                <MudPaper Outlined="true" Class="pa-4">
-                    <MudText Typo="Typo.h6" Class="mb-3">Observações</MudText>
-                    <MudTextField @bind-Value="_model.Observacao" Label="Observação"
-                                  Variant="Variant.Outlined" Lines="4" />
-                </MudPaper>
-                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Parcelas</MudText>
+                @if (Visivel(ServicoCampo.Observacao))
+                {
+                    <MudPaper Outlined="true" Class="pa-4">
+                        <MudText Typo="Typo.h6" Class="mb-3">Observações</MudText>
+                        <MudTextField @bind-Value="_model.Observacao" Label="Observação"
+                                      Variant="Variant.Outlined" Lines="4" />
+                    </MudPaper>
+                }
+                @if (Visivel(ServicoCampo.Parcelas))
+                {
+                    <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Parcelas</MudText>
                     <div class="d-flex justify-space-between align-center mb-3">
                         <div>
                             <MudText Typo="Typo.h6">Plano financeiro</MudText>
@@ -240,8 +303,11 @@
                             @Money(NetValue - InstallmentTotal)
                         </MudAlert>
                     }
-                </MudPaper>
-                <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Prestadores e custos</MudText>
+                    </MudPaper>
+                }
+                @if (Visivel(ServicoCampo.Prestadores))
+                {
+                    <MudPaper Outlined="true" Class="pa-4"><MudText Typo="Typo.h6" Class="mb-3">Prestadores e custos</MudText>
                     <div class="d-flex flex-wrap justify-space-between align-center gap-2 mb-4">
                         <div>
                             <MudText Typo="Typo.h6">Prestadores vinculados</MudText>
@@ -289,7 +355,8 @@
                             </MudGrid>
                         </MudPaper>
                     }
-                </MudPaper>
+                    </MudPaper>
+                }
             </div>
         </MudForm>
         <MudDivider Class="my-5" />
@@ -310,6 +377,7 @@
     private IReadOnlyList<OrcamentoDto> _budgets = [];
     private IReadOnlyList<PrestadorDto> _providers = [];
     private IReadOnlyList<SituacaoConfigDto> _situations = [];
+    private IReadOnlyList<ServicoTipoCampoConfigDto> _campoConfigs = [];
     private ServiceModel _model = new();
     private MudForm? _form;
     private bool _valid;
@@ -382,9 +450,15 @@
             _budgets = (await OrcamentoService.ListAsync(new(PageSize: 5000))).Items;
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _situations = await AcompanhamentoService.ListSituationsAsync();
+            _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(_model.TipoServico);
         }
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
     }
+
+    private bool Visivel(ServicoCampo campo) => Config(campo)?.Visivel ?? true;
+    private bool Obrigatorio(ServicoCampo campo) => Config(campo)?.Obrigatorio ?? false;
+    private ServicoTipoCampoConfigDto? Config(ServicoCampo campo) =>
+        _campoConfigs.FirstOrDefault(x => x.Campo == campo);
 
     private void Edit(CadastroServicoDto x) { _model = ServiceModel.From(x); _editorOpen = true; }
     private void ClientChanged(long? id)
@@ -406,7 +480,7 @@
         _model.EnderecoEmpresaEstado = client.Estado;
         _model.EnderecoEmpresaCep = client.Cep;
     }
-    private void TypeChanged(AcompanhamentoServicoTipo value)
+    private async Task TypeChanged(AcompanhamentoServicoTipo value)
     {
         _model.TipoServico = value;
         _model.Subtipo = CurrentSubtypes.FirstOrDefault() ?? "";
@@ -416,6 +490,8 @@
             .ThenBy(x => x.Ordem)
             .Select(x => x.Nome)
             .FirstOrDefault();
+        try { _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(value); }
+        catch { _campoConfigs = []; }
     }
 
     private Task<IEnumerable<string>> SearchSituationsAsync(string value, CancellationToken cancellationToken) =>

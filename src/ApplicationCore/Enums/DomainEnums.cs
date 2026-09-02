@@ -1,6 +1,13 @@
 namespace CrmAtlas.ApplicationCore.Enums;
 
 public enum AcompanhamentoServicoTipo { AVCB, CLCB, OBRAS, PROCESSOS_ADM }
+public enum ServicoCampo
+{
+    Codigo, Cliente, Documento, RazaoSocial, Contato, Telefone, Email,
+    EnderecoEmpresa, EnderecoServico, Orcamento, Tipo, Subtipo,
+    DataEntrada, Situacao, DataContrato, ValorContrato, CondicaoPagamento,
+    ValorNotaFiscal, Parcelas, Prestadores, Observacao
+}
 public enum GoogleIntegrationAction { CONNECT, DISCONNECT, TEST, SYNC }
 public enum GoogleIntegrationStatus { CONNECTED, DISCONNECTED, ERROR, PENDING }
 public enum LancamentoOrigem { MANUAL, IMPORT_INTER, IMPORT_ASAAS, IMPORT_ATLAS }

@@ -163,6 +163,14 @@ public sealed class CadastroServicoCodigoHistorico : Entity
     public DateTime AlteradoEm { get; set; }
 }
 
+public sealed class ServicoTipoCampoConfig : Entity
+{
+    public AcompanhamentoServicoTipo TipoServico { get; set; }
+    public ServicoCampo Campo { get; set; }
+    public bool Visivel { get; set; } = true;
+    public bool Obrigatorio { get; set; } = false;
+}
+
 public sealed class CadastroServicoParcela : Entity
 {
     public long CadastroServicoId { get; set; }

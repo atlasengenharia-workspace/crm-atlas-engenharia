@@ -1,0 +1,105 @@
+@page "/configuracao-campos-servico"
+@attribute [Authorize]
+@inject IServicoTipoCampoConfigService TipoCampoConfigService
+@inject ISnackbar Snackbar
+
+<PageTitle>Configuração de campos | CRM Atlas</PageTitle>
+<PageHeader Title="Configuração de campos de serviço" Subtitle="Escolha quais campos aparecem e quais são obrigatórios por tipo de serviço." />
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.CardGrid">
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+            @foreach (var tipo in Enum.GetValues<AcompanhamentoServicoTipo>())
+            {
+                var configs = _configsByTipo[tipo];
+                <MudTabPanel Text="@TypeLabel(tipo)">
+                    <MudTable Items="@configs" Dense="true" Hover="true" Elevation="0" Bordered="true">
+                        <HeaderContent>
+                            <MudTh>Campo</MudTh>
+                            <MudTh Style="text-align:center">Visível</MudTh>
+                            <MudTh Style="text-align:center">Obrigatório</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="context">
+                            <MudTd DataLabel="Campo">@CampoLabel(context.Campo)</MudTd>
+                            <MudTd Style="text-align:center">
+                                <MudSwitch T="bool" @bind-Value="context.Visivel" Color="Color.Primary" />
+                            </MudTd>
+                            <MudTd Style="text-align:center">
+                                <MudSwitch T="bool" @bind-Value="context.Obrigatorio" Color="Color.Secondary" Disabled="!context.Visivel" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudTabPanel>
+            }
+        </MudTabs>
+
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync" Disabled="_saving">Salvar configuração</MudButton>
+        </MudStack>
+    </MudPaper>
+</GlobalSkeleton>
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private readonly Dictionary<AcompanhamentoServicoTipo, List<ServicoTipoCampoConfigDto>> _configsByTipo = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = await TipoCampoConfigService.ListAsync();
+            foreach (var tipo in Enum.GetValues<AcompanhamentoServicoTipo>())
+                _configsByTipo[tipo] = all.Where(x => x.TipoServico == tipo).ToList();
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao carregar configurações: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var all = _configsByTipo.Values.SelectMany(x => x).ToList();
+            await TipoCampoConfigService.SaveAsync(all);
+            Snackbar.Add("Configuração salva.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao salvar: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private static string TypeLabel(AcompanhamentoServicoTipo type) => type switch
+    {
+        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Processo administrativo",
+        AcompanhamentoServicoTipo.OBRAS => "Obras",
+        _ => type.ToString()
+    };
+
+    private static string CampoLabel(ServicoCampo campo) => campo switch
+    {
+        ServicoCampo.Codigo => "Código do serviço",
+        ServicoCampo.Cliente => "Cliente cadastrado",
+        ServicoCampo.Documento => "CPF / CNPJ",
+        ServicoCampo.RazaoSocial => "Razão social",
+        ServicoCampo.Contato => "Pessoa de contato",
+        ServicoCampo.Telefone => "Telefone",
+        ServicoCampo.Email => "E-mail",
+        ServicoCampo.EnderecoEmpresa => "Endereço da empresa",
+        ServicoCampo.EnderecoServico => "Endereço do serviço",
+        ServicoCampo.Orcamento => "Orçamento existente",
+        ServicoCampo.Tipo => "Tipo de serviço",
+        ServicoCampo.Subtipo => "Subtipo",
+        ServicoCampo.DataEntrada => "Data de entrada",
+        ServicoCampo.Situacao => "Situação",
+        ServicoCampo.DataContrato => "Data do contrato",
+        ServicoCampo.ValorContrato => "Valor do contrato",
+        ServicoCampo.CondicaoPagamento => "Condição de pagamento",
+        ServicoCampo.ValorNotaFiscal => "Desconto / retenção NF",
+        ServicoCampo.Parcelas => "Parcelas",
+        ServicoCampo.Prestadores => "Prestadores e custos",
+        ServicoCampo.Observacao => "Observação",
+        _ => campo.ToString()
+    };
+}
