@@ -37,7 +37,8 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
 
     public async Task<PagedResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        if (filter is null)
+        var cacheable = filter is null || (filter.PageSize == 0 && string.IsNullOrWhiteSpace(filter.Search));
+        if (cacheable)
         {
             var cached = await cache.GetAsync<PagedResult<CondicaoPagamentoDto>>(CacheKey, cancellationToken);
             if (cached is not null) return cached;
@@ -60,7 +61,7 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         var dtos = items.Select(ToDto).ToList();
 
         var result = PagedResult<CondicaoPagamentoDto>.Create(dtos, page, all ? total : pageSize, total);
-        if (filter is null)
+        if (cacheable)
             await cache.SetAsync(CacheKey, result, TimeSpan.FromHours(1), cancellationToken);
         return result;
     }
