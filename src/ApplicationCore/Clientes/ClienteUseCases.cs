@@ -52,7 +52,7 @@ public interface IClienteService
     Task<ClienteStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed class ClienteService(IRepository<Cliente> repository) : IClienteService
+public sealed class ClienteService(IRepository<Cliente> repository, ICrmCache cache) : IClienteService
 {
     private static readonly Regex DocumentoPattern = new(
         @"^(LEG-[0-9A-F]{12}|\d{11}|\d{14}|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})$",
@@ -102,6 +102,7 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         await ApplyAsync(entity, dto, null, cancellationToken);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync("cliente:statistics", cancellationToken);
         return ToDto(entity);
     }
 
@@ -111,6 +112,7 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         await ApplyAsync(entity, dto, id, cancellationToken);
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync("cliente:statistics", cancellationToken);
         return ToDto(entity);
     }
 
@@ -119,15 +121,23 @@ public sealed class ClienteService(IRepository<Cliente> repository) : IClienteSe
         var entity = await FindAsync(id, cancellationToken);
         repository.Remove(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync("cliente:statistics", cancellationToken);
     }
 
     public async Task<ClienteStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
     {
+        const string key = "cliente:statistics";
+        var cached = await cache.GetAsync<ClienteStatistics>(key, cancellationToken);
+        if (cached is not null) return cached;
+
         var items = await repository.ListAsync(cancellationToken);
-        return new(
+        var stats = new ClienteStatistics(
             items.Count,
             items.Where(x => !string.IsNullOrWhiteSpace(x.Cidade)).Select(x => x.Cidade!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
             items.Where(x => !string.IsNullOrWhiteSpace(x.Estado)).Select(x => x.Estado!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        await cache.SetAsync(key, stats, TimeSpan.FromHours(1), cancellationToken);
+        return stats;
     }
 
     private async Task ApplyAsync(

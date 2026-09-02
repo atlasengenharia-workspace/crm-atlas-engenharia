@@ -20,7 +20,8 @@ public sealed class ApplicationUseCaseTests
                 RazaoSocial = "Cliente existente"
             }
         ]);
-        var service = new ClienteService(repository);
+        var cache = new MemoryCrmCache();
+        var service = new ClienteService(repository, cache);
         var dto = new ClienteDto(
             null, "12345678901", "Novo cliente", null, null, null,
             null, null, null, null, null, null, null);
@@ -100,6 +101,29 @@ public sealed class ApplicationUseCaseTests
 
         var item = Assert.Single(result.Items);
         Assert.Equal(expectedId, item.Id);
+    }
+
+    private sealed class MemoryCrmCache : ICrmCache
+    {
+        private readonly Dictionary<string, object> _store = [];
+
+        public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class
+        {
+            _store.TryGetValue(key, out var value);
+            return Task.FromResult(value as T);
+        }
+
+        public Task SetAsync<T>(string key, T value, TimeSpan? expiration = null, CancellationToken cancellationToken = default) where T : class
+        {
+            _store[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _store.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class MemoryRepository<TEntity>(IEnumerable<TEntity>? seed = null)

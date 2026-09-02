@@ -30,11 +30,19 @@ public interface ICondicaoPagamentoService
     Task DeleteAsync(long id, CancellationToken cancellationToken = default);
 }
 
-public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repository)
+public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repository, ICrmCache cache)
     : ICondicaoPagamentoService
 {
+    private const string CacheKey = "condicao-pagamento:all";
+
     public async Task<PagedResult<CondicaoPagamentoDto>> ListAsync(CondicaoPagamentoFilter? filter = null, CancellationToken cancellationToken = default)
     {
+        if (filter is null)
+        {
+            var cached = await cache.GetAsync<PagedResult<CondicaoPagamentoDto>>(CacheKey, cancellationToken);
+            if (cached is not null) return cached;
+        }
+
         var query = repository.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter?.Search))
@@ -51,7 +59,10 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
             : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
         var dtos = items.Select(ToDto).ToList();
 
-        return PagedResult<CondicaoPagamentoDto>.Create(dtos, page, all ? total : pageSize, total);
+        var result = PagedResult<CondicaoPagamentoDto>.Create(dtos, page, all ? total : pageSize, total);
+        if (filter is null)
+            await cache.SetAsync(CacheKey, result, TimeSpan.FromHours(1), cancellationToken);
+        return result;
     }
 
     public async Task<CondicaoPagamentoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -65,6 +76,7 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         await ApplyAsync(entity, dto, null, cancellationToken);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(CacheKey, cancellationToken);
         return ToDto(entity);
     }
 
@@ -77,6 +89,7 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         await ApplyAsync(entity, dto, id, cancellationToken);
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(CacheKey, cancellationToken);
         return ToDto(entity);
     }
 
@@ -85,6 +98,7 @@ public sealed class CondicaoPagamentoService(IRepository<CondicaoPagamento> repo
         var entity = await FindAsync(id, cancellationToken);
         repository.Remove(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(CacheKey, cancellationToken);
     }
 
     private async Task ApplyAsync(

@@ -107,7 +107,8 @@ public sealed class CadastroServicoService(
     IRepository<CondicaoPagamento> condicoes,
     IRepository<Prestador> prestadores,
     IRepository<OrcamentoHistorico> historico,
-    IUserAccessor userAccessor) : ICadastroServicoService
+    IUserAccessor userAccessor,
+    ICrmCache cache) : ICadastroServicoService
 {
     public async Task<PagedResult<CadastroServicoDto>> ListAsync(
         CadastroServicoFilter filter,
@@ -156,11 +157,16 @@ public sealed class CadastroServicoService(
         return PagedResult<CadastroServicoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
 
+    private const string SubtiposCacheKey = "cadastro-servico:subtipos";
+
     public async Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(
         CancellationToken cancellationToken = default)
     {
+        var cached = await cache.GetAsync<IReadOnlyList<CadastroServicoSubtipoConfigDto>>(SubtiposCacheKey, cancellationToken);
+        if (cached is not null) return cached;
+
         var saved = await repository.ListAsync(cancellationToken);
-        return Enum.GetValues<AcompanhamentoServicoTipo>()
+        var result = Enum.GetValues<AcompanhamentoServicoTipo>()
             .Select(tipo => new CadastroServicoSubtipoConfigDto(
                 tipo,
                 Defaults(tipo)
@@ -169,6 +175,9 @@ public sealed class CadastroServicoService(
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList()!))
             .ToList();
+
+        await cache.SetAsync(SubtiposCacheKey, result, TimeSpan.FromHours(1), cancellationToken);
+        return result;
     }
 
     public async Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
@@ -192,6 +201,7 @@ public sealed class CadastroServicoService(
         await ApplyAsync(entity, dto, cancellationToken);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
         return ToDto(entity);
     }
@@ -209,6 +219,7 @@ public sealed class CadastroServicoService(
             throw new ArgumentException($"Já existe um serviço com o código {entity.Codigo}.");
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
         return ToDto(entity);
     }
@@ -217,6 +228,7 @@ public sealed class CadastroServicoService(
     {
         repository.Remove(await FindAsync(id, cancellationToken));
         await repository.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
     }
 
     private async Task ApplyAsync(
