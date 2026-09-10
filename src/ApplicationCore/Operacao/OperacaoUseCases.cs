@@ -248,6 +248,16 @@ public sealed class PrestadorService(
             ?? throw new NotFoundException("Prestador não encontrado.");
 
         var todosServicos = await servicos.ListAsync(ct);
+
+        var todosLancamentos = await lancamentos.ListAsync(ct);
+        var pagamentosPorServico = todosLancamentos
+            .Where(l => l.PrestadorId == id
+                && l.CadastroServicoId.HasValue
+                && l.Tipo == LancamentoTipo.SAIDA
+                && l.Status == LancamentoStatus.PAGO)
+            .GroupBy(l => l.CadastroServicoId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.Valor ?? 0m));
+
         var servicosVinculados = todosServicos
             .Where(s => s.Prestadores.Any(p => p.PrestadorId == id))
             .Select(s =>
@@ -260,11 +270,9 @@ public sealed class PrestadorService(
                     s.SituacaoInicial,
                     s.ValorContrato,
                     vinculos.Sum(p => p.ValorProvisionado ?? 0m),
-                    vinculos.Sum(p => p.ValorEfetivo ?? 0m));
+                    pagamentosPorServico.GetValueOrDefault(s.Id, 0m));
             })
             .ToList();
-
-        var todosLancamentos = await lancamentos.ListAsync(ct);
         var lancamentosVinculados = todosLancamentos
             .Where(l => l.PrestadorId == id)
             .OrderByDescending(l => l.Data ?? DateOnly.MinValue)

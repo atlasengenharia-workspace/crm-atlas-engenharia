@@ -3,6 +3,7 @@ using System.Linq;
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
+using CrmAtlas.ApplicationCore.Financeiro;
 
 namespace CrmAtlas.ApplicationCore.Servicos;
 
@@ -107,6 +108,7 @@ public sealed class CadastroServicoService(
     IRepository<CondicaoPagamento> condicoes,
     IRepository<Prestador> prestadores,
     IRepository<OrcamentoHistorico> historico,
+    IRepository<Lancamento> lancamentos,
     IUserAccessor userAccessor,
     ICrmCache cache) : ICadastroServicoService
 {
@@ -152,7 +154,8 @@ public sealed class CadastroServicoService(
         var items = all
             ? await repository.ToListAsync(query, cancellationToken)
             : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), cancellationToken);
-        var dtos = items.Select(ToDto).ToList();
+        var actualPayments = await LoadActualProviderPaymentsAsync(items.Select(x => x.Id).ToList(), cancellationToken);
+        var dtos = items.Select(x => ToDto(x, actualPayments)).ToList();
 
         return PagedResult<CadastroServicoDto>.Create(dtos, page, all ? total : pageSize, total);
     }
@@ -180,8 +183,12 @@ public sealed class CadastroServicoService(
         return result;
     }
 
-    public async Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default) =>
-        ToDto(await FindAsync(id, cancellationToken));
+    public async Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default)
+    {
+        var entity = await FindAsync(id, cancellationToken);
+        var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
+        return ToDto(entity, actualPayments);
+    }
 
     public async Task<CadastroServicoDto> CreateAsync(
         CadastroServicoDto dto,
@@ -203,7 +210,7 @@ public sealed class CadastroServicoService(
         await repository.SaveChangesAsync(cancellationToken);
         await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        return ToDto(entity);
+        return ToDto(entity, new Dictionary<(long, long), decimal>());
     }
 
     public async Task<CadastroServicoDto> UpdateAsync(
@@ -221,7 +228,8 @@ public sealed class CadastroServicoService(
         await repository.SaveChangesAsync(cancellationToken);
         await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        return ToDto(entity);
+        var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
+        return ToDto(entity, actualPayments);
     }
 
     public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
@@ -325,6 +333,8 @@ public sealed class CadastroServicoService(
 
         if (entity.Orcamento is not null)
             entity.Orcamento.Situacao = "Aprovado";
+
+        await RecalcularValoresEfetivosAsync(entity, cancellationToken);
     }
 
     private static void Validate(CadastroServicoDto dto)
@@ -428,7 +438,7 @@ public sealed class CadastroServicoService(
         return ordered.ThenBy(x => x.Id);
     }
 
-    private static CadastroServicoDto ToDto(CadastroServico x) => new(
+    private CadastroServicoDto ToDto(CadastroServico x, IReadOnlyDictionary<(long ServiceId, long ProviderId), decimal>? actualPayments = null) => new(
         x.Id, x.Codigo, x.ClienteId, x.OrcamentoId, x.Orcamento?.Codigo, x.CondicaoPagamentoId,
         x.TipoServico, x.Subtipo ?? string.Empty, x.DataEntrada ?? default, x.SituacaoInicial,
         x.DocumentoEmpresa ?? string.Empty, x.RazaoSocialEmpresa ?? string.Empty, x.ContatoEmpresa,
@@ -441,10 +451,58 @@ public sealed class CadastroServicoService(
         x.ValorNotaFiscalDividido, x.ValorNotaFiscalParcela, x.Observacao,
         x.Parcelas.Select(p => new CadastroServicoParcelaDto(
             p.Id, p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
-        x.Prestadores.Select(p => new CadastroServicoPrestadorDto(
-            p.Id, p.PrestadorId, p.NomePrestador, p.ValorProvisionado, p.ValorEfetivo,
-            p.Confirmado, p.DataPagamento, p.DataPagamentoTipo)).ToList(),
+        x.Prestadores.Select(p =>
+        {
+            decimal? actual = null;
+            if (p.PrestadorId.HasValue && actualPayments?.TryGetValue((x.Id, p.PrestadorId.Value), out var value) == true)
+                actual = value;
+            return new CadastroServicoPrestadorDto(
+                p.Id, p.PrestadorId, p.NomePrestador, p.ValorProvisionado,
+                actual ?? p.ValorEfetivo,
+                p.Confirmado, p.DataPagamento, p.DataPagamentoTipo);
+        }).ToList(),
         x.CreatedAt);
+
+    private async Task<IReadOnlyDictionary<(long ServiceId, long ProviderId), decimal>> LoadActualProviderPaymentsAsync(
+        IReadOnlyList<long> serviceIds,
+        CancellationToken cancellationToken)
+    {
+        if (serviceIds.Count == 0)
+            return new Dictionary<(long, long), decimal>();
+
+        var paidEntries = await lancamentos.ToListAsync(
+            lancamentos.AsQueryable()
+                .Where(x => x.CadastroServicoId.HasValue
+                    && x.PrestadorId.HasValue
+                    && serviceIds.Contains(x.CadastroServicoId.Value)
+                    && x.Tipo == LancamentoTipo.SAIDA
+                    && x.Status == LancamentoStatus.PAGO),
+            cancellationToken);
+
+        return paidEntries
+            .GroupBy(x => (x.CadastroServicoId!.Value, x.PrestadorId!.Value))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Valor ?? 0m));
+    }
+
+    private async Task RecalcularValoresEfetivosAsync(CadastroServico entity, CancellationToken cancellationToken)
+    {
+        if (entity.Id == 0 || entity.Prestadores.Count == 0)
+            return;
+
+        var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
+        foreach (var provider in entity.Prestadores)
+        {
+            if (provider.PrestadorId.HasValue
+                && actualPayments.TryGetValue((entity.Id, provider.PrestadorId.Value), out var value))
+            {
+                provider.ValorEfetivo = value;
+            }
+            else
+            {
+                provider.ValorEfetivo = 0;
+            }
+        }
+    }
 
     private static IReadOnlyList<string> Defaults(AcompanhamentoServicoTipo tipo) => tipo switch
     {
