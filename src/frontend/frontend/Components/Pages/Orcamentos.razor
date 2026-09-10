@@ -1,7 +1,9 @@
 @page "/orcamentos"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject IOrcamentoService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -28,7 +30,7 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="OrcamentoDto"
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="OrcamentoDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -143,7 +145,22 @@
         new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>x.TipoServico,6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
     ];
     private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
-    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private DataGridSettingsBinder _gridSettings = null!;
+    protected override async Task OnInitializedAsync()
+    {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "orcamentos");
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
+
     private async Task LoadAsync()
     {
         _loading=true;

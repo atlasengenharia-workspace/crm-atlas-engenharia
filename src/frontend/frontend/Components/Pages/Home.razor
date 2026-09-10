@@ -2,7 +2,9 @@
 @attribute [Authorize]
 @using CrmAtlas.ApplicationCore.Dashboard
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject IDashboardQueryService Dashboard
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 
@@ -396,7 +398,7 @@
 
                             <SmartTableFilter TItem="DashboardTopClientItem" Items="_data.TopClients" Columns="_topClientColumns" TableKey="home-topclients">
                             <ChildContent Context="topItems">
-                            <RadzenDataGrid Data="@topItems" TItem="DashboardTopClientItem"
+                            <RadzenDataGrid Data="@topItems" TItem="DashboardTopClientItem" @bind-Settings="_topClientGridSettings.Value"
                                             Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                                             AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                                             AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -535,7 +537,7 @@
 
                             <SmartTableFilter TItem="DashboardPriorityItem" Items="FilteredPriorities" Columns="_priorityColumns" TableKey="dashboard-fila">
                             <ChildContent Context="smartPriorities">
-                            <RadzenDataGrid Data="@smartPriorities" TItem="DashboardPriorityItem"
+                            <RadzenDataGrid Data="@smartPriorities" TItem="DashboardPriorityItem" @bind-Settings="_priorityGridSettings.Value"
                                             Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                                             AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                                             AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -817,13 +819,18 @@
     private DashboardSnapshot? _data;
     private List<ChartSeries<double>> _financialSeries = [], _revenueSeries = [], _contractSeries = [], _costSeries = [];
     private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
+    private DataGridSettingsBinder _topClientGridSettings = null!;
+    private DataGridSettingsBinder _priorityGridSettings = null!;
 
     protected override Task OnInitializedAsync()
     {
+        _topClientGridSettings = new DataGridSettingsBinder(DataGridStateService, "home-topclients");
+        _priorityGridSettings = new DataGridSettingsBinder(DataGridStateService, "home-priorities");
         _startDate = DateTime.Today.AddMonths(-11);
         _endDate = DateTime.Today;
         return LoadAsync();
     }
+
 
     private IEnumerable<DashboardPriorityItem> FilteredPriorities =>
         _data?.Priorities.Where(p =>
@@ -959,6 +966,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await _topClientGridSettings.LoadAsync();
+            await _priorityGridSettings.LoadAsync();
+            StateHasChanged();
+        }
+
         if (_activeTabIndex != 0 || _data is null || _loading || !_chartsNeedRender || _renderingCharts) return;
 
         _chartsNeedRender = false;

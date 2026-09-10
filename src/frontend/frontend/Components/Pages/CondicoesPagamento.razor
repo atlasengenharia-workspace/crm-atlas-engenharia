@@ -1,7 +1,9 @@
 @page "/condicoes-pagamento"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject ICondicaoPagamentoService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -23,7 +25,7 @@
                                   ProcessOnClient="false" TotalCount="_result.TotalItems"
                                   OnStateChanged="OnSmartTableStateChanged">
                 <ChildContent Context="smartItems">
-                <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CondicaoPagamentoDto"
+                <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CondicaoPagamentoDto" @bind-Settings="_gridSettings.Value"
                                 Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                                 AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                                 AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -147,8 +149,23 @@
     private bool _loading;
     private bool _saving;
     private bool _editing;
+    private DataGridSettingsBinder _gridSettings = null!;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "condicoes-pagamento");
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;

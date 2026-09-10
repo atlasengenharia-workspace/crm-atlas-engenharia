@@ -1,6 +1,8 @@
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject IJSRuntime JS
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ICadastroServicoService Service
 @inject IServicoTipoCampoConfigService TipoCampoConfigService
 @inject IClienteService ClienteService
@@ -67,7 +69,7 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CadastroServicoDto"
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CadastroServicoDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="false" AllowVirtualization="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -602,9 +604,11 @@
     public long? EditServiceId { get; set; }
     [SupplyParameterFromQuery(Name = "editarCodigo")]
     public string? EditServiceCode { get; set; }
+    private DataGridSettingsBinder _gridSettings = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "cadastros-servico");
         await LoadReferencesAsync();
         await LoadAsync();
         if (EditServiceId is not null)
@@ -646,6 +650,15 @@
     private bool Obrigatorio(ServicoCampo campo) => Config(campo)?.Obrigatorio ?? false;
     private ServicoTipoCampoConfigDto? Config(ServicoCampo campo) =>
         _campoConfigs.FirstOrDefault(x => x.Campo == campo);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
 
     private async Task LoadAsync()
     {

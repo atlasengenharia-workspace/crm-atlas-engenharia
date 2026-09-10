@@ -2,7 +2,9 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject NavigationManager Navigation
+@inject IRadzenDataGridStateService DataGridStateService
 @inject IJSRuntime JS
 @inject IAcompanhamentoService Service
 @inject IAcompanhamentoSpreadsheetReader SpreadsheetReader
@@ -85,7 +87,7 @@
                 </MudStack>
             </MudPaper>
         }
-        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="AcompanhamentoDto"
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="AcompanhamentoDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="false" AllowVirtualization="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -609,15 +611,22 @@
         return Color.Info;
     }
     private bool _initialized;
+    private DataGridSettingsBinder _gridSettings = null!;
     protected override async Task OnInitializedAsync()
     {
         if (_initialized) return;
         _initialized = true;
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "acompanhamento");
         await LoadAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
         await Task.Delay(300);
         try { await JS.InvokeVoidAsync("resizableTable.restore", "acompanhamento-table-wrapper", "acompanhamento.colWidths"); }
         catch { }

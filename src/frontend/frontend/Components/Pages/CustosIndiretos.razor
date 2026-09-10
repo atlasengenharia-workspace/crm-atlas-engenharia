@@ -1,7 +1,9 @@
 @page "/financeiro/custos-indiretos"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject ICustoIndiretoService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -132,7 +134,7 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CustoIndiretoDto"
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="CustoIndiretoDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -360,7 +362,21 @@
         .Select(x => x.Key)
         .FirstOrDefault() ?? "Sem dados";
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private DataGridSettingsBinder _gridSettings = null!;
+    protected override async Task OnInitializedAsync()
+    {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "custos-indiretos");
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
 
     private async Task OnSmartTableStateChanged(SmartTableState state)
     {

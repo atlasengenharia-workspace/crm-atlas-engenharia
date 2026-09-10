@@ -1,7 +1,9 @@
 @page "/financeiro/lancamentos"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject ILancamentoService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ICadastroServicoService CadastroServicoService
 @inject IPrestadorService PrestadorService
 @inject IReceiptStorage ReceiptStorage
@@ -104,7 +106,7 @@ else
                       OnStateChanged="OnSmartTableStateChanged">
     <ChildContent Context="smartItems">
     <div id="lancamentos-table-wrapper" class="atlas-operational-table-scroll">
-    <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="LancamentoDto"
+    <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="LancamentoDto" @bind-Settings="_gridSettings.Value"
                     Class="excel-grid" Style="width:100%;" AllowPaging="false" AllowVirtualization="true" PageSize="50"
                     AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                     AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -336,10 +338,12 @@ else
     }
 
     private bool _initialized;
+    private DataGridSettingsBinder _gridSettings = null!;
     protected override async Task OnInitializedAsync()
     {
         if (_initialized) return;
         _initialized = true;
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "lancamentos");
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;
@@ -359,6 +363,11 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
         await Task.Delay(300);
         try { await JS.InvokeVoidAsync("resizableTable.restore", "lancamentos-table-wrapper", "lancamentos.colWidths"); }
         catch { }

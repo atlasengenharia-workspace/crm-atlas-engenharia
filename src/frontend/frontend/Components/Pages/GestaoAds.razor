@@ -2,7 +2,9 @@
 @attribute [Authorize]
 @using Radzen.Blazor
 @using CrmAtlas.ApplicationCore.Integracoes
+@using CrmAtlas.Web.Services
 @inject IGoogleAdsIntegrationService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -51,7 +53,7 @@ else
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3">@_integration.ErrorMessage</MudAlert>
         }
 
-        <RadzenDataGrid @ref="_grid" Data="@_campaigns" TItem="GoogleAdsCampaignDto"
+        <RadzenDataGrid @ref="_grid" Data="@_campaigns" TItem="GoogleAdsCampaignDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -86,9 +88,11 @@ else
     private string TotalLeadsText => (_summary?.TotalLeads ?? 0).ToString("N0", _ptBr);
     private string CplText => (_summary?.Cpl ?? 0).ToString("C2", _ptBr);
     private string TotalConversionsText => (_summary?.TotalConversions ?? 0).ToString("N2", _ptBr);
+    private DataGridSettingsBinder _gridSettings = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "gestao-ads");
         try
         {
             var result = await Service.ListAsync(new GoogleAdsIntegrationFilter(PageSize: 1));
@@ -103,6 +107,15 @@ else
         catch (Exception ex)
         {
             Snackbar.Add($"Não foi possível carregar a integração Google Ads: {ex.Message}", Severity.Error);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
         }
     }
 

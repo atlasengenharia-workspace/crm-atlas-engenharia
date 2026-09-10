@@ -1,7 +1,9 @@
 @page "/prestadores"
 @attribute [Authorize]
 @using Radzen.Blazor
+@using CrmAtlas.Web.Services
 @inject IPrestadorService Service
+@inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -18,7 +20,7 @@
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
         <ChildContent Context="smartItems">
-        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="PrestadorDto"
+        <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="PrestadorDto" @bind-Settings="_gridSettings.Value"
                         Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
                         AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
                         AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
@@ -184,7 +186,22 @@
         new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("pagamento","Pagamento",x=>x.MetodoPagamento,4)
     ];
     private bool _loading,_open,_saving,_valid,_detailsOpen; private string? _search;
-    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private DataGridSettingsBinder _gridSettings = null!;
+    protected override async Task OnInitializedAsync()
+    {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "prestadores");
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
+
     private async Task LoadAsync()
     {
         _loading=true;
