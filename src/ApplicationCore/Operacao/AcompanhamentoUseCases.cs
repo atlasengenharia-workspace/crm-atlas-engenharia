@@ -43,6 +43,7 @@ public interface IAcompanhamentoRepository
     Task AddSituationAsync(AcompanhamentoServicoSituacaoConfig entity,CancellationToken ct=default);
     void Update(AcompanhamentoServico entity);
     void UpdateSituation(AcompanhamentoServicoSituacaoConfig entity);
+    void Remove(AcompanhamentoServico entity);
     Task SaveChangesAsync(CancellationToken ct=default);
 }
 
@@ -57,6 +58,7 @@ public interface IAcompanhamentoService
     Task TogglePendingAsync(long serviceId,long pendingId,bool completed,CancellationToken ct=default);
     Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo=null,CancellationToken ct=default);
     Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto,CancellationToken ct=default);
+    Task DeleteAsync(long id,CancellationToken ct=default);
 }
 
 public interface IAcompanhamentoReportService
@@ -218,6 +220,14 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
                 entity.Pendencias.Add(new(){Label=label.Trim(),Ativo=true,CreatedAt=now,UpdatedAt=now});
             if(dto.Id is null)await repository.AddSituationAsync(entity,ct);else repository.UpdateSituation(entity);
             await repository.SaveChangesAsync(ct);return MapSituation(entity);
+        }, ct);
+
+    public Task DeleteAsync(long id,CancellationToken ct=default)
+        => ExecuteAsync(async () =>
+        {
+            var entity = await Find(id, ct);
+            repository.Remove(entity);
+            await repository.SaveChangesAsync(ct);
         }, ct);
 
     private async Task<AcompanhamentoServico> Find(long id,CancellationToken ct)=>await repository.GetDetailedAsync(id,ct)??throw new NotFoundException("Acompanhamento não encontrado.");

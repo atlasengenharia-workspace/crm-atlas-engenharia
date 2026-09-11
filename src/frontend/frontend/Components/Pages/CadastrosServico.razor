@@ -24,46 +24,46 @@
     </Actions>
 </PageHeader>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="6">
-    <MudPaper Outlined="true" Class="pa-4 mb-4">
-        <MudGrid Spacing="2">
-            <MudItem xs="12" md="5">
-                <MudTextField @bind-Value="_search" Label="Código ou documento da empresa"
-                              Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3">
-                <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipo"
-                           Label="Tipo de serviço" Variant="Variant.Outlined"
-                           Margin="Margin.Dense" Clearable="true">
-                    @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
-                    {
-                        <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@type">@TypeLabel(type)</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3">
-                <MudSelect T="string" @bind-Value="_situacao"
-                           Label="Situação" Variant="Variant.Outlined"
-                           Margin="Margin.Dense" Clearable="true">
-                    @foreach (var status in AvailableSituations)
-                    {
-                        <MudSelectItem Value="@status">@status</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
-                <MudSwitch T="bool" @bind-Value="_ocultarConcluidos" Color="Color.Primary">
-                    Ocultar concluídos
-                </MudSwitch>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
-                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
-                           OnClick="ApplyFilterAsync">Filtrar</MudButton>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" md="5">
+            <MudTextField @bind-Value="_search" Label="Código ou documento da empresa"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipo"
+                       Label="Tipo de serviço" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true">
+                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                {
+                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@type">@TypeLabel(type)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" @bind-Value="_situacao"
+                       Label="Situação" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true">
+                @foreach (var status in AvailableSituations)
+                {
+                    <MudSelectItem Value="@status">@status</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+            <MudSwitch T="bool" @bind-Value="_ocultarConcluidos" Color="Color.Primary">
+                Ocultar concluídos
+            </MudSwitch>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterAlt"
+                       OnClick="ApplyFilterAsync">Filtrar</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
 
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="6">
     <MudPaper Outlined="true">
         <SmartTableFilter TItem="CadastroServicoDto" Items="_result.Items" Columns="_filterColumns"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"

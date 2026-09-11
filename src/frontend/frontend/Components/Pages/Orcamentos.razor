@@ -12,6 +12,14 @@
     <Actions><MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="New">Novo orçamento</MudButton></Actions>
 </PageHeader>
 
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Spacing="2">
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true" OnKeyDown="SearchOnEnter"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="flex:1" />
+        <MudSwitch T="bool" Value="_ocultarConcluidos" ValueChanged="async (bool v) => { _ocultarConcluidos = v; await LoadAsync(); }" Color="Color.Primary" Label="Ocultar aprovados/recusados" />
+    </MudStack>
+</MudPaper>
+
 <GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
         <MudItem xs="6" md="3"><MetricCard Title="Em aberto" Value="@_result.Items.Count(x => !Closed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" /></MudItem>
@@ -21,11 +29,6 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3" Spacing="2">
-            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente ou descrição" Immediate="true" OnKeyDown="SearchOnEnter"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="flex:1" />
-            <MudSwitch T="bool" Value="_ocultarConcluidos" ValueChanged="async (bool v) => { _ocultarConcluidos = v; await LoadAsync(); }" Color="Color.Primary" Label="Ocultar aprovados/recusados" />
-        </MudStack>
         <SmartTableFilter TItem="OrcamentoDto" Items="_result.Items" Columns="_filterColumns"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">

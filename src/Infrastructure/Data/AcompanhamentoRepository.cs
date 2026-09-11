@@ -24,6 +24,7 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
     public async Task AddSituationAsync(AcompanhamentoServicoSituacaoConfig entity,CancellationToken ct=default)=>await db.AcompanhamentoSituacoes.AddAsync(entity,ct);
     public void Update(AcompanhamentoServico entity)=>db.Acompanhamentos.Update(entity);
     public void UpdateSituation(AcompanhamentoServicoSituacaoConfig entity)=>db.AcompanhamentoSituacoes.Update(entity);
+    public void Remove(AcompanhamentoServico entity)=>db.Acompanhamentos.Remove(entity);
     public Task SaveChangesAsync(CancellationToken ct=default)=>db.SaveChangesAsync(ct);
     private IQueryable<AcompanhamentoServico> Query()=>db.Acompanhamentos
         .Include(x=>x.Historicos).Include(x=>x.Pendencias);

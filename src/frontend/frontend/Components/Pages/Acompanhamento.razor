@@ -10,6 +10,7 @@
 @inject IAcompanhamentoSpreadsheetReader SpreadsheetReader
 @inject IAtlasWorkbookImportService WorkbookImportService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Serviços | CRM Atlas</PageTitle>
 <PageHeader Title="Serviços" Subtitle="Acompanhe, filtre e gerencie todos os serviços em uma única tela.">
@@ -29,6 +30,32 @@
     </Actions>
 </PageHeader>
 
+<MudPaper Outlined="true" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="5">
+            <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente, serviço, endereço ou situação" Immediate="true" OnKeyDown="SearchOnEnter"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro" @bind-Value:after="LoadAsync"
+                       Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                {
+                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@(new AcompanhamentoServicoTipo?(type))">@TypeLabel(type)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSwitch T="bool" Value="_hideCompleted" ValueChanged="OnHideCompletedChanged" Color="Color.Primary"
+                       Label="Ocultar concluídos" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
+                       OnClick="AutoFitColumnsAsync">Auto ajuste colunas</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
 <GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
         <MudItem xs="6" md="3"><MetricCard Title="Serviços" Value="@Filtered.Count().ToString()" Icon="@Icons.Material.Filled.Assignment" Color="Color.Info" /></MudItem>
@@ -38,29 +65,6 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <MudGrid Class="mb-3">
-            <MudItem xs="12" md="5">
-                <MudTextField T="string" @bind-Value="_search" Placeholder="Buscar código, cliente, serviço, endereço ou situação" Immediate="true" OnKeyDown="SearchOnEnter"
-                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3">
-                <MudSelect T="AcompanhamentoServicoTipo?" Value="_tipoFiltro" ValueChanged="OnTipoFiltroChanged"
-                           Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                    @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
-                    {
-                        <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@(new AcompanhamentoServicoTipo?(type))">@TypeLabel(type)</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3">
-                <MudSwitch T="bool" Value="_hideCompleted" ValueChanged="OnHideCompletedChanged" Color="Color.Primary"
-                           Label="Ocultar concluídos" />
-            </MudItem>
-            <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
-                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
-                           OnClick="AutoFitColumnsAsync">Auto ajuste colunas</MudButton>
-            </MudItem>
-        </MudGrid>
         <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
                           HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
@@ -296,6 +300,7 @@
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" aria-label="@($"Excluir serviço {context.Codigo}")" />
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -671,12 +676,6 @@
         if (args.Key == "Enter") { await LoadAsync(); }
     }
 
-    private async Task OnTipoFiltroChanged(AcompanhamentoServicoTipo? value)
-    {
-        _tipoFiltro = value;
-        await LoadAsync();
-    }
-
     private async Task OnHideCompletedChanged(bool value)
     {
         _hideCompleted = value;
@@ -701,6 +700,24 @@
         try{await Service.UpdateDescricaoAsync(item.Id,_editingDescricao);Snackbar.Add("Observação atualizada.",Severity.Success);await LoadAsync();}
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
         finally{_editDescId=null;}
+    }
+    private async Task DeleteAsync(AcompanhamentoDto item)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir serviço",
+            $"Deseja excluir o serviço {item.Codigo} — {item.Cliente}? Essa ação não pode ser desfeita.",
+            yesText: "Excluir",
+            cancelText: "Cancelar");
+        if (confirm != true) return;
+        try
+        {
+            await Service.DeleteAsync(item.Id);
+            Snackbar.Add("Serviço excluído.", Severity.Success);
+            _selectedIds.Remove(item.Id);
+            if (_selected?.Id == item.Id) { _selected = null; _detailOpen = false; }
+            await LoadAsync();
+        }
+        catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
     }
     private IEnumerable<string> StatusesFor(AcompanhamentoServicoTipo tipo)=>
         _situations.Where(x=>x.Tipo==tipo&&x.Ativo).Select(x=>x.Nome)
