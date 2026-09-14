@@ -13,7 +13,17 @@ public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? No
     [Required] string Situacao, string? Telefone, AcompanhamentoServicoTipo TipoServico, decimal? ValorTotal,
     DateOnly? Data = null, [EmailAddress] string? Email = null,
     long? ServicoConvertidoId = null, string? ServicoConvertidoCodigo = null, DateTime? ConvertidoEm = null,
-    string? Subtipo = null);
+    string? Subtipo = null)
+{
+    // ORCAMENTO-16: no resumo as situacoes viram tres grupos (Em analise /
+    // Aprovado / Recusado). "Aguardando cliente" continua existindo no dado
+    // porque marca "proposta enviada, sem resposta" — a lista de retorno.
+    public string SituacaoGrupo =>
+        Situacao.Contains("aprov", StringComparison.OrdinalIgnoreCase) ? "Aprovado" :
+        Situacao.Contains("recus", StringComparison.OrdinalIgnoreCase) ? "Recusado" : "Em análise";
+
+    public bool AguardandoRetorno => Situacao.Contains("aguard", StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record OrcamentoFilter(
     string? Search = null,

@@ -22,9 +22,9 @@
 
 <GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
-        <MudItem xs="6" md="3"><MetricCard Title="Em aberto" Value="@_result.Items.Count(x => !Closed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="Em análise" Value="@_result.Items.Count(x => !Closed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" FooterText="em análise + aguardando cliente" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="Aguardando retorno" Value="@_result.Items.Count(x => x.AguardandoRetorno).ToString()" Icon="@Icons.Material.Filled.PhoneForwarded" Color="Color.Warning" FooterText="enviado, sem resposta — prioridade de contato" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Aprovados" Value="@_result.Items.Count(x => x.Situacao.Contains("aprov", StringComparison.OrdinalIgnoreCase)).ToString()" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
-        <MudItem xs="6" md="3"><MetricCard Title="Total" Value="@_result.TotalItems.ToString()" Icon="@Icons.Material.Filled.RequestQuote" Color="Color.Primary" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Em propostas" Value="@Money(_result.Items.Sum(x => x.ValorTotal ?? 0))" Icon="@Icons.Material.Filled.Payments" Color="Color.Warning" /></MudItem>
     </MudGrid>
 
@@ -73,9 +73,13 @@
                     <Template Context="context">@(context.Subtipo ?? "—")</Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Situacao" Title="Situação">
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="SituacaoGrupo" Title="Situação">
                     <Template Context="context">
-                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.Situacao</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.SituacaoGrupo</MudChip>
+                        @if (context.AguardandoRetorno)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">aguardando retorno</MudText>
+                        }
                     </Template>
                 </RadzenDataGridColumn>
 
@@ -194,7 +198,7 @@
     private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
     private async Task DeleteAsync(OrcamentoDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir orçamento",$"Excluir {x.Codigo}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
     private static bool Closed(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)||s.Contains("recus",StringComparison.OrdinalIgnoreCase);
-    private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:Color.Info;
+    private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:s.Contains("aguard",StringComparison.OrdinalIgnoreCase)?Color.Warning:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
     private static int WeeksSince(DateOnly? start) => start is null ? 0 : Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.Value.DayNumber) / 7);
     private static string BudgetTypeSigla(AcompanhamentoServicoTipo type) => type switch
