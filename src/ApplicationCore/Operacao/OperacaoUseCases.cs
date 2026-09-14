@@ -62,7 +62,7 @@ public sealed class OrcamentoService(
         }
 
         if (filter?.OcultarConcluidos == true)
-            query = query.Where(x => !Closed(x.Situacao));
+            query = query.Where(x => !x.Situacao.ToLower().Contains("aprov") && !x.Situacao.ToLower().Contains("recus"));
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 
@@ -118,9 +118,6 @@ public sealed class OrcamentoService(
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
     }
-
-    private static bool Closed(string? s) => s is not null &&
-        (s.Contains("aprov", StringComparison.OrdinalIgnoreCase) || s.Contains("recus", StringComparison.OrdinalIgnoreCase));
 
     private async Task TrackChangesAsync(Orcamento entity, OrcamentoDto dto, string? responsavel, CancellationToken ct)
     {
