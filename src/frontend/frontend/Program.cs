@@ -32,6 +32,7 @@ builder.Services.Replace(ServiceDescriptor.Singleton(typeof(SignalRRealtimeNotif
 builder.Services.Replace(ServiceDescriptor.Singleton<IRealtimeNotifier>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>()));
 builder.Services.AddSingleton<IRealtimeChangeFeed>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>());
 builder.Services.AddScoped<IRadzenDataGridStateService, RadzenDataGridStateService>();
+builder.Services.AddScoped<ISavedViewsService, SavedViewsService>();
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = false;

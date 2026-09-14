@@ -1,0 +1,25 @@
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Nome do filtro" Variant="Variant.Outlined"
+                      Immediate="true" AutoFocus="true" OnKeyDown="OnKeyDown"
+                      HelperText="Um filtro salvo com o mesmo nome será substituído." />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="@(string.IsNullOrWhiteSpace(_name))">Salvar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    private string? _name;
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_name?.Trim()));
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !string.IsNullOrWhiteSpace(_name)) Submit();
+    }
+}

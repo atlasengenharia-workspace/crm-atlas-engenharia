@@ -11,6 +11,7 @@
 @inject IAtlasWorkbookImportService WorkbookImportService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject ISavedViewsService SavedViews
 
 <PageTitle>Serviços | CRM Atlas</PageTitle>
 <PageHeader Title="Serviços" Subtitle="Acompanhe, filtre e gerencie todos os serviços em uma única tela.">
@@ -49,9 +50,29 @@
             <MudSwitch T="bool" Value="_hideCompleted" ValueChanged="OnHideCompletedChanged" Color="Color.Primary"
                        Label="Ocultar concluídos" />
         </MudItem>
-        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="3" Class="d-flex align-center" Style="gap: 6px;">
             <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.FitScreen" Size="Size.Small"
                        OnClick="AutoFitColumnsAsync">Auto ajuste colunas</MudButton>
+            <MudMenu Label="Filtros" StartIcon="@Icons.Material.Filled.Bookmarks" Variant="Variant.Outlined"
+                     Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                @foreach (var view in _savedViews)
+                {
+                    <MudMenuItem OnClick="@(() => ApplySavedViewAsync(view))">
+                        <div class="d-flex align-center justify-space-between" style="min-width: 220px; gap: 8px;">
+                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@view.Name</span>
+                            <span @onclick="@(async () => await DeleteSavedViewAsync(view))" @onclick:stopPropagation="true"
+                                  title="Excluir filtro salvo" style="cursor: pointer; display: inline-flex;">
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                            </span>
+                        </div>
+                    </MudMenuItem>
+                }
+                @if (_savedViews.Count > 0)
+                {
+                    <MudDivider />
+                }
+                <MudMenuItem OnClick="SaveCurrentViewAsync" Icon="@Icons.Material.Filled.BookmarkAdd">Salvar filtro atual</MudMenuItem>
+            </MudMenu>
         </MudItem>
     </MudGrid>
 </MudPaper>
@@ -65,7 +86,7 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
-        <SmartTableFilter TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
+        <SmartTableFilter @ref="_smartFilter" TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
                           HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
@@ -617,6 +638,8 @@
     }
     private bool _initialized;
     private DataGridSettingsBinder _gridSettings = null!;
+    private SmartTableFilter<AcompanhamentoDto>? _smartFilter;
+    private List<SavedView> _savedViews = [];
     protected override async Task OnInitializedAsync()
     {
         if (_initialized) return;
@@ -630,6 +653,7 @@
         if (firstRender)
         {
             await _gridSettings.LoadAsync();
+            _savedViews = (await SavedViews.ListAsync("acompanhamento")).ToList();
             StateHasChanged();
         }
         await Task.Delay(300);
@@ -680,6 +704,59 @@
     {
         _hideCompleted = value;
         await LoadAsync();
+    }
+
+    private sealed record AcompanhamentoViewState(
+        string? Search, AcompanhamentoServicoTipo? Tipo, bool HideCompleted,
+        string? SortKey, bool SortDescending,
+        List<string>? HiddenColumns, Radzen.DataGridSettings? GridSettings);
+
+    private AcompanhamentoViewState CaptureViewState() =>
+        new(_search, _tipoFiltro, _hideCompleted, _sortKey, _sortDescending,
+            _hiddenColumns.ToList(), _gridSettings.Value);
+
+    private async Task SaveCurrentViewAsync()
+    {
+        var dialog = await DialogService.ShowAsync<SaveViewDialog>("Salvar filtro");
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not string name || string.IsNullOrWhiteSpace(name)) return;
+        var view = new SavedView(name.Trim(), System.Text.Json.JsonSerializer.Serialize(CaptureViewState()), DateTime.UtcNow);
+        await SavedViews.SaveAsync("acompanhamento", view);
+        _savedViews = (await SavedViews.ListAsync("acompanhamento")).ToList();
+        Snackbar.Add($"Filtro \"{view.Name}\" salvo.", Severity.Success);
+    }
+
+    private async Task ApplySavedViewAsync(SavedView view)
+    {
+        AcompanhamentoViewState? state;
+        try { state = System.Text.Json.JsonSerializer.Deserialize<AcompanhamentoViewState>(view.StateJson); }
+        catch { state = null; }
+        if (state is null) { Snackbar.Add("Não foi possível aplicar o filtro salvo.", Severity.Error); return; }
+
+        _search = state.Search;
+        _tipoFiltro = state.Tipo;
+        _hideCompleted = state.HideCompleted;
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        _hiddenColumns.Clear();
+        foreach (var column in state.HiddenColumns ?? []) _hiddenColumns.Add(column);
+
+        if (_smartFilter is not null)
+            await _smartFilter.ApplyStateAsync(new SmartTableState(
+                _search, _sortKey, _sortDescending, _smartFilter.CurrentState.Density, _hiddenColumns, []));
+
+        if (state.GridSettings is not null)
+            _gridSettings.Value = state.GridSettings;
+
+        await LoadAsync();
+        if (_grid is not null) await _grid.Reload();
+    }
+
+    private async Task DeleteSavedViewAsync(SavedView view)
+    {
+        await SavedViews.DeleteAsync("acompanhamento", view.Name);
+        _savedViews = (await SavedViews.ListAsync("acompanhamento")).ToList();
+        Snackbar.Add($"Filtro \"{view.Name}\" removido.", Severity.Info);
     }
 
     private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
