@@ -521,7 +521,7 @@
                                     </MudSelect>
                                 </MudItem>
                                 <MudItem xs="6" md="3"><MudNumericField T="decimal?" @bind-Value="provider.ValorProvisionado" Label="Provisionado" Min="0" Format="C2" Variant="Variant.Outlined" /></MudItem>
-                                <MudItem xs="6" md="3"><MudNumericField T="decimal?" @bind-Value="provider.ValorEfetivo" Label="Efetivo" Min="0" Format="C2" Variant="Variant.Outlined" /></MudItem>
+                                <MudItem xs="6" md="3"><MudNumericField T="decimal?" @bind-Value="provider.ValorEfetivo" Label="Efetivo (automático)" ReadOnly="true" HelperText="Soma dos lançamentos pagos" Min="0" Format="C2" Variant="Variant.Outlined" /></MudItem>
                                 <MudItem xs="10" md="4">
                                     <MudSelect T="PrestadorPagamentoDataTipo" @bind-Value="provider.DataPagamentoTipo" Label="Data de pagamento" Variant="Variant.Outlined">
                                         <MudSelectItem Value="PrestadorPagamentoDataTipo.A_DEFINIR">A definir</MudSelectItem>
