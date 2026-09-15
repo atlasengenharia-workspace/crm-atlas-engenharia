@@ -8,8 +8,10 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
 {
     public async Task<IReadOnlyList<AcompanhamentoServico>> ListDetailedAsync(CancellationToken ct=default)=>
         await Query().AsNoTracking().ToListAsync(ct);
-    public IQueryable<AcompanhamentoServico> AsQueryable()=>
-        Query().AsNoTracking();
+    public IQueryable<AcompanhamentoServico> AsQueryable()=>db.Acompanhamentos
+        .Include(x=>x.Pendencias)
+        .Include(x=>x.Historicos.OrderByDescending(h=>h.CreatedAt).Take(1))
+        .AsSplitQuery().AsNoTracking();
     public async Task<IReadOnlyList<AcompanhamentoServico>> ToListAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default)=>
         await query.ToListAsync(ct);
     public async Task<int> CountAsync(IQueryable<AcompanhamentoServico> query,CancellationToken ct=default)=>
@@ -27,5 +29,5 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
     public void Remove(AcompanhamentoServico entity)=>db.Acompanhamentos.Remove(entity);
     public Task SaveChangesAsync(CancellationToken ct=default)=>db.SaveChangesAsync(ct);
     private IQueryable<AcompanhamentoServico> Query()=>db.Acompanhamentos
-        .Include(x=>x.Historicos).Include(x=>x.Pendencias);
+        .Include(x=>x.Historicos).Include(x=>x.Pendencias).AsSplitQuery();
 }

@@ -77,7 +77,7 @@
     </MudGrid>
 </MudPaper>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
         <MudItem xs="6" md="3"><MetricCard Title="Serviços" Value="@Filtered.Count().ToString()" Icon="@Icons.Material.Filled.Assignment" Color="Color.Info" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Com pendências" Value="@Filtered.Count(x=>x.Pendencias>x.Concluidas).ToString()" Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" /></MudItem>
@@ -318,7 +318,7 @@
 
                 <RadzenDataGridColumn TItem="AcompanhamentoDto" Title="Ações" Resizable="false" Sortable="false" Visible="@(!_hiddenColumns.Contains("Ações"))">
                     <Template Context="context">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetail(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetailAsync(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" aria-label="@($"Excluir serviço {context.Codigo}")" />
@@ -592,6 +592,7 @@
         new("custos","Custos",x=>x.Custos,18), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),19)
     ];
     private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing,_parsingImport;
+    private bool _initialLoading = true, _columnsRestored;
     private bool _hideCompleted=true;
     private string? _search,_newStatus,_statusNote,_actor,_pendingLabels,_uploadedFileName;
     private byte[]? _uploadedFileBytes;
@@ -619,10 +620,26 @@
     {
         if (!_pinnedColumns.Add(key)) _pinnedColumns.Remove(key);
     }
-    private IEnumerable<AcompanhamentoDto> Filtered=>_result.Items
-        .Where(x=>_tipoFiltro is null||x.Tipo==_tipoFiltro)
-        .Where(x=>!_hideCompleted||!IsCompleted(x.Situacao))
-        .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase));
+    private int _dataVersion;
+    private List<AcompanhamentoDto>? _filteredCache;
+    private (string? Search, AcompanhamentoServicoTipo? Tipo, bool HideCompleted, int Version) _filteredKey;
+    private IEnumerable<AcompanhamentoDto> Filtered
+    {
+        get
+        {
+            var key = (_search, _tipoFiltro, _hideCompleted, _dataVersion);
+            if (_filteredCache is null || _filteredKey != key)
+            {
+                _filteredKey = key;
+                _filteredCache = _result.Items
+                    .Where(x=>_tipoFiltro is null||x.Tipo==_tipoFiltro)
+                    .Where(x=>!_hideCompleted||!IsCompleted(x.Situacao))
+                    .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            return _filteredCache;
+        }
+    }
     private static bool IsCompleted(string? status) =>
         !string.IsNullOrEmpty(status) &&
         (status!.StartsWith("Concluído", StringComparison.OrdinalIgnoreCase) ||
@@ -658,9 +675,13 @@
             await SyncSmartFilterStateAsync();
             StateHasChanged();
         }
-        await Task.Delay(300);
-        try { await JS.InvokeVoidAsync("resizableTable.restore", "acompanhamento-table-wrapper", "acompanhamento.colWidths"); }
-        catch { }
+        if (!_initialLoading && !_columnsRestored)
+        {
+            _columnsRestored = true;
+            await Task.Delay(300);
+            try { await JS.InvokeVoidAsync("resizableTable.restore", "acompanhamento-table-wrapper", "acompanhamento.colWidths"); }
+            catch { }
+        }
     }
     private async Task LoadAsync()
     {
@@ -669,12 +690,15 @@
         {
             _loading=true;
             _result = await Service.ListAsync(new AcompanhamentoFilter(_search, _tipoFiltro, _hideCompleted, 1, 0, _sortKey, _sortDescending));
-            _situations=(await Service.ListSituationsAsync()).ToList();
+            _dataVersion++;
+            if (_situations.Count == 0)
+                _situations=(await Service.ListSituationsAsync()).ToList();
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
         finally
         {
             _loading=false;
+            _initialLoading=false;
             _loadSemaphore.Release();
         }
     }
@@ -828,7 +852,12 @@
         Snackbar.Add($"Filtro \"{view.Name}\" removido.", Severity.Info);
     }
 
-    private void OpenDetail(AcompanhamentoDto item){_selected=item;_newStatus=item.Situacao;_detailOpen=true;}
+    private async Task OpenDetailAsync(AcompanhamentoDto item)
+    {
+        _selected=item;_newStatus=item.Situacao;_detailOpen=true;
+        try { _selected = await Service.GetAsync(item.Id); }
+        catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
+    }
     private async Task AbrirFormularioNovo()=>await _servicoForm.Open();
     private async Task OnServicoSalvoAsync()=>await LoadAsync();
     private void StartEditSituacao(AcompanhamentoDto item){_editStatusId=item.Id;_editingSituacao=item.Situacao;_editDescId=null;}
