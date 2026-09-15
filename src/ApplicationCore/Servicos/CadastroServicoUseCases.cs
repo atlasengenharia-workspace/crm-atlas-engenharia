@@ -84,6 +84,14 @@ public sealed record CadastroServicoSubtipoConfigDto(
     AcompanhamentoServicoTipo TipoServico,
     IReadOnlyList<string> Subtipos);
 
+public sealed record ServicoSubtipoConfigItemDto(
+    long? Id,
+    AcompanhamentoServicoTipo TipoServico,
+    string Nome,
+    int Ordem,
+    bool Ativo,
+    bool Padrao);
+
 public interface ICadastroServicoRepository : IRepository<CadastroServico>
 {
     IQueryable<CadastroServico> AsNoTrackingDetailed();
@@ -95,6 +103,8 @@ public interface ICadastroServicoService
 {
     Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ServicoSubtipoConfigItemDto>> ListSubtipoConfigsAsync(CancellationToken cancellationToken = default);
+    Task SaveSubtiposAsync(AcompanhamentoServicoTipo tipo, IReadOnlyList<string> nomes, CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> CreateAsync(CadastroServicoDto dto, CancellationToken cancellationToken = default);
     Task<CadastroServicoDto> UpdateAsync(long id, CadastroServicoDto dto, CancellationToken cancellationToken = default);
@@ -109,6 +119,7 @@ public sealed class CadastroServicoService(
     IRepository<Prestador> prestadores,
     IRepository<OrcamentoHistorico> historico,
     IRepository<Lancamento> lancamentos,
+    IRepository<ServicoSubtipoConfig> subtipoConfigs,
     IUserAccessor userAccessor,
     ICrmCache cache) : ICadastroServicoService
 {
@@ -169,12 +180,22 @@ public sealed class CadastroServicoService(
         var cached = await cache.GetAsync<IReadOnlyList<CadastroServicoSubtipoConfigDto>>(SubtiposCacheKey, cancellationToken);
         if (cached is not null) return cached;
 
-        var saved = await repository.ListAsync(cancellationToken);
+        var usedSubtypes = (await repository.ToListAsync(
+                repository.AsQueryable().Where(x => x.Subtipo != null && x.Subtipo != ""),
+                cancellationToken))
+            .Select(x => (x.TipoServico, x.Subtipo))
+            .Distinct()
+            .ToList();
+        var configured = await subtipoConfigs.ListAsync(cancellationToken);
         var result = Enum.GetValues<AcompanhamentoServicoTipo>()
             .Select(tipo => new CadastroServicoSubtipoConfigDto(
                 tipo,
                 Defaults(tipo)
-                    .Concat(saved.Where(x => x.TipoServico == tipo).Select(x => x.Subtipo))
+                    .Concat(configured
+                        .Where(x => x.TipoServico == tipo && x.Ativo)
+                        .OrderBy(x => x.Ordem)
+                        .Select(x => x.Nome))
+                    .Concat(usedSubtypes.Where(x => x.TipoServico == tipo).Select(x => x.Subtipo))
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList()!))
@@ -182,6 +203,50 @@ public sealed class CadastroServicoService(
 
         await cache.SetAsync(SubtiposCacheKey, result, TimeSpan.FromHours(1), cancellationToken);
         return result;
+    }
+
+    public async Task<IReadOnlyList<ServicoSubtipoConfigItemDto>> ListSubtipoConfigsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var configured = await subtipoConfigs.ListAsync(cancellationToken);
+        return Enum.GetValues<AcompanhamentoServicoTipo>()
+            .SelectMany(tipo => Defaults(tipo)
+                .Select((nome, i) => new ServicoSubtipoConfigItemDto(null, tipo, nome, i, true, true))
+                .Concat(configured
+                    .Where(x => x.TipoServico == tipo)
+                    .OrderBy(x => x.Ordem)
+                    .Select(x => new ServicoSubtipoConfigItemDto(x.Id, tipo, x.Nome, x.Ordem, x.Ativo, false))))
+            .ToList();
+    }
+
+    public async Task SaveSubtiposAsync(
+        AcompanhamentoServicoTipo tipo,
+        IReadOnlyList<string> nomes,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = (await subtipoConfigs.ListAsync(cancellationToken))
+            .Where(x => x.TipoServico == tipo)
+            .ToList();
+        foreach (var row in existing)
+            subtipoConfigs.Remove(row);
+
+        var ordem = 0;
+        foreach (var nome in nomes
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await subtipoConfigs.AddAsync(new ServicoSubtipoConfig
+            {
+                TipoServico = tipo,
+                Nome = nome,
+                Ordem = ordem++,
+                Ativo = true
+            }, cancellationToken);
+        }
+
+        await subtipoConfigs.SaveChangesAsync(cancellationToken);
+        await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
     }
 
     public async Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default)

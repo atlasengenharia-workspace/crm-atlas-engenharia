@@ -659,6 +659,7 @@
     private DataGridSettingsBinder _gridSettings = null!;
     private SmartTableFilter<AcompanhamentoDto>? _smartFilter;
     private List<SavedView> _savedViews = [];
+    [SupplyParameterFromQuery(Name = "situacoes")] public string? SituacoesParam { get; set; }
     protected override async Task OnInitializedAsync()
     {
         if (_initialized) return;
@@ -666,6 +667,7 @@
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "acompanhamento");
         await RestorePageFiltersAsync();
         await LoadAsync();
+        if (SituacoesParam is not null) OpenSettings();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

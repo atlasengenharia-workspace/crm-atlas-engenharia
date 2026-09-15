@@ -36,6 +36,7 @@ internal sealed class ServicosConfiguration :
     IEntityTypeConfiguration<CadastroServicoPrestador>,
     IEntityTypeConfiguration<CadastroServicoCodigoHistorico>,
     IEntityTypeConfiguration<ServicoTipoCampoConfig>,
+    IEntityTypeConfiguration<ServicoSubtipoConfig>,
     IEntityTypeConfiguration<OrcamentoHistorico>
 {
     public void Configure(EntityTypeBuilder<Avcb> builder)
@@ -158,6 +159,14 @@ internal sealed class ServicosConfiguration :
         builder.HasIndex(x => new { x.TipoServico, x.Campo }).IsUnique();
         builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.Campo).HasConversion<string>().HasMaxLength(32);
+    }
+
+    public void Configure(EntityTypeBuilder<ServicoSubtipoConfig> builder)
+    {
+        builder.ToTable("servico_subtipo_config");
+        builder.HasIndex(x => new { x.TipoServico, x.Nome }).IsUnique();
+        builder.Property(x => x.TipoServico).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.Nome).HasMaxLength(80).IsRequired();
     }
 }
 

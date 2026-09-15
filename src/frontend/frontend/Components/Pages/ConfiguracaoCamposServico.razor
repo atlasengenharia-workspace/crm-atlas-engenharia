@@ -1,6 +1,7 @@
 @page "/configuracao-campos-servico"
 @attribute [Authorize]
 @inject IServicoTipoCampoConfigService TipoCampoConfigService
+@inject ICadastroServicoService ServicoService
 @inject ISnackbar Snackbar
 
 <PageTitle>Configuração de campos | CRM Atlas</PageTitle>
@@ -29,6 +30,35 @@
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
+
+                    <MudDivider Class="my-5" />
+                    <MudText Typo="Typo.subtitle1">Subtipos de @TypeLabel(tipo)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                        Subtipos padrão não podem ser removidos. Personalizados aparecem na lista do cadastro de serviço.
+                    </MudText>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach (var subtipo in _subtiposByTipo[tipo])
+                        {
+                            var atual = subtipo;
+                            if (atual.Padrao)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                         title="Subtipo padrão">@atual.Nome</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                         OnClose="@(() => RemoveSubtipo(tipo, atual))">@atual.Nome</MudChip>
+                            }
+                        }
+                    </div>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Style="max-width: 420px;">
+                        <MudTextField T="string" Value="@_novoSubtipo[tipo]" ValueChanged="@((string v) => _novoSubtipo[tipo] = v)"
+                                      Label="Novo subtipo" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      OnKeyDown="@((KeyboardEventArgs e) => AddSubtipoOnEnter(tipo, e))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Outlined"
+                                       OnClick="@(() => AddSubtipo(tipo))" aria-label="Adicionar subtipo" />
+                    </MudStack>
                 </MudTabPanel>
             }
         </MudTabs>
@@ -43,6 +73,8 @@
     private bool _loading = true;
     private bool _saving;
     private readonly Dictionary<AcompanhamentoServicoTipo, List<ServicoTipoCampoConfigDto>> _configsByTipo = [];
+    private readonly Dictionary<AcompanhamentoServicoTipo, List<ServicoSubtipoConfigItemDto>> _subtiposByTipo = [];
+    private readonly Dictionary<AcompanhamentoServicoTipo, string?> _novoSubtipo = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -50,8 +82,13 @@
         try
         {
             var all = await TipoCampoConfigService.ListAsync();
+            var subtipos = await ServicoService.ListSubtipoConfigsAsync();
             foreach (var tipo in Enum.GetValues<AcompanhamentoServicoTipo>())
+            {
                 _configsByTipo[tipo] = all.Where(x => x.TipoServico == tipo).ToList();
+                _subtiposByTipo[tipo] = subtipos.Where(x => x.TipoServico == tipo).ToList();
+                _novoSubtipo[tipo] = null;
+            }
         }
         catch (Exception ex) { Snackbar.Add($"Erro ao carregar configurações: {ex.Message}", Severity.Error); }
         finally { _loading = false; }
@@ -64,11 +101,40 @@
         {
             var all = _configsByTipo.Values.SelectMany(x => x).ToList();
             await TipoCampoConfigService.SaveAsync(all);
+            foreach (var tipo in Enum.GetValues<AcompanhamentoServicoTipo>())
+            {
+                var nomes = _subtiposByTipo[tipo]
+                    .Where(x => !x.Padrao)
+                    .Select(x => x.Nome)
+                    .ToList();
+                await ServicoService.SaveSubtiposAsync(tipo, nomes);
+            }
             Snackbar.Add("Configuração salva.", Severity.Success);
         }
         catch (Exception ex) { Snackbar.Add($"Erro ao salvar: {ex.Message}", Severity.Error); }
         finally { _saving = false; }
     }
+
+    private void AddSubtipo(AcompanhamentoServicoTipo tipo)
+    {
+        var nome = _novoSubtipo[tipo]?.Trim();
+        if (string.IsNullOrWhiteSpace(nome)) return;
+        if (_subtiposByTipo[tipo].Any(x => x.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase)))
+        {
+            Snackbar.Add($"O subtipo \"{nome}\" já existe em {TypeLabel(tipo)}.", Severity.Warning);
+            return;
+        }
+        _subtiposByTipo[tipo].Add(new ServicoSubtipoConfigItemDto(null, tipo, nome, _subtiposByTipo[tipo].Count, true, false));
+        _novoSubtipo[tipo] = null;
+    }
+
+    private void AddSubtipoOnEnter(AcompanhamentoServicoTipo tipo, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") AddSubtipo(tipo);
+    }
+
+    private void RemoveSubtipo(AcompanhamentoServicoTipo tipo, ServicoSubtipoConfigItemDto item) =>
+        _subtiposByTipo[tipo].Remove(item);
 
     private static string TypeLabel(AcompanhamentoServicoTipo type) => type switch
     {
