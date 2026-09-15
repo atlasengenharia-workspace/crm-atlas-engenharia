@@ -38,7 +38,7 @@
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
         </MudItem>
         <MudItem xs="12" sm="6" md="3">
-            <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro" @bind-Value:after="LoadAsync"
+            <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro" @bind-Value:after="OnTipoFiltroChangedAsync"
                        Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
                 @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
                 {
@@ -645,6 +645,7 @@
         if (_initialized) return;
         _initialized = true;
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "acompanhamento");
+        await RestorePageFiltersAsync();
         await LoadAsync();
     }
 
@@ -654,6 +655,7 @@
         {
             await _gridSettings.LoadAsync();
             _savedViews = (await SavedViews.ListAsync("acompanhamento")).ToList();
+            await SyncSmartFilterStateAsync();
             StateHasChanged();
         }
         await Task.Delay(300);
@@ -687,23 +689,89 @@
     {
         if (_loading) return;
         _search = state.Search;
-        if (!string.IsNullOrWhiteSpace(state.SortKey))
-        {
-            _sortKey = state.SortKey;
-            _sortDescending = state.SortDescending;
-        }
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await SavePageFiltersAsync();
         await LoadAsync();
     }
 
     private async Task SearchOnEnter(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter") { await LoadAsync(); }
+        if (args.Key == "Enter") { await SavePageFiltersAsync(); await LoadAsync(); }
+    }
+
+    private async Task OnTipoFiltroChangedAsync()
+    {
+        await SavePageFiltersAsync();
+        await LoadAsync();
     }
 
     private async Task OnHideCompletedChanged(bool value)
     {
         _hideCompleted = value;
+        await SavePageFiltersAsync();
         await LoadAsync();
+    }
+
+    private const string PageFiltersStorageKey = "atlas.pagefilters.acompanhamento";
+    private bool _pageFiltersRestored;
+
+    private sealed record AcompanhamentoPageFilters(
+        string? Search, AcompanhamentoServicoTipo? Tipo, bool HideCompleted,
+        string? SortKey, bool SortDescending);
+
+    private async Task RestorePageFiltersAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", PageFiltersStorageKey);
+            var saved = string.IsNullOrWhiteSpace(json)
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<AcompanhamentoPageFilters>(json);
+            if (saved is null) return;
+            _search = saved.Search;
+            _tipoFiltro = saved.Tipo;
+            _hideCompleted = saved.HideCompleted;
+            _sortKey = saved.SortKey;
+            _sortDescending = saved.SortDescending;
+            _pageFiltersRestored = true;
+        }
+        catch { }
+    }
+
+    private async Task SavePageFiltersAsync()
+    {
+        try
+        {
+            var state = new AcompanhamentoPageFilters(_search, _tipoFiltro, _hideCompleted, _sortKey, _sortDescending);
+            await JS.InvokeVoidAsync("localStorage.setItem", PageFiltersStorageKey, System.Text.Json.JsonSerializer.Serialize(state));
+        }
+        catch { }
+    }
+
+    private async Task SyncSmartFilterStateAsync()
+    {
+        if (_smartFilter is null) return;
+        var current = _smartFilter.CurrentState;
+        if (current.Search == _search && current.SortKey == _sortKey && current.SortDescending == _sortDescending) return;
+        if (_pageFiltersRestored)
+        {
+            await _smartFilter.ApplyStateAsync(current with
+            {
+                Search = _search,
+                SortKey = _sortKey,
+                SortDescending = _sortDescending,
+                HiddenColumns = new HashSet<string>(current.HiddenColumns, StringComparer.OrdinalIgnoreCase)
+            });
+        }
+        else
+        {
+            _search = current.Search;
+            _sortKey = current.SortKey;
+            _sortDescending = current.SortDescending;
+            await SavePageFiltersAsync();
+            await LoadAsync();
+        }
     }
 
     private sealed record AcompanhamentoViewState(
@@ -748,6 +816,7 @@
         if (state.GridSettings is not null)
             _gridSettings.Value = state.GridSettings;
 
+        await SavePageFiltersAsync();
         await LoadAsync();
         if (_grid is not null) await _grid.Reload();
     }
