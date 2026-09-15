@@ -124,6 +124,45 @@
                     <Template Context="context">@Money(context.ValorContrato ?? 0)</Template>
                 </RadzenDataGridColumn>
 
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Title="Prestadores" Sortable="false" Filterable="false" Width="220px">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Prestadores</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context">
+                        @{
+                            var vinculados = context.Prestadores
+                                .Select(p => (Nome: p.NomePrestador ?? "—", p.ValorProvisionado, Confirmado: p.Confirmado == true))
+                                .ToList();
+                        }
+                        @if (vinculados.Count == 0)
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            var restantes = vinculados.Count - 3;
+                            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="max-width: 220px; flex-wrap: wrap;">
+                                @foreach (var prestador in vinculados.Take(3))
+                                {
+                                    <MudChip T="string" Size="Size.Small"
+                                             Color="@(prestador.Confirmado ? Color.Success : Color.Default)"
+                                             Variant="@(prestador.Confirmado ? Variant.Filled : Variant.Outlined)"
+                                             title="@($"{prestador.Nome} — provisionado {Money(prestador.ValorProvisionado ?? 0)}{(prestador.Confirmado ? " (confirmado)" : "")}")">
+                                        @prestador.Nome
+                                    </MudChip>
+                                }
+                                @if (restantes > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
+                                             title="@string.Join("; ", vinculados.Skip(3).Select(p => p.Nome))">
+                                        +@restantes
+                                    </MudChip>
+                                }
+                            </MudStack>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+
                 <RadzenDataGridColumn TItem="CadastroServicoDto" Property="DataEntrada" Title="Semanas" Sortable="false" Filterable="false">
                     <HeaderTemplate>
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Semanas</MudText>
@@ -560,8 +599,9 @@
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
         new("documento","Documento",x=>x.DocumentoEmpresa,2),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),3),
         new("subtipo","Serviço",x=>x.Subtipo,3),new("situacao","Situação",x=>x.SituacaoInicial,4),
-        new("contrato","Contrato",x=>x.ValorContrato,5,true),new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),6,false),
-        new("entrada","Entrada",x=>x.DataEntrada,7),new("observacao","Observação",x=>x.Observacao,8)
+        new("contrato","Contrato",x=>x.ValorContrato,5,true),new("prestadores","Prestadores",x=>string.Join("; ",x.Prestadores.Select(p=>p.NomePrestador)),6,false),
+        new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),7,false),
+        new("entrada","Entrada",x=>x.DataEntrada,8),new("observacao","Observação",x=>x.Observacao,9)
     ];
     private IReadOnlyList<ClienteDto> _clientes = [];
     private IReadOnlyList<CondicaoPagamentoDto> _conditions = [];

@@ -126,7 +126,8 @@ public sealed class CadastroServicoService(
                 x.Codigo.Contains(term)
                 || (x.DocumentoEmpresa != null && x.DocumentoEmpresa.Contains(term))
                 || (x.RazaoSocialEmpresa != null && x.RazaoSocialEmpresa.Contains(term))
-                || (x.Subtipo != null && x.Subtipo.Contains(term)));
+                || (x.Subtipo != null && x.Subtipo.Contains(term))
+                || x.Prestadores.Any(p => p.NomePrestador != null && p.NomePrestador.Contains(term)));
         }
 
         if (filter.TipoServico is not null)
