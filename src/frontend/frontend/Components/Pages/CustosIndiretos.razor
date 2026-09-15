@@ -18,7 +18,7 @@
     </Actions>
 </PageHeader>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard" MetricCount="4">
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard" MetricCount="4">
     <!-- Top Metric Cards (4 Cards for Symmetry and Clarity) -->
     <MudGrid Class="mb-5" Spacing="3">
         <MudItem xs="12" sm="6" md="3">
@@ -130,6 +130,7 @@
 
     <!-- Main Data Table -->
     <MudPaper Outlined="true" Class="atlas-panel">
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Style="@(_loading ? "" : "visibility:hidden")" />
         <SmartTableFilter TItem="CustoIndiretoDto" Items="_result.Items" Columns="_filterColumns"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
@@ -343,6 +344,7 @@
     private MudForm? _form;
     private bool _valid;
     private bool _loading = true;
+    private bool _initialLoading = true;
     private bool _saving;
     private bool _editorOpen;
     private bool _importOpen;
@@ -445,8 +447,7 @@
             _result = await Service.ListAsync(new CustoIndiretoFilter(
                 ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, Page: 1, PageSize: 0, SortKey: _sortKey, SortDescending: _sortDescending));
 
-            _analytics = (await Service.ListAsync(new CustoIndiretoFilter(
-                ToDateOnly(_start), ToDateOnly(_end), _search, searchCategoryFilter, Page: 1, PageSize: 0))).Items;
+            _analytics = _result.Items;
 
             var allGroups = _analytics
                 .Where(x => !string.IsNullOrWhiteSpace(x.Categoria))
@@ -479,6 +480,7 @@
         finally
         {
             _loading = false;
+            _initialLoading = false;
         }
     }
 

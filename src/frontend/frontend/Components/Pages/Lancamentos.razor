@@ -93,10 +93,10 @@ else
     </MudGrid>
 </MudPaper>
 
-<MudPaper Outlined="true" Class="atlas-loading-host">
+<MudPaper Outlined="true" Style="position:relative">
     <MudOverlay Visible="@(_loading && !_initialLoading)" Absolute="true"
-                DarkBackground="false" Class="atlas-table-overlay">
-        <div class="atlas-loading-badge">
+                DarkBackground="false">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--mud-palette-surface);border-radius:8px;box-shadow:0 4px 12px rgba(15,23,42,.12)">
             <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
             <MudText Typo="Typo.body2">Atualizando lançamentos...</MudText>
         </div>
@@ -313,6 +313,7 @@ else
     private bool _hideValues;
     private bool _initialLoading = true;
     private bool _loading;
+    private bool _columnsRestored;
     private bool _saving;
     private bool _editorOpen;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
@@ -368,9 +369,13 @@ else
             await _gridSettings.LoadAsync();
             StateHasChanged();
         }
-        await Task.Delay(300);
-        try { await JS.InvokeVoidAsync("resizableTable.restore", "lancamentos-table-wrapper", "lancamentos.colWidths"); }
-        catch { }
+        if (!_initialLoading && !_columnsRestored)
+        {
+            _columnsRestored = true;
+            await Task.Delay(300);
+            try { await JS.InvokeVoidAsync("resizableTable.restore", "lancamentos-table-wrapper", "lancamentos.colWidths"); }
+            catch { }
+        }
     }
 
     private async Task AutoFitColumnsAsync()

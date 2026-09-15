@@ -86,6 +86,7 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" Style="@(_loading ? "" : "visibility:hidden")" />
         <SmartTableFilter @ref="_smartFilter" TItem="AcompanhamentoDto" Items="Filtered" Columns="_filterColumns"
                           HiddenColumns="_hiddenColumns" HiddenColumnsChanged="OnHiddenColumnsChanged"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"

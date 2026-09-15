@@ -20,7 +20,7 @@
     </MudStack>
 </MudPaper>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
         <MudItem xs="6" md="3"><MetricCard Title="Em análise" Value="@_result.Items.Count(x => !Closed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" FooterText="em análise + aguardando cliente" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Aguardando retorno" Value="@_result.Items.Count(x => x.AguardandoRetorno).ToString()" Icon="@Icons.Material.Filled.PhoneForwarded" Color="Color.Warning" FooterText="enviado, sem resposta — prioridade de contato" /></MudItem>
@@ -29,6 +29,7 @@
     </MudGrid>
 
     <MudPaper Outlined="true" Class="pa-4">
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" Style="@(_loading ? "" : "visibility:hidden")" />
         <SmartTableFilter TItem="OrcamentoDto" Items="_result.Items" Columns="_filterColumns"
                           ProcessOnClient="false" TotalCount="_result.TotalItems"
                           OnStateChanged="OnSmartTableStateChanged">
@@ -152,6 +153,7 @@
         new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>x.TipoServico,6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
     ];
     private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
+    private bool _initialLoading = true;
     private DataGridSettingsBinder _gridSettings = null!;
     protected override async Task OnInitializedAsync()
     {
@@ -176,7 +178,7 @@
             _result = await Service.ListAsync(new OrcamentoFilter(_search, 1, 0, _sortKey, _sortDescending, _ocultarConcluidos));
         }
         catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
-        finally{_loading=false;}
+        finally{_loading=false;_initialLoading=false;}
     }
 
     private async Task OnSmartTableStateChanged(SmartTableState state)

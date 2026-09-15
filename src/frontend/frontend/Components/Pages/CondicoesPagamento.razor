@@ -17,10 +17,11 @@
     </Actions>
 </PageHeader>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="4">
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="4">
     <MudGrid>
         <MudItem xs="12" md="@(_editing ? 7 : 12)">
             <MudPaper Outlined="true">
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Style="@(_loading ? "" : "visibility:hidden")" />
                 <SmartTableFilter TItem="CondicaoPagamentoDto" Items="_result.Items" Columns="_filterColumns"
                                   ProcessOnClient="false" TotalCount="_result.TotalItems"
                                   OnStateChanged="OnSmartTableStateChanged">
@@ -147,6 +148,7 @@
     private MudForm? _form;
     private bool _valid;
     private bool _loading;
+    private bool _initialLoading = true;
     private bool _saving;
     private bool _editing;
     private DataGridSettingsBinder _gridSettings = null!;
@@ -174,7 +176,7 @@
             _result = await Service.ListAsync(new CondicaoPagamentoFilter(null, 1, 0, _sortKey, _sortDescending));
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
-        finally { _loading = false; }
+        finally { _loading = false; _initialLoading = false; }
     }
 
     private async Task OnSmartTableStateChanged(SmartTableState state)

@@ -56,6 +56,7 @@ public sealed class CadastroServicoRepository(AtlasDbContext dbContext)
             .Include(x => x.Parcelas)
             .Include(x => x.Prestadores)
                 .ThenInclude(x => x.Prestador)
-            .Include(x => x.CodigoHistorico);
+            .Include(x => x.CodigoHistorico)
+            .AsSplitQuery();
 }
 

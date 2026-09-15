@@ -90,7 +90,7 @@
     </MudStack>
 </MudPaper>
 
-<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard">
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Dashboard">
     @if (_data is not null)
     {
         @if (_activeTabIndex == 0)
@@ -779,6 +779,7 @@
     private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
     private readonly SemaphoreSlim _dashboardLoadGate = new(1, 1);
     private bool _loading = true;
+    private bool _initialLoading = true;
     private bool _hideValues;
     private int _activeTabIndex;
     private bool _chartsNeedRender;
@@ -832,17 +833,30 @@
     }
 
 
-    private IEnumerable<DashboardPriorityItem> FilteredPriorities =>
-        _data?.Priorities.Where(p =>
-            (string.IsNullOrEmpty(_selectedStatusFilter)
-                ? !IsConcluded(p.Status)
-                : p.Status.Equals(_selectedStatusFilter, StringComparison.OrdinalIgnoreCase)) &&
-            (string.IsNullOrEmpty(_prioritySearch) ||
-             p.Code.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
-             p.Client.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
-             p.Status.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
-             (p.City != null && p.City.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase)))
-        ) ?? [];
+    private List<DashboardPriorityItem>? _filteredPrioritiesCache;
+    private (string? Status, string? Search, DashboardSnapshot? Data) _filteredPrioritiesKey;
+    private IEnumerable<DashboardPriorityItem> FilteredPriorities
+    {
+        get
+        {
+            var key = (_selectedStatusFilter, _prioritySearch, _data);
+            if (_filteredPrioritiesCache is null || _filteredPrioritiesKey != key)
+            {
+                _filteredPrioritiesKey = key;
+                _filteredPrioritiesCache = _data?.Priorities.Where(p =>
+                    (string.IsNullOrEmpty(_selectedStatusFilter)
+                        ? !IsConcluded(p.Status)
+                        : p.Status.Equals(_selectedStatusFilter, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrEmpty(_prioritySearch) ||
+                     p.Code.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+                     p.Client.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+                     p.Status.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase) ||
+                     (p.City != null && p.City.Contains(_prioritySearch, StringComparison.OrdinalIgnoreCase)))
+                ).ToList() ?? [];
+            }
+            return _filteredPrioritiesCache;
+        }
+    }
 
     private IEnumerable<(string Status, int Count)> StatusGroups =>
         _data?.Priorities.GroupBy(x => x.Status)
@@ -925,6 +939,7 @@
         finally
         {
             _loading = false;
+            _initialLoading = false;
             _dashboardLoadGate.Release();
         }
     }
