@@ -248,7 +248,8 @@
                                 }
                                 @if (restantes > 0)
                                 {
-                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined"
+                                             title="@string.Join("; ", pendentes.Skip(3))">
                                         +@restantes
                                     </MudChip>
                                 }
