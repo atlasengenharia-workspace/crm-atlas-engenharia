@@ -520,6 +520,65 @@ public sealed class ApplicationUseCaseTests
         public Task DeleteAsync(long id, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
+    [Fact]
+    public async Task ClienteService_RejectsDuplicateDocumentIgnoringFormatting()
+    {
+        var repository = new MemoryRepository<Cliente>(
+            [new Cliente { Id = 1, CnpjCpf = "12.345.678/0001-90", RazaoSocial = "Existente" }]);
+        var service = new ClienteService(repository, new MemoryCrmCache());
+        var dto = new ClienteDto(
+            null, "12345678000190", "Outro nome", null, null, null,
+            null, null, null, null, null, null, null);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(dto));
+
+        Assert.Contains("Já existe", exception.Message);
+    }
+
+    [Fact]
+    public async Task ClienteService_FindDuplicatesAsync_EncontraTelefoneEIgualaProprioId()
+    {
+        var repository = new MemoryRepository<Cliente>(
+        [
+            new Cliente { Id = 1, CnpjCpf = "12345678901", RazaoSocial = "Maria", Telefone = "(11) 99988-7766" },
+            new Cliente { Id = 2, CnpjCpf = "98765432100", RazaoSocial = "João", Telefone = "11999887766" }
+        ]);
+        var service = new ClienteService(repository, new MemoryCrmCache());
+
+        var porTelefone = await service.FindDuplicatesAsync(null, null, "11 99988-7766");
+        Assert.Equal(2, porTelefone.Count);
+        Assert.All(porTelefone, x => Assert.Equal("mesmo telefone", x.Motivo));
+
+        var excluindoProprio = await service.FindDuplicatesAsync(1, "123.456.789-01", "(11) 99988-7766");
+        var match = Assert.Single(excluindoProprio);
+        Assert.Equal(2, match.Id);
+        Assert.Equal("mesmo telefone", match.Motivo);
+    }
+
+    [Fact]
+    public async Task PrestadorService_FindDuplicatesAsync_EncontraDocumentoETelefone()
+    {
+        var repository = new MemoryRepository<Prestador>(
+        [
+            new Prestador { Id = 1, Nome = "Pedro", CnpjCpf = "12.345.678/0001-90" },
+            new Prestador { Id = 2, Nome = "Ana", Telefone = "(21) 98877-6655" }
+        ]);
+        var service = new PrestadorService(
+            repository,
+            new MemoryRepository<CadastroServico>(),
+            new MemoryRepository<Lancamento>(),
+            new MemoryRegistroHistoricoService(),
+            new MemoryCrmCache());
+
+        var porDoc = await service.FindDuplicatesAsync(null, "12345678000190", null);
+        var doc = Assert.Single(porDoc);
+        Assert.Equal(1, doc.Id);
+        Assert.Equal("mesmo CPF/CNPJ", doc.Motivo);
+
+        var porFone = await service.FindDuplicatesAsync(null, null, "21988776655");
+        Assert.Single(porFone, x => x.Id == 2);
+    }
+
     private sealed class MemoryRegistroHistoricoService : IRegistroHistoricoService
     {
         public List<(string Entidade, long EntidadeId, string? Codigo, string Campo, string? Antes, string? Depois)> Entries { get; } = [];

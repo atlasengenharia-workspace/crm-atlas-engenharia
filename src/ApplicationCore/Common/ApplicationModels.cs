@@ -55,3 +55,11 @@ public static class CursorPagination
 }
 
 public sealed class NotFoundException(string message) : Exception(message);
+
+public sealed record DuplicadoDto(long Id, string Nome, string? Documento, string? Telefone, string Motivo);
+
+public static class DocumentoDigits
+{
+    public static string Only(string? value) =>
+        value is null ? string.Empty : new string(value.Where(char.IsDigit).ToArray());
+}

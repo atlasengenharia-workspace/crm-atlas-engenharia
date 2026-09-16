@@ -254,7 +254,27 @@
 
     private void New(){_model=new();_open=true;} private void Edit(PrestadorDto x){_model=ProviderModel.From(x);_open=true;}
     private async Task OpenDetailsAsync(PrestadorDto x){if(x.Id is null)return;try{_detalhe=await Service.GetDetalheAsync(x.Id.Value);_detailsOpen=true;}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
-    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Prestador salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_saving=false;}}
+    private async Task SaveAsync()
+    {
+        await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;
+        _saving=true;
+        try
+        {
+            var duplicados = await Service.FindDuplicatesAsync(_model.Id, _model.CnpjCpf, _model.Telefone);
+            if (duplicados.Count > 0)
+            {
+                var nomes = string.Join(", ", duplicados.Select(x => $"“{x.Nome}” ({x.Motivo})"));
+                var confirm = await DialogService.ShowMessageBoxAsync(
+                    "Possível prestador duplicado",
+                    $"Encontramos {nomes}. Deseja salvar mesmo assim?",
+                    yesText: "Salvar mesmo assim", cancelText: "Revisar");
+                if (confirm != true) return;
+            }
+            await Service.SaveAsync(_model.ToDto());Snackbar.Add("Prestador salvo.",Severity.Success);_open=false;await LoadAsync();
+        }
+        catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}
+        finally{_saving=false;}
+    }
     private async Task DeleteAsync(PrestadorDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir prestador",$"Excluir {x.Nome}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
     private static string Initials(string n)=>string.Join("",n.Split(' ',StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x=>char.ToUpperInvariant(x[0])));
     private static string PaymentDetail(PrestadorDto x)=>x.MetodoPagamento=="PIX"?x.ChavePix??"":string.Join(" • ",new[]{x.Banco,x.Agencia,x.Conta}.Where(v=>!string.IsNullOrWhiteSpace(v)));

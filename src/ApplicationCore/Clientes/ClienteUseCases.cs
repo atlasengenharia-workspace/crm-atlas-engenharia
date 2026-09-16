@@ -50,6 +50,8 @@ public interface IClienteService
     Task<ClienteDto> UpdateAsync(long id, ClienteDto dto, CancellationToken cancellationToken = default);
     Task DeleteAsync(long id, CancellationToken cancellationToken = default);
     Task<ClienteStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DuplicadoDto>> FindDuplicatesAsync(
+        long? excludeId, string? cnpjCpf, string? telefone, CancellationToken cancellationToken = default);
 }
 
 public sealed class ClienteService(IRepository<Cliente> repository, ICrmCache cache) : IClienteService
@@ -151,7 +153,7 @@ public sealed class ClienteService(IRepository<Cliente> repository, ICrmCache ca
             throw new ArgumentException("Informe um CPF ou CNPJ válido.");
 
         var all = await repository.ListAsync(cancellationToken);
-        if (all.Any(x => x.Id != currentId && x.CnpjCpf.Equals(documento, StringComparison.OrdinalIgnoreCase)))
+        if (all.Any(x => x.Id != currentId && DocumentoEquals(x.CnpjCpf, documento)))
             throw new ArgumentException("Já existe um cliente cadastrado com este CNPJ/CPF.");
 
         entity.CnpjCpf = documento;
@@ -166,6 +168,28 @@ public sealed class ClienteService(IRepository<Cliente> repository, ICrmCache ca
         entity.Cidade = Clean(dto.Cidade);
         entity.Estado = Clean(dto.Estado)?.ToUpperInvariant();
         entity.Cep = Clean(dto.Cep);
+    }
+
+    public async Task<IReadOnlyList<DuplicadoDto>> FindDuplicatesAsync(
+        long? excludeId, string? cnpjCpf, string? telefone, CancellationToken cancellationToken = default)
+    {
+        var docDigits = DocumentoDigits.Only(cnpjCpf);
+        var foneDigits = DocumentoDigits.Only(telefone);
+        var docValido = docDigits.Length >= 11;
+        var foneValido = foneDigits.Length >= 8;
+        if (!docValido && !foneValido) return [];
+
+        var all = await repository.ListAsync(cancellationToken);
+        var result = new List<DuplicadoDto>();
+        foreach (var x in all.Where(x => x.Id != excludeId))
+        {
+            var motivos = new List<string>();
+            if (docValido && DocumentoDigits.Only(x.CnpjCpf) == docDigits) motivos.Add("mesmo CPF/CNPJ");
+            if (foneValido && DocumentoDigits.Only(x.Telefone) == foneDigits) motivos.Add("mesmo telefone");
+            if (motivos.Count > 0)
+                result.Add(new(x.Id, x.RazaoSocial, x.CnpjCpf, x.Telefone, string.Join(" e ", motivos)));
+        }
+        return result;
     }
 
     private async Task<Cliente> FindAsync(long id, CancellationToken cancellationToken) =>
@@ -197,6 +221,14 @@ public sealed class ClienteService(IRepository<Cliente> repository, ICrmCache ca
     private static bool Contains(string? source, string? value) =>
         string.IsNullOrWhiteSpace(value)
         || (source?.Contains(value.Trim(), StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private static bool DocumentoEquals(string? a, string? b)
+    {
+        var digitsA = DocumentoDigits.Only(a);
+        var digitsB = DocumentoDigits.Only(b);
+        if (digitsA.Length >= 11 && digitsB.Length >= 11) return digitsA == digitsB;
+        return string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string Required(string? value, string message) =>
         Clean(value) ?? throw new ArgumentException(message);

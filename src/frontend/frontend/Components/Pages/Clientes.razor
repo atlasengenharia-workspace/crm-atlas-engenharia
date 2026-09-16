@@ -330,6 +330,22 @@
         try
         {
             var dto = _model.ToDto();
+            var duplicados = await ClienteService.FindDuplicatesAsync(_model.Id, _model.CnpjCpf, _model.Telefone);
+            if (duplicados.Count > 0)
+            {
+                var porDoc = duplicados.FirstOrDefault(x => x.Motivo.Contains("CPF/CNPJ"));
+                if (porDoc is not null)
+                {
+                    Snackbar.Add($"Já existe um cliente com este CPF/CNPJ: {porDoc.Nome}.", Severity.Error);
+                    return;
+                }
+                var nomes = string.Join(", ", duplicados.Select(x => $"“{x.Nome}”"));
+                var confirm = await DialogService.ShowMessageBoxAsync(
+                    "Possível cliente duplicado",
+                    $"Encontramos {nomes} com o mesmo telefone. Deseja salvar mesmo assim?",
+                    yesText: "Salvar mesmo assim", cancelText: "Revisar");
+                if (confirm != true) return;
+            }
             if (_model.Id is null) await ClienteService.CreateAsync(dto);
             else await ClienteService.UpdateAsync(_model.Id.Value, dto);
             Snackbar.Add("Cliente salvo com sucesso.", Severity.Success);

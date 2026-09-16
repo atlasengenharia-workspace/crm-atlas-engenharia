@@ -233,6 +233,8 @@ public interface IPrestadorService
     Task<PrestadorDetalheDto> GetDetalheAsync(long id, CancellationToken ct = default);
     Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
+    Task<IReadOnlyList<DuplicadoDto>> FindDuplicatesAsync(
+        long? excludeId, string? cnpjCpf, string? telefone, CancellationToken ct = default);
 }
 
 public sealed class PrestadorService(
@@ -375,6 +377,26 @@ public sealed class PrestadorService(
             ("Agência", Agencia, depois.Agencia),
             ("Conta", Conta, depois.Conta)
         ];
+    }
+
+    public async Task<IReadOnlyList<DuplicadoDto>> FindDuplicatesAsync(
+        long? excludeId, string? cnpjCpf, string? telefone, CancellationToken ct = default)
+    {
+        var docDigits = DocumentoDigits.Only(cnpjCpf);
+        var foneDigits = DocumentoDigits.Only(telefone);
+        if (docDigits.Length < 11 && foneDigits.Length < 8) return [];
+
+        var all = await repository.ListAsync(ct);
+        var result = new List<DuplicadoDto>();
+        foreach (var x in all.Where(x => x.Id != excludeId))
+        {
+            var motivos = new List<string>();
+            if (docDigits.Length >= 11 && DocumentoDigits.Only(x.CnpjCpf) == docDigits) motivos.Add("mesmo CPF/CNPJ");
+            if (foneDigits.Length >= 8 && DocumentoDigits.Only(x.Telefone) == foneDigits) motivos.Add("mesmo telefone");
+            if (motivos.Count > 0)
+                result.Add(new(x.Id, x.Nome ?? "", x.CnpjCpf, x.Telefone, string.Join(" e ", motivos)));
+        }
+        return result;
     }
 
     private static IQueryable<Prestador> ApplySort(IQueryable<Prestador> query, string? sortKey, bool descending)
