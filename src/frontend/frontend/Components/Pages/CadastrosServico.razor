@@ -5,6 +5,7 @@
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ICadastroServicoService Service
 @inject IServicoTipoCampoConfigService TipoCampoConfigService
+@inject IServicoTipoConfigService TipoConfigService
 @inject IClienteService ClienteService
 @inject ICondicaoPagamentoService CondicaoService
 @inject IOrcamentoService OrcamentoService
@@ -35,9 +36,9 @@
             <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipo"
                        Label="Tipo de serviço" Variant="Variant.Outlined"
                        Margin="Margin.Dense" Clearable="true">
-                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                @foreach (var type in _tipos)
                 {
-                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@type">@TypeLabel(type)</MudSelectItem>
+                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@type.TipoServico">@type.Label</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -366,9 +367,9 @@
                                 <MudSelect T="AcompanhamentoServicoTipo" Value="_model.TipoServico"
                                            Label="Tipo de serviço" Required="@Obrigatorio(ServicoCampo.Tipo)" Variant="Variant.Outlined"
                                            ValueChanged="TypeChanged">
-                                    @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                                    @foreach (var type in _tipos.Where(t => t.Ativo || t.TipoServico == _model.TipoServico))
                                     {
-                                        <MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>
+                                        <MudSelectItem Value="@type.TipoServico">@type.Label</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -594,7 +595,7 @@
     private PagedResult<CadastroServicoDto> _result = new([], 1, 20, 0);
     private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
     private RadzenDataGrid<CadastroServicoDto>? _grid;
-    private readonly IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =
+    private IReadOnlyList<SmartFilterColumn<CadastroServicoDto>> _filterColumns =>
     [
         new("codigo","Código",x=>x.Codigo,1),new("empresa","Empresa",x=>x.RazaoSocialEmpresa,2),
         new("documento","Documento",x=>x.DocumentoEmpresa,2),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),3),
@@ -610,6 +611,7 @@
     private IReadOnlyList<PrestadorDto> _providers = [];
     private IReadOnlyList<SituacaoConfigDto> _situations = [];
     private IReadOnlyList<ServicoTipoCampoConfigDto> _campoConfigs = [];
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
     private ServiceModel _model = new();
     private MudForm? _form;
     private bool _valid;
@@ -683,6 +685,7 @@
             _budgets = (await OrcamentoService.ListAsync(new(PageSize: 5000))).Items;
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _situations = await AcompanhamentoService.ListSituationsAsync();
+            _tipos = await TipoConfigService.ListAsync();
             _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(_model.TipoServico);
         }
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
@@ -723,10 +726,13 @@
     }
 
     private async Task ApplyFilterAsync() { await LoadAsync(); }
-    private void New()
+    private async Task New()
     {
         _model = new();
         AddInstallment();
+        var firstActive = _tipos.FirstOrDefault(x => x.Ativo);
+        if (firstActive is not null && !_tipos.Any(x => x.TipoServico == _model.TipoServico && x.Ativo))
+            await TypeChanged(firstActive.TipoServico);
         _editorOpen = true;
     }
     private void Edit(CadastroServicoDto x) { _model = ServiceModel.From(x); _editorOpen = true; }
@@ -980,12 +986,8 @@
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
-    private static string TypeLabel(AcompanhamentoServicoTipo type) => type switch
-    {
-        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Processo administrativo",
-        AcompanhamentoServicoTipo.OBRAS => "Obras",
-        _ => type.ToString()
-    };
+    private string TypeLabel(AcompanhamentoServicoTipo type) =>
+        _tipos.FirstOrDefault(x => x.TipoServico == type)?.Label ?? ServicoTipoDefaults.Label(type);
     private static Color TypeColor(AcompanhamentoServicoTipo type) => type switch
     {
         AcompanhamentoServicoTipo.AVCB => Color.Error,

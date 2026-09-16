@@ -4,6 +4,7 @@
 @using Radzen.Blazor
 @using CrmAtlas.Web.Services
 @inject IDashboardQueryService Dashboard
+@inject IServicoTipoConfigService TipoConfigService
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
@@ -74,14 +75,12 @@
         <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="gap-2 pt-1">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Wrap="Wrap.Wrap">
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-2 font-weight-bold">Linhas de serviço:</MudText>
-                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.AVCB) ? Variant.Filled : Variant.Outlined"
-                         Color="Color.Error" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.AVCB))">AVCB</MudChip>
-                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.CLCB) ? Variant.Filled : Variant.Outlined"
-                         Color="Color.Warning" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.CLCB))">CLCB</MudChip>
-                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.PROCESSOS_ADM) ? Variant.Filled : Variant.Outlined"
-                         Color="Color.Secondary" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.PROCESSOS_ADM))">Proc. Adm</MudChip>
-                <MudChip T="string" Variant="_activeLines.Contains(AcompanhamentoServicoTipo.OBRAS) ? Variant.Filled : Variant.Outlined"
-                         Color="Color.Info" Size="Size.Small" OnClick="@(() => ToggleLineAsync(AcompanhamentoServicoTipo.OBRAS))">Obras</MudChip>
+                @foreach (var tipo in _tipos)
+                {
+                    var t = tipo.TipoServico;
+                    <MudChip T="string" Variant="_activeLines.Contains(t) ? Variant.Filled : Variant.Outlined"
+                             Color="@LineChipColor(t)" Size="Size.Small" OnClick="@(() => ToggleLineAsync(t))">@tipo.Label</MudChip>
+                }
             </MudStack>
             
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="LoadAsync" Disabled="_loading"
@@ -803,7 +802,7 @@
 
     private string? _selectedStatusFilter;
     private string _prioritySearch = string.Empty;
-    private readonly IReadOnlyList<SmartFilterColumn<DashboardPriorityItem>> _priorityColumns =
+    private IReadOnlyList<SmartFilterColumn<DashboardPriorityItem>> _priorityColumns =>
     [
         new("codigo", "Código", x => x.Code, 1), new("dias", "Em aberto há", x => x.DaysInStatus, 2),
         new("cliente", "Cliente", x => x.Client, 3), new("servico", "Serviço", x => ServiceLabel(x.ServiceType), 4),
@@ -822,14 +821,17 @@
     private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
     private DataGridSettingsBinder _topClientGridSettings = null!;
     private DataGridSettingsBinder _priorityGridSettings = null!;
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
         _topClientGridSettings = new DataGridSettingsBinder(DataGridStateService, "home-topclients");
         _priorityGridSettings = new DataGridSettingsBinder(DataGridStateService, "home-priorities");
         _startDate = DateTime.Today.AddMonths(-11);
         _endDate = DateTime.Today;
-        return LoadAsync();
+        try { _tipos = await TipoConfigService.ListAsync(); }
+        catch { _tipos = ServicoTipoDefaults.All(); }
+        await LoadAsync();
     }
 
 
@@ -1464,9 +1466,14 @@
         _ => "#2563EB"
     };
 
-    private static string ServiceLabel(AcompanhamentoServicoTipo type) => type switch
+    private string ServiceLabel(AcompanhamentoServicoTipo type) =>
+        _tipos.FirstOrDefault(x => x.TipoServico == type)?.Label ?? ServicoTipoDefaults.Label(type);
+
+    private static Color LineChipColor(AcompanhamentoServicoTipo type) => type switch
     {
-        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Proc. Adm.",
-        _ => type.ToString()
+        AcompanhamentoServicoTipo.AVCB => Color.Error,
+        AcompanhamentoServicoTipo.CLCB => Color.Warning,
+        AcompanhamentoServicoTipo.OBRAS => Color.Info,
+        _ => Color.Secondary
     };
 }

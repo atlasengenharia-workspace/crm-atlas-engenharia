@@ -199,6 +199,14 @@ public sealed class ServicoSubtipoConfig : Entity
     public bool Ativo { get; set; } = true;
 }
 
+public sealed class ServicoTipoConfig : Entity
+{
+    public AcompanhamentoServicoTipo TipoServico { get; set; }
+    public string? Nome { get; set; }
+    public int Ordem { get; set; }
+    public bool Ativo { get; set; } = true;
+}
+
 public sealed class CadastroServicoParcela : Entity
 {
     public long CadastroServicoId { get; set; }

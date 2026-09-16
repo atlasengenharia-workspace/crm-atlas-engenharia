@@ -5,7 +5,7 @@ public sealed class SistemaAtualizacaoService : ISistemaAtualizacaoService
     private static readonly List<SistemaAtualizacao> History =
     [
         new(
-            "v2.5.0",
+            "v1.3.0",
             new DateOnly(2026, 8, 3),
             "Serviços, Financeiro e Desempenho do Painel Executivo",
             "Atualização focada na confiabilidade dos cadastros de serviços, consistência dos valores financeiros e maior velocidade de navegação no dashboard.",

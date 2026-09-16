@@ -5,7 +5,6 @@ using CrmAtlas.ApplicationCore.Enums;
 using CrmAtlas.ApplicationCore.Notificacoes;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Financeiro;
-using CrmAtlas.ApplicationCore.Identidade;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
 
@@ -15,9 +14,6 @@ public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? No
     long? ServicoConvertidoId = null, string? ServicoConvertidoCodigo = null, DateTime? ConvertidoEm = null,
     string? Subtipo = null)
 {
-    // ORCAMENTO-16: no resumo as situacoes viram tres grupos (Em analise /
-    // Aprovado / Recusado). "Aguardando cliente" continua existindo no dado
-    // porque marca "proposta enviada, sem resposta" — a lista de retorno.
     public string SituacaoGrupo =>
         Situacao.Contains("aprov", StringComparison.OrdinalIgnoreCase) ? "Aprovado" :
         Situacao.Contains("recus", StringComparison.OrdinalIgnoreCase) ? "Recusado" : "Em análise";
@@ -299,17 +295,17 @@ public sealed class PrestadorService(
         if (string.IsNullOrWhiteSpace(dto.Nome)) throw new ArgumentException("Nome do prestador é obrigatório.");
         var entity = dto.Id is null ? new Prestador { CreatedAt = DateTime.UtcNow } :
             await repository.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Prestador não encontrado.");
-        entity.Nome=dto.Nome.Trim(); entity.CnpjCpf=dto.CnpjCpf; entity.Telefone=dto.Telefone; entity.Email=dto.Email;
-        entity.MetodoPagamento=dto.MetodoPagamento; entity.ChavePix=dto.ChavePix; entity.Banco=dto.Banco;
-        entity.Agencia=dto.Agencia; entity.Conta=dto.Conta; entity.UpdatedAt=DateTime.UtcNow;
-        if(dto.Id is null) await repository.AddAsync(entity,ct); else repository.Update(entity);
+        entity.Nome = dto.Nome.Trim(); entity.CnpjCpf = dto.CnpjCpf; entity.Telefone = dto.Telefone; entity.Email = dto.Email;
+        entity.MetodoPagamento = dto.MetodoPagamento; entity.ChavePix = dto.ChavePix; entity.Banco = dto.Banco;
+        entity.Agencia = dto.Agencia; entity.Conta = dto.Conta; entity.UpdatedAt = DateTime.UtcNow;
+        if (dto.Id is null) await repository.AddAsync(entity, ct); else repository.Update(entity);
         await repository.SaveChangesAsync(ct);
         await cache.RemoveAsync(PrestadoresCacheKey, ct);
         return Map(entity);
     }
-    public async Task DeleteAsync(long id,CancellationToken ct=default)
+    public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
-        var entity=await repository.GetByIdAsync(id,ct)??throw new NotFoundException("Prestador não encontrado.");
+        var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Prestador não encontrado.");
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
         await cache.RemoveAsync(PrestadoresCacheKey, ct);
     }
@@ -331,13 +327,13 @@ public sealed class PrestadorService(
         return ordered.ThenBy(x => x.Id);
     }
 
-    private static PrestadorDto Map(Prestador x)=>new(x.Id,x.Nome??"",x.CnpjCpf,x.Telefone,x.Email,x.MetodoPagamento,x.ChavePix,x.Banco,x.Agencia,x.Conta);
+    private static PrestadorDto Map(Prestador x) => new(x.Id, x.Nome ?? "", x.CnpjCpf, x.Telefone, x.Email, x.MetodoPagamento, x.ChavePix, x.Banco, x.Agencia, x.Conta);
 }
 
-public sealed record NotificationDto(long Id,string Titulo,string? Mensagem,NotificationCategory Categoria,
-    DateTimeOffset CriadaEm,bool Lida,DateTimeOffset? ConfirmadaEm,string? Referencia);
-public sealed record NotificationRuleDto(long? Id,string Nome,NotificationRuleType Tipo,NotificationCategory Categoria,
-    int Dias,bool Ativa);
+public sealed record NotificationDto(long Id, string Titulo, string? Mensagem, NotificationCategory Categoria,
+    DateTimeOffset CriadaEm, bool Lida, DateTimeOffset? ConfirmadaEm, string? Referencia);
+public sealed record NotificationRuleDto(long? Id, string Nome, NotificationRuleType Tipo, NotificationCategory Categoria,
+    int Dias, bool Ativa);
 public sealed record NotificationFilter(
     long UserId,
     int Page = 1,
@@ -346,16 +342,16 @@ public sealed record NotificationFilter(
 
 public interface INotificationService
 {
-    Task<CursorResult<NotificationDto>> ListAsync(NotificationFilter filter,CancellationToken ct=default);
-    Task MarkReadAsync(long userId,long id,CancellationToken ct=default);
-    Task ConfirmAsync(long userId,long id,CancellationToken ct=default);
-    Task<IReadOnlyList<NotificationRuleDto>> ListRulesAsync(CancellationToken ct=default);
-    Task<NotificationRuleDto> SaveRuleAsync(NotificationRuleDto dto,CancellationToken ct=default);
-    Task<int> RunRulesAsync(long userId,CancellationToken ct=default);
+    Task<CursorResult<NotificationDto>> ListAsync(NotificationFilter filter, CancellationToken ct = default);
+    Task MarkReadAsync(long userId, long id, CancellationToken ct = default);
+    Task ConfirmAsync(long userId, long id, CancellationToken ct = default);
+    Task<IReadOnlyList<NotificationRuleDto>> ListRulesAsync(CancellationToken ct = default);
+    Task<NotificationRuleDto> SaveRuleAsync(NotificationRuleDto dto, CancellationToken ct = default);
+    Task<int> RunRulesAsync(long userId, CancellationToken ct = default);
 }
 
-public sealed class NotificationService(IRepository<Notification> repository,IRepository<NotificationRule> rules,
-    IRepository<Lancamento> entries,IRepository<AcompanhamentoServico> tracking) : INotificationService
+public sealed class NotificationService(IRepository<Notification> repository, IRepository<NotificationRule> rules,
+    IRepository<Lancamento> entries, IRepository<AcompanhamentoServico> tracking) : INotificationService
 {
     public async Task<CursorResult<NotificationDto>> ListAsync(NotificationFilter filter, CancellationToken ct = default)
     {
@@ -389,57 +385,66 @@ public sealed class NotificationService(IRepository<Notification> repository,IRe
 
         return new CursorResult<NotificationDto>(dtos, filter.Page, pageSize, nextCursor, hasNext);
     }
-    public async Task MarkReadAsync(long userId,long id,CancellationToken ct=default)
+    public async Task MarkReadAsync(long userId, long id, CancellationToken ct = default)
     {
-        var item=await Owned(userId,id,ct);item.IsRead=true;repository.Update(item);await repository.SaveChangesAsync(ct);
+        var item = await Owned(userId, id, ct); item.IsRead = true; repository.Update(item); await repository.SaveChangesAsync(ct);
     }
-    public async Task ConfirmAsync(long userId,long id,CancellationToken ct=default)
+    public async Task ConfirmAsync(long userId, long id, CancellationToken ct = default)
     {
-        var item=await Owned(userId,id,ct);item.IsRead=true;item.ConfirmedAt=DateTimeOffset.UtcNow;repository.Update(item);await repository.SaveChangesAsync(ct);
+        var item = await Owned(userId, id, ct); item.IsRead = true; item.ConfirmedAt = DateTimeOffset.UtcNow; repository.Update(item); await repository.SaveChangesAsync(ct);
     }
-    public async Task<IReadOnlyList<NotificationRuleDto>> ListRulesAsync(CancellationToken ct=default)=>
-        (await rules.ListAsync(ct)).OrderBy(x=>x.Name).Select(MapRule).ToList();
-    public async Task<NotificationRuleDto> SaveRuleAsync(NotificationRuleDto dto,CancellationToken ct=default)
+    public async Task<IReadOnlyList<NotificationRuleDto>> ListRulesAsync(CancellationToken ct = default) =>
+        (await rules.ListAsync(ct)).OrderBy(x => x.Name).Select(MapRule).ToList();
+    public async Task<NotificationRuleDto> SaveRuleAsync(NotificationRuleDto dto, CancellationToken ct = default)
     {
-        if(string.IsNullOrWhiteSpace(dto.Nome)||dto.Dias<1)throw new ArgumentException("Nome e prazo maior que zero são obrigatórios.");
-        var item=dto.Id is null?new NotificationRule{CreatedAt=DateTime.UtcNow}:await rules.GetByIdAsync(dto.Id.Value,ct)??throw new NotFoundException("Regra não encontrada.");
-        item.Name=dto.Nome.Trim();item.Type=dto.Tipo;item.Category=dto.Categoria;item.DaysThreshold=dto.Dias;item.Enabled=dto.Ativa;item.UpdatedAt=DateTime.UtcNow;
-        if(dto.Id is null)await rules.AddAsync(item,ct);else rules.Update(item);await rules.SaveChangesAsync(ct);return MapRule(item);
+        if (string.IsNullOrWhiteSpace(dto.Nome) || dto.Dias < 1) throw new ArgumentException("Nome e prazo maior que zero são obrigatórios.");
+        var item = dto.Id is null ? new NotificationRule { CreatedAt = DateTime.UtcNow } : await rules.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Regra não encontrada.");
+        item.Name = dto.Nome.Trim(); item.Type = dto.Tipo; item.Category = dto.Categoria; item.DaysThreshold = dto.Dias; item.Enabled = dto.Ativa; item.UpdatedAt = DateTime.UtcNow;
+        if (dto.Id is null) await rules.AddAsync(item, ct); else rules.Update(item); await rules.SaveChangesAsync(ct); return MapRule(item);
     }
-    public async Task<int> RunRulesAsync(long userId,CancellationToken ct=default)
+    public async Task<int> RunRulesAsync(long userId, CancellationToken ct = default)
     {
-        var active=(await rules.ListAsync(ct)).Where(x=>x.Enabled).ToList();var existing=await repository.ListAsync(ct);
-        var now=DateTimeOffset.UtcNow;var count=0;
-        foreach(var rule in active)
+        var active = (await rules.ListAsync(ct)).Where(x => x.Enabled).ToList(); var existing = await repository.ListAsync(ct);
+        var now = DateTimeOffset.UtcNow; var count = 0;
+        foreach (var rule in active)
         {
-            if(rule.Type==NotificationRuleType.PARCELA_A_VENCER)
+            if (rule.Type == NotificationRuleType.PARCELA_A_VENCER)
             {
-                var limit=DateOnly.FromDateTime(DateTime.Today.AddDays(rule.DaysThreshold));
-                foreach(var item in (await entries.ListAsync(ct)).Where(x=>x.Status!=LancamentoStatus.PAGO&&x.DataPrevistaParcela is not null&&x.DataPrevistaParcela<=limit))
-                    count+=await AddIfMissing(userId,$"parcela:{item.Id}:{rule.Id}",$"Parcela a vencer — {item.Codigo}",item.Descricao,rule,existing,now,ct);
+                var limit = DateOnly.FromDateTime(DateTime.Today.AddDays(rule.DaysThreshold));
+                foreach (var item in (await entries.ListAsync(ct)).Where(x => x.Status != LancamentoStatus.PAGO && x.DataPrevistaParcela is not null && x.DataPrevistaParcela <= limit))
+                    count += await AddIfMissing(userId, $"parcela:{item.Id}:{rule.Id}", $"Parcela a vencer — {item.Codigo}", item.Descricao, rule, existing, now, ct);
             }
             else
             {
-                var limit=DateTime.UtcNow.AddDays(-rule.DaysThreshold);
-                foreach(var item in (await tracking.ListAsync(ct)).Where(x=>x.UpdatedAt<=limit))
-                    count+=await AddIfMissing(userId,$"servico:{item.Id}:{rule.Id}",$"Serviço sem atualização — {item.Codigo}",item.NomeCliente,rule,existing,now,ct);
+                var limit = DateTime.UtcNow.AddDays(-rule.DaysThreshold);
+                foreach (var item in (await tracking.ListAsync(ct)).Where(x => x.UpdatedAt <= limit))
+                    count += await AddIfMissing(userId, $"servico:{item.Id}:{rule.Id}", $"Serviço sem atualização — {item.Codigo}", item.NomeCliente, rule, existing, now, ct);
             }
         }
-        if(count>0)await repository.SaveChangesAsync(ct);return count;
+        if (count > 0) await repository.SaveChangesAsync(ct); return count;
     }
-    private async Task<int> AddIfMissing(long userId,string key,string title,string? message,NotificationRule rule,
-        IReadOnlyList<Notification> existing,DateTimeOffset now,CancellationToken ct)
+    private async Task<int> AddIfMissing(long userId, string key, string title, string? message, NotificationRule rule,
+        IReadOnlyList<Notification> existing, DateTimeOffset now, CancellationToken ct)
     {
-        if(existing.Any(x=>x.UserId==userId&&x.ReferenceKey==key))return 0;
-        await repository.AddAsync(new(){UserId=userId,Title=title,Message=message,Category=rule.Category,RuleType=rule.Type,
-            ReferenceKey=key,CreatedAt=now,LastActive=now},ct);return 1;
+        if (existing.Any(x => x.UserId == userId && x.ReferenceKey == key)) return 0;
+        await repository.AddAsync(new()
+        {
+            UserId = userId,
+            Title = title,
+            Message = message,
+            Category = rule.Category,
+            RuleType = rule.Type,
+            ReferenceKey = key,
+            CreatedAt = now,
+            LastActive = now
+        }, ct); return 1;
     }
-    private async Task<Notification> Owned(long userId,long id,CancellationToken ct)
+    private async Task<Notification> Owned(long userId, long id, CancellationToken ct)
     {
-        var item=await repository.GetByIdAsync(id,ct)??throw new NotFoundException("Notificação não encontrada.");
-        if(item.UserId!=userId)throw new UnauthorizedAccessException("Notificação não pertence ao usuário.");
+        var item = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Notificação não encontrada.");
+        if (item.UserId != userId) throw new UnauthorizedAccessException("Notificação não pertence ao usuário.");
         return item;
     }
-    private static NotificationDto Map(Notification x)=>new(x.Id,x.Title,x.Message,x.Category,x.CreatedAt,x.IsRead,x.ConfirmedAt,x.ReferenceKey);
-    private static NotificationRuleDto MapRule(NotificationRule x)=>new(x.Id,x.Name,x.Type,x.Category,x.DaysThreshold,x.Enabled);
+    private static NotificationDto Map(Notification x) => new(x.Id, x.Title, x.Message, x.Category, x.CreatedAt, x.IsRead, x.ConfirmedAt, x.ReferenceKey);
+    private static NotificationRuleDto MapRule(NotificationRule x) => new(x.Id, x.Name, x.Type, x.Category, x.DaysThreshold, x.Enabled);
 }

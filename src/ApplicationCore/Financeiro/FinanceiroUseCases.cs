@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
 
@@ -372,8 +371,6 @@ public sealed class LancamentoService(
         var descricao = filter.Descricao?.Trim();
         var codigoServico = filter.CodigoServico?.Trim();
 
-        // The launches page sends its single search term in both fields because
-        // it represents "description OR service code".
         if (!string.IsNullOrWhiteSpace(descricao)
             && string.Equals(descricao, codigoServico, StringComparison.OrdinalIgnoreCase))
             return Contains(lancamento.Descricao, descricao)

@@ -3,6 +3,7 @@
 @using Radzen.Blazor
 @using CrmAtlas.Web.Services
 @inject IOrcamentoService Service
+@inject IServicoTipoConfigService TipoConfigService
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -67,7 +68,7 @@
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="TipoServico" Title="Tipo">
-                    <Template Context="context">@context.TipoServico</Template>
+                    <Template Context="context">@TypeLabel(context.TipoServico)</Template>
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="Subtipo" Title="Subtipo">
@@ -116,7 +117,7 @@
         <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Codigo" Label="Código" Required="true" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_model.TipoServico" Label="Tipo" Variant="Variant.Outlined">@foreach(var t in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@t">@t</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_model.TipoServico" Label="Tipo" Variant="Variant.Outlined">@foreach(var t in _tipos.Where(t => t.Ativo || t.TipoServico == _model.TipoServico)){<MudSelectItem Value="@t.TipoServico">@t.Label</MudSelectItem>}</MudSelect></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Subtipo" Label="Subtipo" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Nome" Label="Cliente / nome da proposta" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" /></MudItem>
@@ -146,18 +147,21 @@
     private string? _sortKey;
     private bool _sortDescending;
     private BudgetModel _model=new(); private MudForm? _form;
-    private readonly IReadOnlyList<SmartFilterColumn<OrcamentoDto>> _filterColumns =
+    private IReadOnlyList<SmartFilterColumn<OrcamentoDto>> _filterColumns =>
     [
         new("codigo","Código",x=>x.Codigo,1),new("cliente","Cliente",x=>x.Nome,2),
         new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("data","Data",x=>x.Data,4),
-        new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>x.TipoServico,6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
+        new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
     ];
     private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
     private bool _initialLoading = true;
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
     private DataGridSettingsBinder _gridSettings = null!;
     protected override async Task OnInitializedAsync()
     {
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "orcamentos");
+        try { _tipos = await TipoConfigService.ListAsync(); }
+        catch { _tipos = ServicoTipoDefaults.All(); }
         await LoadAsync();
     }
 
@@ -194,7 +198,7 @@
         if (args.Key == "Enter") { await LoadAsync(); }
     }
 
-    private void New(){_model=new(){Codigo=$"ORC-{BudgetTypeSigla(_model.TipoServico)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
+    private void New(){var tipo=_tipos.FirstOrDefault(x=>x.Ativo)?.TipoServico??AcompanhamentoServicoTipo.AVCB;_model=new(){TipoServico=tipo,Codigo=$"ORC-{BudgetTypeSigla(tipo)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
     private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
     private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
     private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
@@ -203,6 +207,7 @@
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:s.Contains("aguard",StringComparison.OrdinalIgnoreCase)?Color.Warning:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
     private static int WeeksSince(DateOnly? start) => start is null ? 0 : Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.Value.DayNumber) / 7);
+    private string TypeLabel(AcompanhamentoServicoTipo type) => _tipos.FirstOrDefault(x=>x.TipoServico==type)?.Label??ServicoTipoDefaults.Label(type);
     private static string BudgetTypeSigla(AcompanhamentoServicoTipo type) => type switch
     {
         AcompanhamentoServicoTipo.AVCB => "AVCB",

@@ -80,6 +80,7 @@ public static class DependencyInjection
         services.AddTransient<ICondicaoPagamentoService, CondicaoPagamentoService>();
         services.AddTransient<ICadastroServicoService, CadastroServicoService>();
         services.AddTransient<IServicoTipoCampoConfigService, ServicoTipoCampoConfigService>();
+        services.AddTransient<IServicoTipoConfigService, ServicoTipoConfigService>();
         services.AddTransient<ICustoIndiretoService, CustoIndiretoService>();
         services.AddTransient<ILancamentoService, LancamentoService>();
         services.AddTransient<IOrcamentoService, OrcamentoService>();

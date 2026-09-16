@@ -1,0 +1,106 @@
+@page "/tipos-servico"
+@attribute [Authorize]
+@inject IServicoTipoConfigService TipoConfigService
+@inject ISnackbar Snackbar
+
+<PageTitle>Tipos de serviço | CRM Atlas</PageTitle>
+<PageHeader Title="Tipos de serviço" Subtitle="Renomeie a exibição, reordene e ative os tipos usados em serviços e orçamentos." />
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.CardGrid">
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+            Tipos inativos não aparecem nos cadastros novos, mas continuam visíveis nos registros, filtros e relatórios existentes.
+            Deixar o nome em branco restaura o rótulo padrão.
+        </MudAlert>
+        <MudTable Items="_tipos" Dense="true" Hover="true" Elevation="0" Bordered="true">
+            <HeaderContent>
+                <MudTh Style="width:110px">Ordem</MudTh>
+                <MudTh Style="width:170px">Tipo</MudTh>
+                <MudTh>Nome de exibição</MudTh>
+                <MudTh Style="text-align:center; width:110px">Ativo</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="context">
+                @{ var index = _tipos.IndexOf(context); }
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small"
+                                   Disabled="index == 0" OnClick="@(() => Move(index, -1))" aria-label="Mover para cima" />
+                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small"
+                                   Disabled="index == _tipos.Count - 1" OnClick="@(() => Move(index, 1))" aria-label="Mover para baixo" />
+                </MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@context.TipoServico</MudChip>
+                    @if (!string.IsNullOrWhiteSpace(context.Nome))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">@context.Label</MudText>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudTextField @bind-Value="context.Nome" Placeholder="@ServicoTipoDefaults.Label(context.TipoServico)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="80" Immediate="true" />
+                </MudTd>
+                <MudTd Style="text-align:center">
+                    <MudSwitch T="bool" @bind-Value="context.Ativo" Color="Color.Primary" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveAsync" Disabled="_saving">Salvar</MudButton>
+        </MudStack>
+    </MudPaper>
+</GlobalSkeleton>
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private List<TipoModel> _tipos = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            var list = await TipoConfigService.ListAsync();
+            _tipos = list.Select(x => new TipoModel
+            {
+                Id = x.Id,
+                TipoServico = x.TipoServico,
+                Nome = x.Nome,
+                Ativo = x.Ativo
+            }).ToList();
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao carregar tipos de serviço: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private void Move(int index, int direction)
+    {
+        var target = index + direction;
+        if (index < 0 || target < 0 || index >= _tipos.Count || target >= _tipos.Count) return;
+        (_tipos[index], _tipos[target]) = (_tipos[target], _tipos[index]);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var configs = _tipos
+                .Select((x, index) => new ServicoTipoConfigDto(x.Id, x.TipoServico, x.Nome, index, x.Ativo))
+                .ToList();
+            await TipoConfigService.SaveAsync(configs);
+            Snackbar.Add("Tipos de serviço salvos.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Erro ao salvar: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private sealed class TipoModel
+    {
+        public long? Id { get; set; }
+        public AcompanhamentoServicoTipo TipoServico { get; set; }
+        public string? Nome { get; set; }
+        public bool Ativo { get; set; } = true;
+        public string Label => string.IsNullOrWhiteSpace(Nome) ? ServicoTipoDefaults.Label(TipoServico) : Nome;
+    }
+}

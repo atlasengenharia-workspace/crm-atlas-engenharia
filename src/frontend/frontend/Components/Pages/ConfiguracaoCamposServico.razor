@@ -1,6 +1,7 @@
 @page "/configuracao-campos-servico"
 @attribute [Authorize]
 @inject IServicoTipoCampoConfigService TipoCampoConfigService
+@inject IServicoTipoConfigService TipoConfigService
 @inject ICadastroServicoService ServicoService
 @inject ISnackbar Snackbar
 
@@ -10,9 +11,9 @@
 <GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.CardGrid">
     <MudPaper Outlined="true" Class="pa-4">
         <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
-            @foreach (var tipo in Enum.GetValues<AcompanhamentoServicoTipo>())
+            @foreach (var tipo in _tipos.Select(t => t.TipoServico))
             {
-                var configs = _configsByTipo[tipo];
+                var configs = _configsByTipo.GetValueOrDefault(tipo) ?? [];
                 <MudTabPanel Text="@TypeLabel(tipo)">
                     <MudTable Items="@configs" Dense="true" Hover="true" Elevation="0" Bordered="true">
                         <HeaderContent>
@@ -72,6 +73,7 @@
 @code {
     private bool _loading = true;
     private bool _saving;
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
     private readonly Dictionary<AcompanhamentoServicoTipo, List<ServicoTipoCampoConfigDto>> _configsByTipo = [];
     private readonly Dictionary<AcompanhamentoServicoTipo, List<ServicoSubtipoConfigItemDto>> _subtiposByTipo = [];
     private readonly Dictionary<AcompanhamentoServicoTipo, string?> _novoSubtipo = [];
@@ -79,6 +81,8 @@
     protected override async Task OnInitializedAsync()
     {
         _loading = true;
+        try { _tipos = await TipoConfigService.ListAsync(); }
+        catch { _tipos = ServicoTipoDefaults.All(); }
         try
         {
             var all = await TipoCampoConfigService.ListAsync();
@@ -136,12 +140,8 @@
     private void RemoveSubtipo(AcompanhamentoServicoTipo tipo, ServicoSubtipoConfigItemDto item) =>
         _subtiposByTipo[tipo].Remove(item);
 
-    private static string TypeLabel(AcompanhamentoServicoTipo type) => type switch
-    {
-        AcompanhamentoServicoTipo.PROCESSOS_ADM => "Processo administrativo",
-        AcompanhamentoServicoTipo.OBRAS => "Obras",
-        _ => type.ToString()
-    };
+    private string TypeLabel(AcompanhamentoServicoTipo type) =>
+        _tipos.FirstOrDefault(x => x.TipoServico == type)?.Label ?? ServicoTipoDefaults.Label(type);
 
     private static string CampoLabel(ServicoCampo campo) => campo switch
     {

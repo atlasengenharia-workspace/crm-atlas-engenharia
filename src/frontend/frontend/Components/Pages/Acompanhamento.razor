@@ -7,6 +7,7 @@
 @inject IRadzenDataGridStateService DataGridStateService
 @inject IJSRuntime JS
 @inject IAcompanhamentoService Service
+@inject IServicoTipoConfigService TipoConfigService
 @inject IAcompanhamentoSpreadsheetReader SpreadsheetReader
 @inject IAtlasWorkbookImportService WorkbookImportService
 @inject ISnackbar Snackbar
@@ -40,9 +41,9 @@
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="AcompanhamentoServicoTipo?" @bind-Value="_tipoFiltro" @bind-Value:after="OnTipoFiltroChangedAsync"
                        Label="Tipo de serviço" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                @foreach (var type in Enum.GetValues<AcompanhamentoServicoTipo>())
+                @foreach (var type in _tipos)
                 {
-                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@(new AcompanhamentoServicoTipo?(type))">@TypeLabel(type)</MudSelectItem>
+                    <MudSelectItem T="AcompanhamentoServicoTipo?" Value="@(new AcompanhamentoServicoTipo?(type.TipoServico))">@type.Label</MudSelectItem>
                 }
             </MudSelect>
         </MudItem>
@@ -420,7 +421,7 @@
         </MudToolBar>
         <MudDivider Class="mb-4" />
         <MudGrid>
-            <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_config.Tipo" Label="Tipo" Variant="Variant.Outlined">@foreach(var type in Enum.GetValues<AcompanhamentoServicoTipo>()){<MudSelectItem Value="@type">@TypeLabel(type)</MudSelectItem>}</MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_config.Tipo" Label="Tipo" Variant="Variant.Outlined">@foreach(var type in _tipos){<MudSelectItem Value="@type.TipoServico">@type.Label</MudSelectItem>}</MudSelect></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_config.Nome" Label="Nome" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_config.Ordem" Label="Ordem" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Inicial" Label="Inicial" /></MudItem><MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_config.Ativo" Label="Ativa" /></MudItem>
@@ -578,6 +579,7 @@
     private string? _sortKey;
     private bool _sortDescending;
     private List<SituacaoConfigDto> _situations=[]; private List<ImportRow> _preview=[];
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,2), new("cliente","Cliente",x=>x.Cliente,3),
@@ -665,6 +667,8 @@
         if (_initialized) return;
         _initialized = true;
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "acompanhamento");
+        try { _tipos = await TipoConfigService.ListAsync(); }
+        catch { _tipos = ServicoTipoDefaults.All(); }
         await RestorePageFiltersAsync();
         await LoadAsync();
         if (SituacoesParam is not null) OpenSettings();
@@ -987,7 +991,7 @@
      private static string FormatFileSize(long bytes)=>bytes switch{>=1024L*1024L=>$"{bytes/(1024d*1024d):N1} MB",>=1024=>$"{bytes/1024d:N1} KB",_=>$"{bytes} bytes"};
      private static string Money(decimal? value)=>value?.ToString("C2",new System.Globalization.CultureInfo("pt-BR"))??"—";
      private static string ImportErrorMessage(Exception exception){var root=exception.GetBaseException();return root==exception?exception.Message:$"{exception.Message} Causa: {root.Message}";}
-    private static string TypeLabel(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.PROCESSOS_ADM=>"Processos administrativos",AcompanhamentoServicoTipo.OBRAS=>"Obras",_=>t.ToString()};
+    private string TypeLabel(AcompanhamentoServicoTipo t)=>_tipos.FirstOrDefault(x=>x.TipoServico==t)?.Label??ServicoTipoDefaults.Label(t);
     private static Color TypeColor(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.AVCB=>Color.Error,AcompanhamentoServicoTipo.CLCB=>Color.Warning,AcompanhamentoServicoTipo.OBRAS=>Color.Info,_=>Color.Secondary};
     private string SituationStyle(AcompanhamentoDto item){var color=SituationColor(item.Tipo,item.Situacao);return $"background:{color};color:{ContrastColor(color)}";}
     private string SituationColor(AcompanhamentoServicoTipo type,string status,string? configured=null)=>configured??_situations.FirstOrDefault(x=>x.Tipo==type&&x.Nome.Equals(status,StringComparison.OrdinalIgnoreCase))?.Cor??DefaultSituationColor(status);

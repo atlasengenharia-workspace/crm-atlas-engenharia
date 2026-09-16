@@ -24,10 +24,6 @@ public sealed class AcompanhamentoServico : Entity
     public decimal? Custos { get; set; }
     public DateOnly? ProximaParcela { get; set; }
 
-    // A coluna "Prox. Parcela" da planilha nem sempre traz data: na aba de
-    // Processos Adm ela é usada como anotação da próxima ação ("Finalizar",
-    // "Protocolar"). Esse texto era descartado por não ser conversível em
-    // DateOnly. Aqui ele é preservado como veio.
     public string? ProximaParcelaTexto { get; set; }
     public string? FolderUrl { get; set; }
     public DateTime? UltimaMudancaSituacaoEm { get; set; }
