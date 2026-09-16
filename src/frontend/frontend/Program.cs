@@ -12,6 +12,7 @@ using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.Web.Realtime;
 using CrmAtlas.Web.Services;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MudBlazor;
 
 var ptBr = CultureInfo.GetCultureInfo("pt-BR");
 CultureInfo.DefaultThreadCurrentCulture = ptBr;
@@ -24,7 +25,11 @@ if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var port))
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 }
 
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+{
+    config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.TopCenter;
+    config.SnackbarConfiguration.NewestOnTop = true;
+});
 builder.Services.AddRadzenComponents();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Replace(ServiceDescriptor.Scoped<IUserAccessor, CircuitUserAccessor>());
