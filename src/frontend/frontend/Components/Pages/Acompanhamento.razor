@@ -431,6 +431,11 @@
                                 PickerVariant="PickerVariant.Inline" ColorPickerView="ColorPickerView.Grid"
                                 ColorPickerMode="ColorPickerMode.HEX" ShowAlpha="false" ShowModeSwitch="false"
                                 Clearable="true" HelperText="Escolha uma cor para identificar rapidamente esta situação." />
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
+                    <span class="atlas-color-dot" style="background:@(string.IsNullOrWhiteSpace(_config.Cor)?"#BFDBFE":_config.Cor);width:28px;height:28px;border-radius:6px;border:1px solid rgba(0,0,0,.12)"></span>
+                    <MudChip T="string" Size="Size.Small" Style="@SituacaoPreviewStyle(_config.Cor)">@(string.IsNullOrWhiteSpace(_config.Nome)?"Nome da situação":_config.Nome.Trim())</MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">prévia da situação nas listas</MudText>
+                </MudStack>
             </MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_pendingLabels" Label="Pendências automáticas" HelperText="Uma por linha" Lines="5" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
@@ -998,6 +1003,7 @@
     private static Color TypeColor(AcompanhamentoServicoTipo t)=>t switch{AcompanhamentoServicoTipo.AVCB=>Color.Error,AcompanhamentoServicoTipo.CLCB=>Color.Warning,AcompanhamentoServicoTipo.OBRAS=>Color.Info,_=>Color.Secondary};
     private string SituationStyle(AcompanhamentoDto item){var color=SituationColor(item.Tipo,item.Situacao);return $"background:{color};color:{ContrastColor(color)}";}
     private string SituationColor(AcompanhamentoServicoTipo type,string status,string? configured=null)=>configured??_situations.FirstOrDefault(x=>x.Tipo==type&&x.Nome.Equals(status,StringComparison.OrdinalIgnoreCase))?.Cor??DefaultSituationColor(status);
+    private static string SituacaoPreviewStyle(string? cor){var color=string.IsNullOrWhiteSpace(cor)?"#BFDBFE":cor;return $"background:{color};color:{ContrastColor(color)};font-weight:600";}
     private static string DefaultSituationColor(string? status){var value=status??"";if(value.Contains("contrat",StringComparison.OrdinalIgnoreCase))return "#FDE68A";if(value.Contains("document",StringComparison.OrdinalIgnoreCase))return "#FDBA74";if(value.Contains("comunic",StringComparison.OrdinalIgnoreCase))return "#FCA5A5";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase)&&value.Contains("pag",StringComparison.OrdinalIgnoreCase))return "#93C5FD";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase))return "#86EFAC";if(value.Contains("análise",StringComparison.OrdinalIgnoreCase)||value.Contains("analise",StringComparison.OrdinalIgnoreCase))return "#D1D5DB";if(value.Contains("execut",StringComparison.OrdinalIgnoreCase))return "#C4B5FD";if(value.Contains("vistoria",StringComparison.OrdinalIgnoreCase))return "#67E8F9";if(value.Contains("agend",StringComparison.OrdinalIgnoreCase))return "#C7D2FE";return "#BFDBFE";}
     private static string ContrastColor(string color){if(color.Length!=7||!int.TryParse(color[1..3],System.Globalization.NumberStyles.HexNumber,null,out var r)||!int.TryParse(color[3..5],System.Globalization.NumberStyles.HexNumber,null,out var g)||!int.TryParse(color[5..7],System.Globalization.NumberStyles.HexNumber,null,out var b))return "#0F172A";return (r*299+g*587+b*114)/1000>=150?"#0F172A":"#FFFFFF";}
     private sealed record ImportRow(int Line,string Code,string Type,string Client,bool Valid,string? Error,AcompanhamentoImportDto? Dto);
