@@ -1,0 +1,29 @@
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_root" Label="Pasta base neste computador" Variant="Variant.Outlined"
+                      Immediate="true" AutoFocus="true" OnKeyDown="OnKeyDown"
+                      Placeholder="F:\Meu Drive\Atlas"
+                      HelperText="Caminho onde a pasta do Google Drive está sincronizada nesta máquina. Fica salvo só neste computador." />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="@(string.IsNullOrWhiteSpace(_root))">Salvar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string? Root { get; set; }
+    private string? _root;
+
+    protected override void OnInitialized() => _root = Root;
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_root?.Trim().TrimEnd('\\', '/')));
+    private void Cancel() => MudDialog.Cancel();
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !string.IsNullOrWhiteSpace(_root)) Submit();
+    }
+}

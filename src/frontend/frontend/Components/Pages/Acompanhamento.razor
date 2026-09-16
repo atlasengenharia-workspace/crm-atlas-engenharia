@@ -323,7 +323,7 @@
                     <Template Context="context">
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetailAsync(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
-                        @if (!string.IsNullOrWhiteSpace(context.FolderUrl))
+                        @if (IsWebUrl(context.FolderUrl))
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Href="@context.FolderUrl" Target="_blank" Color="Color.Secondary" aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
                         }
@@ -384,11 +384,19 @@
                 <MudTextField @bind-Value="_folderUrl" Label="Pasta no Google Drive" Variant="Variant.Outlined"
                               Margin="Margin.Dense" Placeholder="https://drive.google.com/…" Class="flex-grow-1"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
-                @if (!string.IsNullOrWhiteSpace(_selected.FolderUrl))
+                @if (IsWebUrl(_selected.FolderUrl))
                 {
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="@_selected.FolderUrl" Target="_blank"
                                StartIcon="@Icons.Material.Filled.OpenInNew">Abrir pasta</MudButton>
                 }
+                <MudTooltip Text="Copiar caminho local da pasta (usa a pasta base configurada neste computador)">
+                    <MudIconButton Icon="@Icons.Material.Filled.FolderCopy" Color="Color.Secondary"
+                                   OnClick="@(() => CopyLocalPathAsync(_selected))" aria-label="Copiar caminho local da pasta" />
+                </MudTooltip>
+                <MudTooltip Text="Configurar pasta base deste computador">
+                    <MudIconButton Icon="@Icons.Material.Filled.Settings" OnClick="ConfigureLocalRootAsync"
+                                   aria-label="Configurar pasta base local" />
+                </MudTooltip>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFolderUrlAsync"
                            Disabled="@(_folderUrl == _selected.FolderUrl)">Salvar</MudButton>
             </MudStack>
@@ -890,6 +898,41 @@
     }
 
     private string? _folderUrl;
+    private const string LocalRootKey = "atlas:drive-root";
+
+    private static bool IsWebUrl(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+
+    private async Task ConfigureLocalRootAsync()
+    {
+        var current = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
+        var parameters = new DialogParameters<LocalDrivePathDialog> { { x => x.Root, current } };
+        var dialog = await DialogService.ShowAsync<LocalDrivePathDialog>("Pasta base neste computador", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not string root || string.IsNullOrWhiteSpace(root)) return;
+        await JS.InvokeVoidAsync("localStorage.setItem", LocalRootKey, root);
+        Snackbar.Add($"Pasta base configurada: {root}", Severity.Success);
+    }
+
+    private async Task CopyLocalPathAsync(AcompanhamentoDto item)
+    {
+        var root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            await ConfigureLocalRootAsync();
+            root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
+            if (string.IsNullOrWhiteSpace(root)) return;
+        }
+        var relativo = IsWebUrl(item.FolderUrl) || string.IsNullOrWhiteSpace(item.FolderUrl)
+            ? item.Codigo
+            : item.FolderUrl.Trim().TrimStart('\\', '/').Replace('/', '\\');
+        var path = $"{root.Trim().TrimEnd('\\', '/')}\\{relativo}";
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", path);
+        Snackbar.Add($"Caminho copiado: {path} — cole na barra de endereço do Explorer.", Severity.Success);
+    }
+
     private async Task SaveFolderUrlAsync()
     {
         if (_selected is null) return;
