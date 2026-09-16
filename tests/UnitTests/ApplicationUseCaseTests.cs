@@ -292,7 +292,7 @@ public sealed class ApplicationUseCaseTests
     {
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), new MemoryRegistroHistoricoService());
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>());
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(
             () => service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, " em análise", 1, false, true, [], null)));
@@ -309,7 +309,7 @@ public sealed class ApplicationUseCaseTests
             new AcompanhamentoServicoSituacaoConfig { Id = 2, TipoServico = AcompanhamentoServicoTipo.CLCB, Nome = "Em análise", SituacaoInicial = true }
         ]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, "Triagem", 0, true, true, [], "#123456"));
 
@@ -327,7 +327,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise", Ativo = true }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(1, AcompanhamentoServicoTipo.AVCB, "Em análise", 0, false, false, [], null));
 
@@ -342,7 +342,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>());
 
         await service.DeleteSituationAsync(1);
 
@@ -444,7 +444,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento", Descricao = "nota antiga" }]);
         var historico = new MemoryRegistroHistoricoService();
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico);
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>());
 
         await service.UpdateDescricaoAsync(5, "nota nova");
 
@@ -497,7 +497,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento" }]);
         var historico = new MemoryRegistroHistoricoService();
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico);
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>());
 
         await service.UpdateFolderUrlAsync(5, "  https://drive.google.com/pasta  ");
 
@@ -525,6 +525,8 @@ public sealed class ApplicationUseCaseTests
             }
         ]);
         var historico = new MemoryRegistroHistoricoService();
+        var acompanhamentos = new MemoryRepository<AcompanhamentoServico>(
+            [new AcompanhamentoServico { Id = 9, Codigo = "S-AVCB-0001", Situacao = "Em andamento" }]);
         var service = new CadastroServicoService(
             repository,
             new MemoryRepository<Cliente>(),
@@ -536,7 +538,8 @@ public sealed class ApplicationUseCaseTests
             new MemoryRepository<ServicoSubtipoConfig>(),
             new StubUserAccessor("Vinicius"),
             historico,
-            new MemoryCrmCache());
+            new MemoryCrmCache(),
+            acompanhamentos);
 
         await service.UpdateAsync(1, new CadastroServicoDto(
             Id: 1, Codigo: "S-AVCB-0001", ClienteId: null, OrcamentoId: null, OrcamentoCodigo: null,
@@ -557,10 +560,12 @@ public sealed class ApplicationUseCaseTests
             FolderUrl: "https://drive.google.com/nova"));
 
         Assert.Equal("https://drive.google.com/nova", repository.Items[0].FolderUrl);
-        var entry = Assert.Single(historico.Entries, x => x.Campo == "Pasta no Drive");
+        Assert.Equal("https://drive.google.com/nova", acompanhamentos.AsQueryable().Single().FolderUrl);
+        var entry = Assert.Single(historico.Entries, x => x.Campo == "Pasta no Drive" && x.Entidade == RegistroEntidade.Servico);
         Assert.Equal("https://drive.google.com/antiga", entry.Antes);
         Assert.Equal("https://drive.google.com/nova", entry.Depois);
         Assert.Equal("S-AVCB-0001", entry.Codigo);
+        Assert.Contains(historico.Entries, x => x.Campo == "Pasta no Drive" && x.Entidade == RegistroEntidade.Acompanhamento);
     }
 
     private sealed class StubCadastroServicoService(IReadOnlyList<CadastroServicoDto> items) : ICadastroServicoService

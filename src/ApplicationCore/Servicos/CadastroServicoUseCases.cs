@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using CrmAtlas.ApplicationCore.Acompanhamentos;
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
@@ -124,7 +125,8 @@ public sealed class CadastroServicoService(
     IRepository<ServicoSubtipoConfig> subtipoConfigs,
     IUserAccessor userAccessor,
     IRegistroHistoricoService registroHistorico,
-    ICrmCache cache) : ICadastroServicoService
+    ICrmCache cache,
+    IRepository<AcompanhamentoServico> acompanhamentos) : ICadastroServicoService
 {
     public async Task<PagedResult<CadastroServicoDto>> ListAsync(
         CadastroServicoFilter filter,
@@ -281,6 +283,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarEventoAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, "Criado", cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
+        await SyncAcompanhamentoFolderUrlAsync(entity, cancellationToken);
         return ToDto(entity, new Dictionary<(long, long), decimal>());
     }
 
@@ -302,6 +305,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, antes.Diff(entity), cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
+        await SyncAcompanhamentoFolderUrlAsync(entity, cancellationToken);
         var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
         return ToDto(entity, actualPayments);
     }
@@ -472,6 +476,19 @@ public sealed class CadastroServicoService(
         if (id is null) return null;
         if (current?.Id == id.Value) return current;
         return await ResolveAsync(source, id, resource, cancellationToken);
+    }
+
+    private async Task SyncAcompanhamentoFolderUrlAsync(CadastroServico entity, CancellationToken cancellationToken)
+    {
+        var tracking = await acompanhamentos.FindAsync(x => x.Codigo == entity.Codigo, cancellationToken);
+        if (tracking is null || tracking.FolderUrl == entity.FolderUrl) return;
+        var antes = tracking.FolderUrl;
+        tracking.FolderUrl = entity.FolderUrl;
+        tracking.UpdatedAt = DateTime.UtcNow;
+        acompanhamentos.Update(tracking);
+        await acompanhamentos.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, tracking.Id, tracking.Codigo,
+            [("Pasta no Drive", antes, tracking.FolderUrl)], cancellationToken);
     }
 
     private async Task LinkOrcamentoAsync(CadastroServico entity, CancellationToken cancellationToken)

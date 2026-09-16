@@ -2,6 +2,7 @@ using System.Threading;
 using CrmAtlas.ApplicationCore.Acompanhamentos;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
+using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Sistema;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
@@ -85,7 +86,7 @@ public interface IAcompanhamentoSpreadsheetReader
 }
 
 public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico,
-    IRegistroHistoricoService registroHistorico) : IAcompanhamentoService
+    IRegistroHistoricoService registroHistorico, IRepository<CadastroServico> cadastros) : IAcompanhamentoService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -218,7 +219,20 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             repository.Update(item); await repository.SaveChangesAsync(ct);
             await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
                 [("Pasta no Drive", anterior, item.FolderUrl)], ct);
+            await SyncCadastroFolderUrlAsync(item, ct);
         }, ct);
+
+    private async Task SyncCadastroFolderUrlAsync(AcompanhamentoServico item, CancellationToken ct)
+    {
+        var cadastro = await cadastros.FindAsync(x => x.Codigo == item.Codigo, ct);
+        if (cadastro is null || cadastro.FolderUrl == item.FolderUrl) return;
+        var antes = cadastro.FolderUrl;
+        cadastro.FolderUrl = item.FolderUrl;
+        cadastros.Update(cadastro);
+        await cadastros.SaveChangesAsync(ct);
+        await registroHistorico.RegistrarAsync(RegistroEntidade.Servico, cadastro.Id, cadastro.Codigo,
+            [("Pasta no Drive", antes, cadastro.FolderUrl)], ct);
+    }
 
     public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default)
         => ExecuteAsync(async () =>
