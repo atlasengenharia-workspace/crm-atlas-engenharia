@@ -97,9 +97,9 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var dbContext = scope.ServiceProvider.GetRequiredService<AtlasDbContext>();
     try
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AtlasDbContext>();
         if (dbContext.Database.IsRelational())
         {
             dbContext.Database.ExecuteSqlRaw(@"
@@ -182,6 +182,16 @@ using (var scope = app.Services.CreateScope())
         // some ("42703: column ... does not exist"), a causa está aqui.
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "Erro ao aplicar migrações do banco de dados.");
+        try
+        {
+            var pending = dbContext.Database.GetPendingMigrations().ToList();
+            if (pending.Count > 0)
+                logger.LogCritical(
+                    "Migrações pendentes NÃO aplicadas ({Count}): {Migrations}. " +
+                    "A aplicação está rodando com schema desatualizado — erros 'column/relation does not exist' são esperados.",
+                    pending.Count, string.Join(", ", pending));
+        }
+        catch { /* banco inacessível — o erro original já foi logado */ }
     }
 }
 
