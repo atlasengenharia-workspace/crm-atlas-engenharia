@@ -35,6 +35,36 @@ public sealed class CondicoesPagamentoController(ICondicaoPagamentoService servi
     }
 }
 
+[ApiController, Authorize, Route("api/formas-pagamento")]
+public sealed class FormasPagamentoController(IFormaPagamentoService service) : ControllerBase
+{
+    [HttpGet]
+    public Task<PagedResult<FormaPagamentoDto>> List(
+        [FromQuery] FormaPagamentoFilter filter,
+        CancellationToken ct) => service.ListAsync(filter, ct);
+
+    [HttpGet("{id:long}")]
+    public Task<FormaPagamentoDto> Get(long id, CancellationToken ct) => service.GetAsync(id, ct);
+
+    [HttpPost]
+    public async Task<ActionResult<FormaPagamentoDto>> Create(FormaPagamentoDto dto, CancellationToken ct)
+    {
+        var created = await service.CreateAsync(dto, ct);
+        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+    }
+
+    [HttpPut("{id:long}")]
+    public Task<FormaPagamentoDto> Update(long id, FormaPagamentoDto dto, CancellationToken ct) =>
+        service.UpdateAsync(id, dto, ct);
+
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(long id, CancellationToken ct)
+    {
+        await service.DeleteAsync(id, ct);
+        return NoContent();
+    }
+}
+
 [ApiController, Authorize, Route("api/cadastro-servicos")]
 public sealed class CadastrosServicoController(ICadastroServicoService service) : ControllerBase
 {

@@ -86,6 +86,13 @@ public sealed class CondicaoPagamento : Entity
     public DateTime UpdatedAt { get; set; }
 }
 
+public sealed class FormaPagamento : Entity
+{
+    public string Nome { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
 public sealed class Orcamento : Entity
 {
     public string Codigo { get; set; } = string.Empty;

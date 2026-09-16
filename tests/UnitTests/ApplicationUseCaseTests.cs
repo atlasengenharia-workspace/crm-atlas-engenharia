@@ -172,6 +172,45 @@ public sealed class ApplicationUseCaseTests
         Assert.Equal(4, result.Count);
     }
 
+    [Fact]
+    public async Task FormaPagamentoService_RejectsDuplicateNome()
+    {
+        var repository = new MemoryRepository<FormaPagamento>(
+        [
+            new FormaPagamento { Id = 1, Nome = "PIX" }
+        ]);
+        var service = new FormaPagamentoService(repository, new MemoryCrmCache());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CreateAsync(new FormaPagamentoDto(null, " pix ")));
+
+        Assert.Contains("Já existe", exception.Message);
+    }
+
+    [Fact]
+    public async Task FormaPagamentoService_RequiresNome()
+    {
+        var service = new FormaPagamentoService(
+            new MemoryRepository<FormaPagamento>(), new MemoryCrmCache());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CreateAsync(new FormaPagamentoDto(null, "   ")));
+
+        Assert.Contains("obrigatório", exception.Message);
+    }
+
+    [Fact]
+    public async Task FormaPagamentoService_CreateTrimsAndPersists()
+    {
+        var repository = new MemoryRepository<FormaPagamento>();
+        var service = new FormaPagamentoService(repository, new MemoryCrmCache());
+
+        var created = await service.CreateAsync(new FormaPagamentoDto(null, "  Dinheiro  "));
+
+        Assert.Equal("Dinheiro", created.Nome);
+        Assert.Single(repository.AsQueryable());
+    }
+
     private sealed class MemoryCrmCache : ICrmCache
     {
         private readonly Dictionary<string, object> _store = [];

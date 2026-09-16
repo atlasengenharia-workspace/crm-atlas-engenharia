@@ -1,0 +1,176 @@
+@page "/formas-pagamento"
+@attribute [Authorize]
+@using Radzen.Blazor
+@using CrmAtlas.Web.Services
+@inject IFormaPagamentoService Service
+@inject IRadzenDataGridStateService DataGridStateService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Formas de pagamento | CRM Atlas</PageTitle>
+
+<PageHeader Title="Formas de pagamento"
+            Subtitle="Cadastre as formas aceitas (PIX, boleto, transferência...) usadas nos lançamentos e parcelas.">
+    <Actions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="New">Nova forma de pagamento</MudButton>
+    </Actions>
+</PageHeader>
+
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="2">
+    <MudGrid>
+        <MudItem xs="12" md="@(_editing ? 7 : 12)">
+            <MudPaper Outlined="true">
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Style="@(_loading ? "" : "visibility:hidden")" />
+                <SmartTableFilter TItem="FormaPagamentoDto" Items="_result.Items" Columns="_filterColumns"
+                                  ProcessOnClient="false" TotalCount="_result.TotalItems"
+                                  OnStateChanged="OnSmartTableStateChanged">
+                <ChildContent Context="smartItems">
+                <RadzenDataGrid @ref="_grid" Data="@_result.Items" TItem="FormaPagamentoDto" @bind-Settings="_gridSettings.Value"
+                                Class="excel-grid" Style="width:100%;" AllowPaging="true" PageSize="50"
+                                AllowColumnResize="true" AllowColumnPicking="true" AllowColumnReorder="true"
+                                AllowSorting="true" AllowFiltering="true" AllowColumnFiltering="true" AllowGrouping="true" AllowAlternatingRows="true"
+                                FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
+                                Density="Radzen.Density.Compact" EmptyText="Nenhuma forma de pagamento cadastrada"
+                                GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
+                                ColumnsShowingText="colunas visíveis">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="FormaPagamentoDto" Property="Nome" Title="Nome">
+                            <Template Context="context"><strong>@context.Nome</strong></Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="FormaPagamentoDto" Title="Ações" Sortable="false" Filterable="false" Resizable="false" TextAlign="Radzen.TextAlign.Right" Width="120px">
+                            <Template Context="context">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context))" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+                </ChildContent>
+                </SmartTableFilter>
+
+                <MudDivider Class="my-3" />
+            </MudPaper>
+        </MudItem>
+        @if (_editing)
+        {
+            <MudItem xs="12" md="5">
+                <MudPaper Outlined="true" Class="pa-5 atlas-sticky-card">
+                    <MudToolBar Class="pa-0 mb-3">
+                        <MudText Typo="Typo.h6">@(_model.Id is null ? "Nova forma de pagamento" : "Editar forma de pagamento")</MudText>
+                        <MudSpacer />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="Cancel" />
+                    </MudToolBar>
+                    <MudDivider Class="mb-4" />
+                    <MudForm @ref="_form" @bind-IsValid="_valid">
+                        <MudTextField @bind-Value="_model.Nome" Label="Nome" Required="true"
+                                      RequiredError="Informe o nome." Variant="Variant.Outlined" MaxLength="80"
+                                      HelperText="Ex.: PIX, Boleto, Transferência, Cartão, Dinheiro" />
+                    </MudForm>
+                    <MudDivider Class="mt-5 mb-4" />
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="Cancel">Cancelar</MudButton>
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                                   Disabled="_saving" OnClick="SaveAsync">Salvar</MudButton>
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+</GlobalSkeleton>
+
+@code {
+    private RadzenDataGrid<FormaPagamentoDto>? _grid;
+    private PagedResult<FormaPagamentoDto> _result = new([], 1, 1000, 0);
+    private readonly System.Globalization.CultureInfo _ptBr = new("pt-BR");
+    private string? _sortKey;
+    private bool _sortDescending;
+    private readonly IReadOnlyList<SmartFilterColumn<FormaPagamentoDto>> _filterColumns =
+    [
+        new("nome", "Nome", x => x.Nome, 1)
+    ];
+    private FormaModel _model = new();
+    private MudForm? _form;
+    private bool _valid;
+    private bool _loading;
+    private bool _initialLoading = true;
+    private bool _saving;
+    private bool _editing;
+    private DataGridSettingsBinder _gridSettings = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _gridSettings = new DataGridSettingsBinder(DataGridStateService, "formas-pagamento");
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _gridSettings.LoadAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _result = await Service.ListAsync(new FormaPagamentoFilter(null, 1, 0, _sortKey, _sortDescending));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; _initialLoading = false; }
+    }
+
+    private async Task OnSmartTableStateChanged(SmartTableState state)
+    {
+        _sortKey = state.SortKey;
+        _sortDescending = state.SortDescending;
+        await LoadAsync();
+    }
+
+    private void New() { _model = new(); _editing = true; }
+    private void Edit(FormaPagamentoDto x)
+    {
+        _model = new() { Id = x.Id, Nome = x.Nome };
+        _editing = true;
+    }
+    private void Cancel() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        await (_form?.ValidateAsync() ?? Task.CompletedTask);
+        if (!_valid) return;
+        _saving = true;
+        try
+        {
+            var dto = new FormaPagamentoDto(_model.Id, _model.Nome);
+            if (_model.Id is null) await Service.CreateAsync(dto);
+            else await Service.UpdateAsync(_model.Id.Value, dto);
+            Snackbar.Add("Forma de pagamento salva com sucesso.", Severity.Success);
+            _editing = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(FormaPagamentoDto x)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir forma de pagamento",
+            $"Deseja excluir “{x.Nome}”? Lançamentos e parcelas existentes mantêm o nome já registrado.",
+            "Excluir", cancelText: "Cancelar");
+        if (confirm != true || x.Id is null) return;
+        try { await Service.DeleteAsync(x.Id.Value); await LoadAsync(); Snackbar.Add("Forma de pagamento excluída.", Severity.Success); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private sealed class FormaModel
+    {
+        public long? Id { get; set; }
+        public string Nome { get; set; } = "";
+    }
+}

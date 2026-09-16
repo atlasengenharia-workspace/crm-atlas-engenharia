@@ -28,6 +28,7 @@ internal sealed class ServicosConfiguration :
     IEntityTypeConfiguration<Obra>,
     IEntityTypeConfiguration<ProcessoAdm>,
     IEntityTypeConfiguration<CondicaoPagamento>,
+    IEntityTypeConfiguration<FormaPagamento>,
     IEntityTypeConfiguration<Orcamento>,
     IEntityTypeConfiguration<OrcamentoSituacao>,
     IEntityTypeConfiguration<CadastroServico>,
@@ -73,6 +74,13 @@ internal sealed class ServicosConfiguration :
         builder.HasIndex(x => x.Nome).IsUnique();
         builder.Property(x => x.Nome).IsRequired();
         builder.Property(x => x.TipoValorParcela).HasConversion<string>().HasMaxLength(16);
+    }
+
+    public void Configure(EntityTypeBuilder<FormaPagamento> builder)
+    {
+        builder.ToTable("formas_pagamento");
+        builder.HasIndex(x => x.Nome).IsUnique();
+        builder.Property(x => x.Nome).HasMaxLength(80).IsRequired();
     }
 
 

@@ -3,6 +3,7 @@
 @using Radzen.Blazor
 @using CrmAtlas.Web.Services
 @inject ILancamentoService Service
+@inject IFormaPagamentoService FormaPagamentoService
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ICadastroServicoService CadastroServicoService
 @inject IPrestadorService PrestadorService
@@ -249,8 +250,10 @@ else
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudSelect T="string" @bind-Value="_model.FormaPagamento" Label="Forma de pagamento" Variant="Variant.Outlined" Clearable="true">
-                        <MudSelectItem Value="@("PIX")">PIX</MudSelectItem><MudSelectItem Value="@("Boleto")">Boleto</MudSelectItem>
-                        <MudSelectItem Value="@("Transferência")">Transferência</MudSelectItem><MudSelectItem Value="@("Cartão")">Cartão</MudSelectItem>
+                        @foreach (var forma in FormaPagamentoOptions)
+                        {
+                            <MudSelectItem Value="@forma">@forma</MudSelectItem>
+                        }
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Plataforma" Label="Banco / plataforma" Variant="Variant.Outlined" /></MudItem>
@@ -307,6 +310,7 @@ else
     private EntryModel _model = new();
     private IReadOnlyList<CadastroServicoDto> _services = [];
     private IReadOnlyList<PrestadorDto> _providers = [];
+    private IReadOnlyList<FormaPagamentoDto> _formasPagamento = [];
     private IBrowserFile? _receipt;
     private MudForm? _form;
     private bool _valid;
@@ -327,6 +331,20 @@ else
     private bool _showAllProviders;
 
     private CadastroServicoDto? SelectedService => _services.FirstOrDefault(x => x.Id == _model.CadastroServicoId);
+
+    private IEnumerable<string> FormaPagamentoOptions
+    {
+        get
+        {
+            var nomes = _formasPagamento.Count > 0
+                ? _formasPagamento.Select(x => x.Nome)
+                : FormaPagamentoDefaults.Nomes.AsEnumerable();
+            return string.IsNullOrWhiteSpace(_model.FormaPagamento) ||
+                   nomes.Any(x => x.Equals(_model.FormaPagamento, StringComparison.OrdinalIgnoreCase))
+                ? nomes
+                : nomes.Append(_model.FormaPagamento);
+        }
+    }
     private IEnumerable<PrestadorDto> FilteredProviders => _showAllProviders ? _providers : FilteredServiceProviders;
     private IEnumerable<PrestadorDto> FilteredServiceProviders
     {
@@ -345,6 +363,8 @@ else
         if (_initialized) return;
         _initialized = true;
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "lancamentos");
+        try { _formasPagamento = (await FormaPagamentoService.ListAsync(new FormaPagamentoFilter(null, 1, 0))).Items; }
+        catch { _formasPagamento = []; }
         try
         {
             _services = (await CadastroServicoService.ListAsync(new(null, null, null, 1, 5000, null, false))).Items;

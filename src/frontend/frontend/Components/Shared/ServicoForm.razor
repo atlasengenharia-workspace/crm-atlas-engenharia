@@ -2,6 +2,7 @@
 @inject ICadastroServicoService Service
 @inject IServicoTipoCampoConfigService TipoCampoConfigService
 @inject IServicoTipoConfigService TipoConfigService
+@inject IFormaPagamentoService FormaPagamentoService
 @inject IClienteService ClienteService
 @inject ICondicaoPagamentoService CondicaoService
 @inject IOrcamentoService OrcamentoService
@@ -304,8 +305,13 @@
                                     }
                                 </MudItem>
                                 <MudItem xs="10" sm="3">
-                                    <MudTextField @bind-Value="installment.FormaPagamento"
-                                                  Label="Forma" Variant="Variant.Outlined" />
+                                    <MudSelect T="string" @bind-Value="installment.FormaPagamento"
+                                               Label="Forma" Variant="Variant.Outlined" Clearable="true">
+                                        @foreach (var forma in FormaPagamentoOptionsFor(installment.FormaPagamento))
+                                        {
+                                            <MudSelectItem Value="@forma">@forma</MudSelectItem>
+                                        }
+                                    </MudSelect>
                                 </MudItem>
                                 <MudItem xs="2" sm="1">
                                     <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline"
@@ -397,6 +403,7 @@
     private IReadOnlyList<SituacaoConfigDto> _situations = [];
     private IReadOnlyList<ServicoTipoCampoConfigDto> _campoConfigs = [];
     private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
+    private IReadOnlyList<FormaPagamentoDto> _formasPagamento = [];
     private ServiceModel _model = new();
     private MudForm? _form;
     private bool _valid;
@@ -473,6 +480,7 @@
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _situations = await AcompanhamentoService.ListSituationsAsync();
             _tipos = await TipoConfigService.ListAsync();
+            _formasPagamento = (await FormaPagamentoService.ListAsync(new FormaPagamentoFilter(null, 1, 0))).Items;
             _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(_model.TipoServico);
         }
         catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
@@ -736,6 +744,17 @@
 
     private string TypeLabel(AcompanhamentoServicoTipo type) =>
         _tipos.FirstOrDefault(x => x.TipoServico == type)?.Label ?? ServicoTipoDefaults.Label(type);
+
+    private IEnumerable<string> FormaPagamentoOptionsFor(string? current)
+    {
+        var nomes = _formasPagamento.Count > 0
+            ? _formasPagamento.Select(x => x.Nome)
+            : FormaPagamentoDefaults.Nomes.AsEnumerable();
+        return string.IsNullOrWhiteSpace(current) ||
+               nomes.Any(x => x.Equals(current, StringComparison.OrdinalIgnoreCase))
+            ? nomes
+            : nomes.Append(current!);
+    }
     private static Color TypeColor(AcompanhamentoServicoTipo type) => type switch
     {
         AcompanhamentoServicoTipo.AVCB => Color.Error,

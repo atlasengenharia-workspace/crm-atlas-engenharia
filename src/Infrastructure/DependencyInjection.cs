@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddTransient<ICadastroServicoRepository, CadastroServicoRepository>();
         services.AddTransient<IClienteService, ClienteService>();
         services.AddTransient<ICondicaoPagamentoService, CondicaoPagamentoService>();
+        services.AddTransient<IFormaPagamentoService, FormaPagamentoService>();
         services.AddTransient<ICadastroServicoService, CadastroServicoService>();
         services.AddTransient<IServicoTipoCampoConfigService, ServicoTipoCampoConfigService>();
         services.AddTransient<IServicoTipoConfigService, ServicoTipoConfigService>();
