@@ -21,7 +21,8 @@ public sealed record AcompanhamentoDto(long Id, long OrigemId, string Codigo, Ac
     string? Endereco, string? Telefone, string? Servico, string Situacao, string? Descricao, string? ObservacaoMudanca, decimal? ValorContrato, DateOnly? DataContrato,
     string? NotaFiscal, string? CondicaoPagamento, int Pendencias, int Concluidas,
     DateTime? AtualizadoEm, IReadOnlyList<AcompanhamentoHistoricoDto> Historicos, IReadOnlyList<AcompanhamentoPendenciaDto> Itens, string? CnpjCpf = null,
-    decimal? AReceber = null, decimal? Recebido = null, decimal? Custos = null, DateOnly? ProximaParcela = null, string? ProximaParcelaTexto = null);
+    decimal? AReceber = null, decimal? Recebido = null, decimal? Custos = null, DateOnly? ProximaParcela = null, string? ProximaParcelaTexto = null,
+    string? FolderUrl = null);
 public sealed record AcompanhamentoImportDto(long OrigemId, string Codigo, AcompanhamentoServicoTipo Tipo, string? Cliente,
     string? Endereco, string? Telefone, string? Servico, string Situacao, string? Descricao, decimal? ValorContrato,
     DateOnly? DataContrato, string? NotaFiscal, string? CondicaoPagamento, string? CnpjCpf = null,
@@ -56,6 +57,7 @@ public interface IAcompanhamentoService
     Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows, CancellationToken ct = default);
     Task ChangeStatusAsync(long id, string novaSituacao, string? descricao, string? responsavel, CancellationToken ct = default);
     Task UpdateDescricaoAsync(long id, string? descricao, CancellationToken ct = default);
+    Task UpdateFolderUrlAsync(long id, string? url, CancellationToken ct = default);
     Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default);
     Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default);
     Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default);
@@ -204,6 +206,18 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             repository.Update(item); await repository.SaveChangesAsync(ct);
             await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
                 [("Observação", anterior, item.Descricao)], ct);
+        }, ct);
+
+    public Task UpdateFolderUrlAsync(long id, string? url, CancellationToken ct = default)
+        => ExecuteAsync(async () =>
+        {
+            var item = await Find(id, ct);
+            var anterior = item.FolderUrl;
+            item.FolderUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+            item.UpdatedAt = DateTime.UtcNow;
+            repository.Update(item); await repository.SaveChangesAsync(ct);
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
+                [("Pasta no Drive", anterior, item.FolderUrl)], ct);
         }, ct);
 
     public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default)
@@ -377,7 +391,7 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             x.Pendencias.Count, x.Pendencias.Count(y => y.Concluida), x.UltimaMudancaSituacaoEm,
             historicos.Select(y => new AcompanhamentoHistoricoDto(y.Id, y.SituacaoAnterior, y.NovaSituacao, y.Descricao, y.ResponsavelNome, y.CreatedAt)).ToList(),
             x.Pendencias.OrderBy(y => y.Concluida).ThenBy(y => y.Label).Select(y => new AcompanhamentoPendenciaDto(y.Id, y.Label, y.Concluida, y.ConcluidaEm)).ToList(),
-            x.CnpjCpf, x.AReceber, x.Recebido, x.Custos, x.ProximaParcela, x.ProximaParcelaTexto);
+            x.CnpjCpf, x.AReceber, x.Recebido, x.Custos, x.ProximaParcela, x.ProximaParcelaTexto, x.FolderUrl);
     }
     private static SituacaoConfigDto MapSituation(AcompanhamentoServicoSituacaoConfig x) => new(x.Id, x.TipoServico, x.Nome, x.Ordem ?? 0, x.SituacaoInicial, x.Ativo,
         x.Pendencias.Where(y => y.Ativo).OrderBy(y => y.Ordem).Select(y => y.Label).ToList(), x.Cor);

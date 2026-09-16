@@ -67,7 +67,8 @@ public sealed record CadastroServicoDto(
     string? Observacao,
     IReadOnlyList<CadastroServicoParcelaDto> Parcelas,
     IReadOnlyList<CadastroServicoPrestadorDto> Prestadores,
-    DateTime? CreatedAt);
+    DateTime? CreatedAt,
+    string? FolderUrl = null);
 
 public sealed record CadastroServicoFilter(
     string? Codigo,
@@ -380,6 +381,7 @@ public sealed class CadastroServicoService(
         entity.ValorNotaFiscalDividido = dto.ValorNotaFiscalDividido;
         entity.ValorNotaFiscalParcela = dto.ValorNotaFiscalParcela;
         entity.Observacao = Clean(dto.Observacao);
+        entity.FolderUrl = Clean(dto.FolderUrl);
 
         entity.Parcelas.Clear();
         foreach (var item in dto.Parcelas)
@@ -538,7 +540,7 @@ public sealed class CadastroServicoService(
                 actual ?? p.ValorEfetivo,
                 p.Confirmado, p.DataPagamento, p.DataPagamentoTipo);
         }).ToList(),
-        x.CreatedAt);
+        x.CreatedAt, x.FolderUrl);
 
     private async Task<IReadOnlyDictionary<(long ServiceId, long ProviderId), decimal>> LoadActualProviderPaymentsAsync(
         IReadOnlyList<long> serviceIds,
@@ -685,7 +687,7 @@ public sealed class CadastroServicoService(
         string? Razao, string? Contato, string? Telefone, string? Email,
         string? EndEmpresa, string? EndServico,
         decimal? ValorContrato, DateOnly? DataContrato, decimal? ValorNf,
-        bool NfDividido, int? NfParcela, string? Observacao,
+        bool NfDividido, int? NfParcela, string? Observacao, string? FolderUrl,
         List<(int? Numero, decimal? Valor, DateOnly? Vencimento, string? FormaPagamento)> Parcelas,
         List<(long? PrestadorId, string? Nome, decimal? Provisionado, decimal? Efetivo, bool? Confirmado, DateOnly? DataPagamento, PrestadorPagamentoDataTipo TipoData)> Prestadores)
     {
@@ -695,7 +697,7 @@ public sealed class CadastroServicoService(
             x.RazaoSocialEmpresa, x.ContatoEmpresa, x.Telefone, x.Email,
             x.EnderecoEmpresa, x.EnderecoServico,
             x.ValorContrato, x.DataContrato, x.ValorNotaFiscal,
-            x.ValorNotaFiscalDividido, x.ValorNotaFiscalParcela, x.Observacao,
+            x.ValorNotaFiscalDividido, x.ValorNotaFiscalParcela, x.Observacao, x.FolderUrl,
             x.Parcelas.OrderBy(p => p.NumeroParcela ?? int.MaxValue)
                 .Select(p => (p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
             x.Prestadores.Select(p =>
@@ -724,7 +726,8 @@ public sealed class CadastroServicoService(
                 ("Valor da NF", Money(ValorNf), Money(depois.ValorNotaFiscal)),
                 ("NF dividida", NfDividido ? "Sim" : "Não", depois.ValorNotaFiscalDividido ? "Sim" : "Não"),
                 ("Parcela da NF", NfParcela?.ToString(), depois.ValorNotaFiscalParcela?.ToString()),
-                ("Observação", Observacao, depois.Observacao)
+                ("Observação", Observacao, depois.Observacao),
+                ("Pasta no Drive", FolderUrl, depois.FolderUrl)
             };
 
             var depoisParcelas = depois.Parcelas.OrderBy(p => p.NumeroParcela ?? int.MaxValue)

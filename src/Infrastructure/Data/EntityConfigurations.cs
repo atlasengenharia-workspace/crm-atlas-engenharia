@@ -115,6 +115,7 @@ internal sealed class ServicosConfiguration :
         builder.Property(x => x.EnderecoEmpresa).HasColumnType("text");
         builder.Property(x => x.EnderecoEmpresaEstado).HasMaxLength(2);
         builder.Property(x => x.EnderecoServico).HasColumnType("text");
+        builder.Property(x => x.FolderUrl).HasMaxLength(500);
         builder.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId);
         builder.HasOne(x => x.Orcamento).WithMany().HasForeignKey(x => x.OrcamentoId);
         builder.HasOne(x => x.CondicaoPagamento).WithMany().HasForeignKey(x => x.CondicaoPagamentoId);

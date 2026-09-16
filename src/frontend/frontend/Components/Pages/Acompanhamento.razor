@@ -323,6 +323,10 @@
                     <Template Context="context">
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetailAsync(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
+                        @if (!string.IsNullOrWhiteSpace(context.FolderUrl))
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Href="@context.FolderUrl" Target="_blank" Color="Color.Secondary" aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
+                        }
                         <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" />
                         <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" aria-label="@($"Excluir serviço {context.Codigo}")" />
                     </Template>
@@ -376,6 +380,18 @@
                      <MudItem xs="12" sm="4"><MudText Typo="Typo.caption" Color="Color.Secondary">Custos</MudText><MudText Typo="Typo.body2">@Money(_selected.Custos)</MudText></MudItem>
                 </MudGrid>
             </MudPaper>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-4">
+                <MudTextField @bind-Value="_folderUrl" Label="Pasta no Google Drive" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Placeholder="https://drive.google.com/…" Class="flex-grow-1"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
+                @if (!string.IsNullOrWhiteSpace(_selected.FolderUrl))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="@_selected.FolderUrl" Target="_blank"
+                               StartIcon="@Icons.Material.Filled.OpenInNew">Abrir pasta</MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFolderUrlAsync"
+                           Disabled="@(_folderUrl == _selected.FolderUrl)">Salvar</MudButton>
+            </MudStack>
             <MudGrid Class="mt-4">
                 <MudItem xs="12" sm="6">
                     <MudAutocomplete T="string" @bind-Value="_newStatus"
@@ -868,8 +884,21 @@
 
     private async Task OpenDetailAsync(AcompanhamentoDto item)
     {
-        _selected=item;_newStatus=item.Situacao;_detailOpen=true;
-        try { _selected = await Service.GetAsync(item.Id); }
+        _selected=item;_newStatus=item.Situacao;_folderUrl=item.FolderUrl;_detailOpen=true;
+        try { _selected = await Service.GetAsync(item.Id); _folderUrl = _selected.FolderUrl; }
+        catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
+    }
+
+    private string? _folderUrl;
+    private async Task SaveFolderUrlAsync()
+    {
+        if (_selected is null) return;
+        try
+        {
+            await Service.UpdateFolderUrlAsync(_selected.Id, _folderUrl);
+            Snackbar.Add("Link da pasta salvo.", Severity.Success);
+            await RefreshSelected();
+        }
         catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
     }
     private async Task AbrirFormularioNovo()=>await _servicoForm.Open();

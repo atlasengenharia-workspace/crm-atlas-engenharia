@@ -257,6 +257,10 @@
                         <MudText Typo="Typo.h6" Class="mb-3">Observações</MudText>
                         <MudTextField @bind-Value="_model.Observacao" Label="Observação"
                                       Variant="Variant.Outlined" Lines="4" />
+                        <MudTextField @bind-Value="_model.FolderUrl" Label="Pasta no Google Drive"
+                                      Variant="Variant.Outlined" Class="mt-3"
+                                      Placeholder="https://drive.google.com/…"
+                                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
                     </MudPaper>
                 }
                 @if (Visivel(ServicoCampo.Parcelas))
@@ -974,6 +978,7 @@
         public string? EnderecoServicoCep { get; set; }
         public bool MesmoEnderecoEmpresa { get; set; } = true;
         public string? Observacao { get; set; }
+        public string? FolderUrl { get; set; }
         public decimal? ValorContrato { get; set; }
         public DateTime? DataContrato { get; set; } = DateTime.Today;
         public decimal? ValorNotaFiscal { get; set; }
@@ -1009,6 +1014,7 @@
             ValorNotaFiscalDividido = x.ValorNotaFiscalDividido,
             ValorNotaFiscalParcela = x.ValorNotaFiscalParcela,
             Observacao = x.Observacao,
+            FolderUrl = x.FolderUrl,
             Parcelas = x.Parcelas.Select(p => new InstallmentModel
             {
                 Id = p.Id, Numero = p.NumeroParcela, Valor = p.Valor,
@@ -1041,7 +1047,7 @@
             Prestadores.Select(p => new CadastroServicoPrestadorDto(
                 p.Id, p.PrestadorId, p.NomePrestador, p.ValorProvisionado, p.ValorEfetivo,
                 p.Confirmado, p.DataPagamento is null ? null : DateOnly.FromDateTime(p.DataPagamento.Value),
-                p.DataPagamentoTipo)).ToList(), null);
+                p.DataPagamentoTipo)).ToList(), null, FolderUrl);
     }
 
     private sealed class InstallmentModel

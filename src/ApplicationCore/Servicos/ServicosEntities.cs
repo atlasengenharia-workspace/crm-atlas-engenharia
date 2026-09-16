@@ -177,6 +177,7 @@ public sealed class CadastroServico : Entity
     public bool ValorNotaFiscalDividido { get; set; } = true;
     public int? ValorNotaFiscalParcela { get; set; }
     public string? Observacao { get; set; }
+    public string? FolderUrl { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public ICollection<CadastroServicoParcela> Parcelas { get; set; } = [];

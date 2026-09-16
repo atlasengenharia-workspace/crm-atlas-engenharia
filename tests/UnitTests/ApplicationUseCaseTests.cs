@@ -491,6 +491,78 @@ public sealed class ApplicationUseCaseTests
         Assert.Contains(porObservacao, x => x.Tipo == GlobalSearchResultType.LANCAMENTO && x.Id == 2);
     }
 
+    [Fact]
+    public async Task AcompanhamentoService_UpdateFolderUrlAsync_SalvaAuditaELimpa()
+    {
+        var repository = new MemoryAcompanhamentoRepository(
+            itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento" }]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico);
+
+        await service.UpdateFolderUrlAsync(5, "  https://drive.google.com/pasta  ");
+
+        Assert.Equal("https://drive.google.com/pasta", repository.Itens[0].FolderUrl);
+        var entry = Assert.Single(historico.Entries);
+        Assert.Equal("Pasta no Drive", entry.Campo);
+        Assert.Null(entry.Antes);
+        Assert.Equal("https://drive.google.com/pasta", entry.Depois);
+        Assert.Equal("S-AVCB-0001", entry.Codigo);
+
+        await service.UpdateFolderUrlAsync(5, null);
+        Assert.Null(repository.Itens[0].FolderUrl);
+    }
+
+    [Fact]
+    public async Task CadastroServicoService_UpdateAsync_SalvaEAuditaPastaDrive()
+    {
+        var repository = new MemoryCadastroServicoRepository(
+        [
+            new CadastroServico
+            {
+                Id = 1, Codigo = "S-AVCB-0001", Subtipo = "Projeto",
+                ValorContrato = 1000, DataContrato = new DateOnly(2026, 1, 1),
+                FolderUrl = "https://drive.google.com/antiga"
+            }
+        ]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new CadastroServicoService(
+            repository,
+            new MemoryRepository<Cliente>(),
+            new MemoryRepository<Orcamento>(),
+            new MemoryRepository<CondicaoPagamento>(),
+            new MemoryRepository<Prestador>(),
+            new MemoryRepository<OrcamentoHistorico>(),
+            new MemoryRepository<Lancamento>(),
+            new MemoryRepository<ServicoSubtipoConfig>(),
+            new StubUserAccessor("Vinicius"),
+            historico,
+            new MemoryCrmCache());
+
+        await service.UpdateAsync(1, new CadastroServicoDto(
+            Id: 1, Codigo: "S-AVCB-0001", ClienteId: null, OrcamentoId: null, OrcamentoCodigo: null,
+            CondicaoPagamentoId: null, TipoServico: AcompanhamentoServicoTipo.AVCB, Subtipo: "Projeto",
+            DataEntrada: new DateOnly(2026, 1, 1), SituacaoInicial: null, DocumentoEmpresa: null,
+            RazaoSocialEmpresa: "Empresa X", ContatoEmpresa: null, Telefone: null, Email: null,
+            EnderecoEmpresa: null, EnderecoEmpresaRua: null, EnderecoEmpresaNumero: null,
+            EnderecoEmpresaBairro: null, EnderecoEmpresaComplemento: null, EnderecoEmpresaCidade: null,
+            EnderecoEmpresaEstado: null, EnderecoEmpresaCep: null, EnderecoServico: null,
+            EnderecoServicoRua: null, EnderecoServicoNumero: null, EnderecoServicoBairro: null,
+            EnderecoServicoComplemento: null, EnderecoServicoCidade: null, EnderecoServicoEstado: null,
+            EnderecoServicoCep: null, MesmoEnderecoEmpresa: false,
+            ValorContrato: 1000, DataContrato: new DateOnly(2026, 1, 1), NomeCondicaoPagamento: null,
+            ValorNotaFiscal: null, ValorNotaFiscalDividido: false, ValorNotaFiscalParcela: null,
+            Observacao: null,
+            Parcelas: [new CadastroServicoParcelaDto(null, 1, 1000, null, null)],
+            Prestadores: [], CreatedAt: null,
+            FolderUrl: "https://drive.google.com/nova"));
+
+        Assert.Equal("https://drive.google.com/nova", repository.Items[0].FolderUrl);
+        var entry = Assert.Single(historico.Entries, x => x.Campo == "Pasta no Drive");
+        Assert.Equal("https://drive.google.com/antiga", entry.Antes);
+        Assert.Equal("https://drive.google.com/nova", entry.Depois);
+        Assert.Equal("S-AVCB-0001", entry.Codigo);
+    }
+
     private sealed class StubCadastroServicoService(IReadOnlyList<CadastroServicoDto> items) : ICadastroServicoService
     {
         public Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default) =>
@@ -512,6 +584,7 @@ public sealed class ApplicationUseCaseTests
         public Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows, CancellationToken ct = default) => throw new NotSupportedException();
         public Task ChangeStatusAsync(long id, string novaSituacao, string? descricao, string? responsavel, CancellationToken ct = default) => throw new NotSupportedException();
         public Task UpdateDescricaoAsync(long id, string? descricao, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task UpdateFolderUrlAsync(long id, string? url, CancellationToken ct = default) => throw new NotSupportedException();
         public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default) => throw new NotSupportedException();
         public Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default) => throw new NotSupportedException();
@@ -668,6 +741,39 @@ public sealed class ApplicationUseCaseTests
         }
         public void Update(AcompanhamentoServico entity) { }
         public void Remove(AcompanhamentoServico entity) => Itens.Remove(entity);
+    }
+
+    private sealed class MemoryCadastroServicoRepository(IEnumerable<CadastroServico>? seed = null)
+        : ICadastroServicoRepository
+    {
+        public List<CadastroServico> Items { get; } = seed?.ToList() ?? [];
+
+        public Task<CadastroServico?> GetByIdAsync(long id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
+        public Task<CadastroServico?> FindAsync(System.Linq.Expressions.Expression<Func<CadastroServico, bool>> predicate, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.AsQueryable().FirstOrDefault(predicate));
+        public Task<IReadOnlyList<CadastroServico>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CadastroServico>>(Items.ToList());
+        public IQueryable<CadastroServico> AsQueryable() => Items.AsQueryable();
+        public Task<IReadOnlyList<CadastroServico>> ToListAsync(IQueryable<CadastroServico> query, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CadastroServico>>(query.ToList());
+        public Task<int> CountAsync(IQueryable<CadastroServico> query, CancellationToken cancellationToken = default) =>
+            Task.FromResult(query.Count());
+        public Task AddAsync(CadastroServico entity, CancellationToken cancellationToken = default)
+        {
+            entity.Id = Items.Count == 0 ? 1 : Items.Max(x => x.Id) + 1;
+            Items.Add(entity);
+            return Task.CompletedTask;
+        }
+        public void Update(CadastroServico entity) { }
+        public void Remove(CadastroServico entity) => Items.Remove(entity);
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(1);
+        public IQueryable<CadastroServico> AsNoTrackingDetailed() => Items.AsQueryable();
+        public Task<IReadOnlyList<CadastroServico>> ListDetailedAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CadastroServico>>(Items.ToList());
+        public Task<CadastroServico?> GetDetailedAsync(long id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.FirstOrDefault(x => x.Id == id));
     }
 
     private sealed class MemoryCrmCache : ICrmCache
