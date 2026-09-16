@@ -7,6 +7,7 @@ using CrmAtlas.ApplicationCore.Identidade;
 using CrmAtlas.ApplicationCore.Integracoes;
 using CrmAtlas.ApplicationCore.Notificacoes;
 using CrmAtlas.ApplicationCore.Servicos;
+using CrmAtlas.ApplicationCore.Sistema;
 using Microsoft.EntityFrameworkCore;
 
 namespace CrmAtlas.Infrastructure.Data;
@@ -53,6 +54,7 @@ public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options) : D
     public DbSet<GoogleAdsCampaignMetric> GoogleAdsCampaignMetrics => Set<GoogleAdsCampaignMetric>();
     public DbSet<GoogleAdsLead> GoogleAdsLeads => Set<GoogleAdsLead>();
     public DbSet<GoogleAdsIntegrationAudit> GoogleAdsIntegrationAudits => Set<GoogleAdsIntegrationAudit>();
+    public DbSet<ConfiguracaoHistorico> ConfiguracaoHistoricos => Set<ConfiguracaoHistorico>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

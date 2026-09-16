@@ -85,6 +85,8 @@ public static class DependencyInjection
         services.AddTransient<ICustoIndiretoService, CustoIndiretoService>();
         services.AddTransient<ILancamentoService, LancamentoService>();
         services.AddTransient<IOrcamentoService, OrcamentoService>();
+        services.AddTransient<IOrcamentoSituacaoService, OrcamentoSituacaoService>();
+        services.AddTransient<IConfiguracaoHistoricoService, ConfiguracaoHistoricoService>();
         services.AddTransient<IPrestadorService, PrestadorService>();
         services.AddTransient<IAcompanhamentoService, AcompanhamentoService>();
         services.AddTransient<IAcompanhamentoRepository, AcompanhamentoRepository>();

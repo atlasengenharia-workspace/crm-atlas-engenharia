@@ -127,6 +127,10 @@ public sealed class OrcamentoSituacao : Entity
 {
     public string Label { get; set; } = string.Empty;
     public bool Closed { get; set; }
+    public string? Cor { get; set; }
+    public int Ordem { get; set; }
+    public bool Padrao { get; set; }
+    public bool Ativo { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

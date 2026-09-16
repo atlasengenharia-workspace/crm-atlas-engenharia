@@ -21,11 +21,12 @@ public sealed class AcompanhamentoRepository(AtlasDbContext db) : IAcompanhament
     public async Task<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>> ListSituationsAsync(CancellationToken ct=default)=>
         await db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).AsNoTracking().ToListAsync(ct);
     public Task<AcompanhamentoServicoSituacaoConfig?> GetSituationAsync(long id,CancellationToken ct=default)=>
-        db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).AsNoTracking().FirstOrDefaultAsync(x=>x.Id==id,ct);
+        db.AcompanhamentoSituacoes.Include(x=>x.Pendencias).FirstOrDefaultAsync(x=>x.Id==id,ct);
     public async Task AddAsync(AcompanhamentoServico entity,CancellationToken ct=default)=>await db.Acompanhamentos.AddAsync(entity,ct);
     public async Task AddSituationAsync(AcompanhamentoServicoSituacaoConfig entity,CancellationToken ct=default)=>await db.AcompanhamentoSituacoes.AddAsync(entity,ct);
     public void Update(AcompanhamentoServico entity)=>db.Acompanhamentos.Update(entity);
     public void UpdateSituation(AcompanhamentoServicoSituacaoConfig entity)=>db.AcompanhamentoSituacoes.Update(entity);
+    public void RemoveSituation(AcompanhamentoServicoSituacaoConfig entity)=>db.AcompanhamentoSituacoes.Remove(entity);
     public void Remove(AcompanhamentoServico entity)=>db.Acompanhamentos.Remove(entity);
     public Task SaveChangesAsync(CancellationToken ct=default)=>db.SaveChangesAsync(ct);
     private IQueryable<AcompanhamentoServico> Query()=>db.Acompanhamentos

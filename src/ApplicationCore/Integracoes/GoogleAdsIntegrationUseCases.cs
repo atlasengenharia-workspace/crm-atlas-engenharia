@@ -32,6 +32,7 @@ public sealed class GoogleAdsIntegrationService(
     IRepository<GoogleAdsIntegrationAudit> auditRepository,
     IGoogleAdsApiClient apiClient,
     IRepository<Orcamento> orcamentoRepository,
+    IRepository<OrcamentoSituacao> orcamentoSituacaoRepository,
     ILancamentoService lancamentoService,
     IRepository<Lancamento> lancamentoRepository,
     IRepository<Cliente> clienteRepository)
@@ -337,6 +338,9 @@ public sealed class GoogleAdsIntegrationService(
             if (!entity.ImportLeadsAsBudgets) continue;
 
             var cliente = await FindOrCreateClienteAsync(item, cancellationToken);
+            var situacoes = (await orcamentoSituacaoRepository.ListAsync(cancellationToken))
+                .Where(x => x.Ativo).OrderBy(x => x.Ordem).ToList();
+            var situacaoPadrao = situacoes.FirstOrDefault(x => x.Padrao)?.Label ?? situacoes.FirstOrDefault()?.Label ?? "Em análise";
             var orcamento = new Orcamento
             {
                 Codigo = $"ORC-ADS-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
@@ -345,7 +349,7 @@ public sealed class GoogleAdsIntegrationService(
                 Email = item.Email,
                 Descricao = $"Lead Google Ads - {campaign.Name}. {item.Message}",
                 TipoServico = AcompanhamentoServicoTipo.AVCB,
-                Situacao = "Em análise",
+                Situacao = situacaoPadrao,
                 ValorTotal = 0,
                 CreatedAt = DateTime.UtcNow,
                 Data = DateOnly.FromDateTime(DateTime.UtcNow)

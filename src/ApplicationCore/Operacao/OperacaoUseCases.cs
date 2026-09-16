@@ -38,6 +38,7 @@ public interface IOrcamentoService
 
 public sealed class OrcamentoService(
     IRepository<Orcamento> repository,
+    IRepository<OrcamentoSituacao> situacaoRepository,
     IRepository<OrcamentoHistorico> historico,
     IUserAccessor userAccessor) : IOrcamentoService
 {
@@ -58,7 +59,10 @@ public sealed class OrcamentoService(
         }
 
         if (filter?.OcultarConcluidos == true)
-            query = query.Where(x => !x.Situacao.ToLower().Contains("aprov") && !x.Situacao.ToLower().Contains("recus"));
+        {
+            var closedNames = (await situacaoRepository.ListAsync(ct)).Where(x => x.Closed).Select(x => x.Label).ToList();
+            query = query.Where(x => !x.Situacao.ToLower().Contains("aprov") && !x.Situacao.ToLower().Contains("recus") && !closedNames.Contains(x.Situacao));
+        }
 
         query = ApplySort(query, filter?.SortKey, filter?.SortDescending ?? false);
 

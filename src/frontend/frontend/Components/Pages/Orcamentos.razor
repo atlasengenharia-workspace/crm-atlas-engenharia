@@ -3,6 +3,7 @@
 @using Radzen.Blazor
 @using CrmAtlas.Web.Services
 @inject IOrcamentoService Service
+@inject IOrcamentoSituacaoService SituacaoService
 @inject IServicoTipoConfigService TipoConfigService
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
@@ -23,7 +24,7 @@
 
 <GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="4" ColumnCount="6">
     <MudGrid Class="mb-4">
-        <MudItem xs="6" md="3"><MetricCard Title="Em análise" Value="@_result.Items.Count(x => !Closed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" FooterText="em análise + aguardando cliente" /></MudItem>
+        <MudItem xs="6" md="3"><MetricCard Title="Em análise" Value="@_result.Items.Count(x => !IsClosed(x.Situacao)).ToString()" Icon="@Icons.Material.Filled.PendingActions" Color="Color.Info" FooterText="situações que não encerram" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Aguardando retorno" Value="@_result.Items.Count(x => x.AguardandoRetorno).ToString()" Icon="@Icons.Material.Filled.PhoneForwarded" Color="Color.Warning" FooterText="enviado, sem resposta — prioridade de contato" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Aprovados" Value="@_result.Items.Count(x => x.Situacao.Contains("aprov", StringComparison.OrdinalIgnoreCase)).ToString()" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /></MudItem>
         <MudItem xs="6" md="3"><MetricCard Title="Em propostas" Value="@Money(_result.Items.Sum(x => x.ValorTotal ?? 0))" Icon="@Icons.Material.Filled.Payments" Color="Color.Warning" /></MudItem>
@@ -77,7 +78,8 @@
 
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="SituacaoGrupo" Title="Situação">
                     <Template Context="context">
-                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Situacao)">@context.SituacaoGrupo</MudChip>
+                        @{var situacaoCor=SituacaoCor(context.Situacao);}
+                        <MudChip T="string" Size="Size.Small" Color="@(situacaoCor is null?StatusColor(context.Situacao):Color.Default)" Style="@(situacaoCor is null?null:$"background:{situacaoCor};color:#fff")">@context.Situacao</MudChip>
                         @if (context.AguardandoRetorno)
                         {
                             <MudText Typo="Typo.caption" Color="Color.Secondary">aguardando retorno</MudText>
@@ -123,7 +125,7 @@
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Telefone" Label="Telefone" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Email" Label="E-mail" InputType="InputType.Email" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="6"><MudDatePicker @bind-Date="_model.Data" Label="Data do orçamento" Required="true" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_model.Situacao" Label="Situação" Required="true" Variant="Variant.Outlined"><MudSelectItem Value="@("Em análise")">Em análise</MudSelectItem><MudSelectItem Value="@("Aguardando cliente")">Aguardando cliente</MudSelectItem><MudSelectItem Value="@("Aprovado")">Aprovado</MudSelectItem><MudSelectItem Value="@("Recusado")">Recusado</MudSelectItem></MudSelect></MudItem>
+            <MudItem xs="12" sm="6"><MudSelect T="string" @bind-Value="_model.Situacao" Label="Situação" Required="true" Variant="Variant.Outlined">@foreach(var s in _situacoes.Where(x=>x.Ativo||x.Nome.Equals(_model.Situacao,StringComparison.OrdinalIgnoreCase))){<MudSelectItem Value="@s.Nome">@s.Nome</MudSelectItem>}</MudSelect></MudItem>
             <MudItem xs="12"><MudNumericField T="decimal?" @bind-Value="_model.ValorTotal" Label="Valor total" Variant="Variant.Outlined" Format="C2" /></MudItem>
             <MudItem xs="12"><MudTextField @bind-Value="_model.Descricao" Label="Descrição" Variant="Variant.Outlined" Lines="4" /></MudItem>
         </MudGrid></MudForm>
@@ -156,12 +158,15 @@
     private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
     private bool _initialLoading = true;
     private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
+    private IReadOnlyList<OrcamentoSituacaoDto> _situacoes = FallbackSituacoes;
     private DataGridSettingsBinder _gridSettings = null!;
     protected override async Task OnInitializedAsync()
     {
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "orcamentos");
         try { _tipos = await TipoConfigService.ListAsync(); }
         catch { _tipos = ServicoTipoDefaults.All(); }
+        try { _situacoes = await SituacaoService.ListAsync(); }
+        catch { _situacoes = FallbackSituacoes; }
         await LoadAsync();
     }
 
@@ -198,12 +203,21 @@
         if (args.Key == "Enter") { await LoadAsync(); }
     }
 
-    private void New(){var tipo=_tipos.FirstOrDefault(x=>x.Ativo)?.TipoServico??AcompanhamentoServicoTipo.AVCB;_model=new(){TipoServico=tipo,Codigo=$"ORC-{BudgetTypeSigla(tipo)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao="Em análise",Data=DateTime.Today};_open=true;}
+    private void New(){var tipo=_tipos.FirstOrDefault(x=>x.Ativo)?.TipoServico??AcompanhamentoServicoTipo.AVCB;var situacaoPadrao=_situacoes.FirstOrDefault(x=>x.Ativo&&x.Padrao)?.Nome??_situacoes.FirstOrDefault(x=>x.Ativo)?.Nome??"Em análise";_model=new(){TipoServico=tipo,Codigo=$"ORC-{BudgetTypeSigla(tipo)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao=situacaoPadrao,Data=DateTime.Today};_open=true;}
     private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
     private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
     private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
     private async Task DeleteAsync(OrcamentoDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir orçamento",$"Excluir {x.Codigo}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
+    private string? SituacaoCor(string s)=>_situacoes.FirstOrDefault(x=>x.Nome.Equals(s,StringComparison.OrdinalIgnoreCase))?.Cor;
+    private bool IsClosed(string s)=>_situacoes.FirstOrDefault(x=>x.Nome.Equals(s,StringComparison.OrdinalIgnoreCase))?.Fechado??Closed(s);
     private static bool Closed(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)||s.Contains("recus",StringComparison.OrdinalIgnoreCase);
+    private static readonly OrcamentoSituacaoDto[] FallbackSituacoes=
+    [
+        new(null,"Em análise",0,true,true,false,"#2563EB"),
+        new(null,"Aguardando cliente",1,false,true,false,"#D97706"),
+        new(null,"Aprovado",2,false,true,true,"#16A34A"),
+        new(null,"Recusado",3,false,true,true,"#DC2626"),
+    ];
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:s.Contains("aguard",StringComparison.OrdinalIgnoreCase)?Color.Warning:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
     private static int WeeksSince(DateOnly? start) => start is null ? 0 : Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.Value.DayNumber) / 7);

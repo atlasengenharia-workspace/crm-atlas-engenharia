@@ -2,6 +2,7 @@ using System.Threading;
 using CrmAtlas.ApplicationCore.Acompanhamentos;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
+using CrmAtlas.ApplicationCore.Sistema;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
 
@@ -43,6 +44,7 @@ public interface IAcompanhamentoRepository
     Task AddSituationAsync(AcompanhamentoServicoSituacaoConfig entity, CancellationToken ct = default);
     void Update(AcompanhamentoServico entity);
     void UpdateSituation(AcompanhamentoServicoSituacaoConfig entity);
+    void RemoveSituation(AcompanhamentoServicoSituacaoConfig entity);
     void Remove(AcompanhamentoServico entity);
     Task SaveChangesAsync(CancellationToken ct = default);
 }
@@ -58,6 +60,7 @@ public interface IAcompanhamentoService
     Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default);
     Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default);
     Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto, CancellationToken ct = default);
+    Task DeleteSituationAsync(long id, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
 }
 
@@ -79,7 +82,7 @@ public interface IAcompanhamentoSpreadsheetReader
         CancellationToken ct = default);
 }
 
-public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) : IAcompanhamentoService
+public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico) : IAcompanhamentoService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -233,12 +236,46 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
         => ExecuteAsync(async () =>
         {
             if (string.IsNullOrWhiteSpace(dto.Nome)) throw new ArgumentException("Nome da situação é obrigatório.");
-            var entity = dto.Id is null ? new AcompanhamentoServicoSituacaoConfig() : await repository.GetSituationAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Situação não encontrada.");
-            entity.TipoServico = dto.Tipo; entity.Nome = dto.Nome.Trim(); entity.Ordem = dto.Ordem; entity.SituacaoInicial = dto.Inicial; entity.Ativo = dto.Ativo; entity.Cor = NormalizeColor(dto.Cor); entity.Pendencias.Clear();
+            var nome = dto.Nome.Trim();
+            var isNew = dto.Id is null;
+            var entity = isNew ? new AcompanhamentoServicoSituacaoConfig() : await repository.GetSituationAsync(dto.Id!.Value, ct) ?? throw new NotFoundException("Situação não encontrada.");
+            var all = await repository.ListSituationsAsync(ct);
+            if (all.Any(x => x.Id != entity.Id && x.TipoServico == dto.Tipo && x.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException("Já existe uma situação com esse nome para este tipo de serviço.");
+            var pendenciasDepois = string.Join(", ", dto.Pendencias.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));
+            var detalhes = isNew ? null : ConfiguracaoDiff.Between(
+                ("Nome", entity.Nome, nome),
+                ("Onde é usado", entity.TipoServico.ToString(), dto.Tipo.ToString()),
+                ("Ordem", entity.Ordem?.ToString(), dto.Ordem.ToString()),
+                ("Padrão", Bool(entity.SituacaoInicial), Bool(dto.Inicial)),
+                ("Ativa", Bool(entity.Ativo), Bool(dto.Ativo)),
+                ("Cor", entity.Cor, dto.Cor?.Trim()),
+                ("Pendências automáticas", string.Join(", ", entity.Pendencias.Where(x => x.Ativo).OrderBy(x => x.Ordem).Select(x => x.Label)), pendenciasDepois));
+            entity.TipoServico = dto.Tipo; entity.Nome = nome; entity.Ordem = dto.Ordem; entity.SituacaoInicial = dto.Inicial; entity.Ativo = dto.Ativo; entity.Cor = NormalizeColor(dto.Cor); entity.Pendencias.Clear();
             var now = DateTime.UtcNow; foreach (var label in dto.Pendencias.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
                 entity.Pendencias.Add(new() { Label = label.Trim(), Ativo = true, CreatedAt = now, UpdatedAt = now });
-            if (dto.Id is null) await repository.AddSituationAsync(entity, ct); else repository.UpdateSituation(entity);
-            await repository.SaveChangesAsync(ct); return MapSituation(entity);
+            if (isNew) await repository.AddSituationAsync(entity, ct); else repository.UpdateSituation(entity);
+            if (dto.Inicial)
+                foreach (var other in all.Where(x => x.Id != entity.Id && x.TipoServico == dto.Tipo && x.SituacaoInicial))
+                {
+                    other.SituacaoInicial = false;
+                    repository.UpdateSituation(other);
+                }
+            await repository.SaveChangesAsync(ct);
+            await configuracaoHistorico.RegistrarAsync(
+                ConfiguracaoContexto.SituacaoAcompanhamento, entity.TipoServico.ToString(), entity.Id, entity.Nome,
+                isNew ? "Criada" : "Atualizada", isNew ? null : detalhes, ct);
+            return MapSituation(entity);
+        }, ct);
+
+    public Task DeleteSituationAsync(long id, CancellationToken ct = default)
+        => ExecuteAsync(async () =>
+        {
+            var entity = await repository.GetSituationAsync(id, ct) ?? throw new NotFoundException("Situação não encontrada.");
+            repository.RemoveSituation(entity);
+            await repository.SaveChangesAsync(ct);
+            await configuracaoHistorico.RegistrarAsync(
+                ConfiguracaoContexto.SituacaoAcompanhamento, entity.TipoServico.ToString(), entity.Id, entity.Nome, "Excluída", null, ct);
         }, ct);
 
     public Task DeleteAsync(long id, CancellationToken ct = default)
@@ -324,6 +361,7 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository) 
     }
     private static SituacaoConfigDto MapSituation(AcompanhamentoServicoSituacaoConfig x) => new(x.Id, x.TipoServico, x.Nome, x.Ordem ?? 0, x.SituacaoInicial, x.Ativo,
         x.Pendencias.Where(y => y.Ativo).OrderBy(y => y.Ordem).Select(y => y.Label).ToList(), x.Cor);
+    private static string Bool(bool value) => value ? "Sim" : "Não";
     private static string? NormalizeColor(string? color)
     {
         if (string.IsNullOrWhiteSpace(color)) return null;

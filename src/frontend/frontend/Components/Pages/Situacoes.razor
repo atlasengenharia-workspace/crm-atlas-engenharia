@@ -1,0 +1,311 @@
+@page "/situacoes"
+@attribute [Authorize]
+@inject IAcompanhamentoService AcompanhamentoService
+@inject IOrcamentoSituacaoService OrcamentoSituacaoService
+@inject IConfiguracaoHistoricoService HistoricoService
+@inject IServicoTipoConfigService TipoConfigService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Situações | CRM Atlas</PageTitle>
+<PageHeader Title="Situações"
+            Subtitle="Gerencie as situações usadas no acompanhamento e nos orçamentos: nome, onde é usado, ordem, cor, padrão e ativação." />
+
+<GlobalSkeleton IsLoading="_initialLoading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="6">
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Border="true">
+        <MudTabPanel Text="Acompanhamento" Icon="@Icons.Material.Filled.Assignment">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Situações por tipo de serviço, usadas no Acompanhamento e nos cadastros de serviço.</MudText>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="NewAcomp">Nova situação</MudButton>
+            </MudStack>
+            <MudGrid>
+                <MudItem xs="12" md="@(_editAcomp ? 7 : 12)">
+                    <MudTable Items="_situations.OrderBy(x => TipoOrdem(x.Tipo)).ThenBy(x => x.Ordem).ThenBy(x => x.Nome)" Dense="true" Hover="true" Outlined="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Cor</MudTh><MudTh>Nome</MudTh><MudTh>Onde é usado</MudTh><MudTh>Ordem</MudTh>
+                            <MudTh>Padrão</MudTh><MudTh>Ativa</MudTh><MudTh>Pendências</MudTh><MudTh Style="text-align:right">Ações</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><span class="atlas-color-dot" style="background:@(context.Cor ?? "#BFDBFE")"></span></MudTd>
+                            <MudTd><strong>@context.Nome</strong></MudTd>
+                            <MudTd>@TipoLabel(context.Tipo)</MudTd>
+                            <MudTd>@context.Ordem</MudTd>
+                            <MudTd>@if (context.Inicial) { <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Padrão</MudChip> }</MudTd>
+                            <MudTd>@if (!context.Ativo) { <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Inativa</MudChip> }</MudTd>
+                            <MudTd>@context.Pendencias.Count</MudTd>
+                            <MudTd Style="text-align:right">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditAcomp(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAcompAsync(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">Nenhuma situação cadastrada.</MudText></NoRecordsContent>
+                    </MudTable>
+                </MudItem>
+                @if (_editAcomp)
+                {
+                    <MudItem xs="12" md="5">
+                        <MudPaper Outlined="true" Class="pa-5 atlas-sticky-card">
+                            <MudToolBar Class="pa-0 mb-3">
+                                <MudText Typo="Typo.h6">@(_acomp.Id is null ? "Nova situação" : "Editar situação")</MudText>
+                                <MudSpacer />
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editAcomp = false)" />
+                            </MudToolBar>
+                            <MudDivider Class="mb-4" />
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="6">
+                                    <MudSelect T="AcompanhamentoServicoTipo" @bind-Value="_acomp.Tipo" Label="Onde é usado" Variant="Variant.Outlined">
+                                        @foreach (var type in _tipos)
+                                        {<MudSelectItem Value="@type.TipoServico">@type.Label</MudSelectItem>}
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_acomp.Nome" Label="Nome" Required="true" Variant="Variant.Outlined" MaxLength="80" /></MudItem>
+                                <MudItem xs="12" sm="4"><MudNumericField T="int" @bind-Value="_acomp.Ordem" Label="Ordem" Variant="Variant.Outlined" /></MudItem>
+                                <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_acomp.Inicial" Label="Padrão" Color="Color.Primary" /></MudItem>
+                                <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_acomp.Ativo" Label="Ativa" Color="Color.Primary" /></MudItem>
+                                <MudItem xs="12">
+                                    <MudColorPicker @bind-Text="_acomp.Cor" Label="Cor da situação" Variant="Variant.Outlined"
+                                                    PickerVariant="PickerVariant.Inline" ColorPickerView="ColorPickerView.Grid"
+                                                    ColorPickerMode="ColorPickerMode.HEX" ShowAlpha="false" ShowModeSwitch="false"
+                                                    Clearable="true" HelperText="Cor usada para identificar a situação nas listas." />
+                                </MudItem>
+                                <MudItem xs="12"><MudTextField @bind-Value="_pendingLabels" Label="Pendências automáticas" HelperText="Uma por linha. Criadas ao mover um serviço para esta situação." Lines="5" Variant="Variant.Outlined" /></MudItem>
+                            </MudGrid>
+                            <MudDivider Class="mt-5 mb-4" />
+                            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                                <MudButton OnClick="@(() => _editAcomp = false)">Cancelar</MudButton>
+                                <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving" OnClick="SaveAcompAsync">Salvar</MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Orçamentos" Icon="@Icons.Material.Filled.RequestQuote">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Situações usadas no funil de orçamentos. “Encerra” marca etapas finais (ex.: Aprovado, Recusado).</MudText>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="NewOrc">Nova situação</MudButton>
+            </MudStack>
+            <MudGrid>
+                <MudItem xs="12" md="@(_editOrc ? 7 : 12)">
+                    <MudTable Items="_orcSituacoes.OrderBy(x => x.Ordem).ThenBy(x => x.Nome)" Dense="true" Hover="true" Outlined="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Cor</MudTh><MudTh>Nome</MudTh><MudTh>Onde é usado</MudTh><MudTh>Ordem</MudTh>
+                            <MudTh>Padrão</MudTh><MudTh>Encerra</MudTh><MudTh>Ativa</MudTh><MudTh Style="text-align:right">Ações</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><span class="atlas-color-dot" style="background:@(context.Cor ?? "#BFDBFE")"></span></MudTd>
+                            <MudTd><strong>@context.Nome</strong></MudTd>
+                            <MudTd>Orçamentos</MudTd>
+                            <MudTd>@context.Ordem</MudTd>
+                            <MudTd>@if (context.Padrao) { <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined">Padrão</MudChip> }</MudTd>
+                            <MudTd>@if (context.Fechado) { <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">Encerra</MudChip> }</MudTd>
+                            <MudTd>@if (!context.Ativo) { <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Inativa</MudChip> }</MudTd>
+                            <MudTd Style="text-align:right">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditOrc(context))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteOrcAsync(context))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent><MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">Nenhuma situação cadastrada.</MudText></NoRecordsContent>
+                    </MudTable>
+                </MudItem>
+                @if (_editOrc)
+                {
+                    <MudItem xs="12" md="5">
+                        <MudPaper Outlined="true" Class="pa-5 atlas-sticky-card">
+                            <MudToolBar Class="pa-0 mb-3">
+                                <MudText Typo="Typo.h6">@(_orc.Id is null ? "Nova situação" : "Editar situação")</MudText>
+                                <MudSpacer />
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editOrc = false)" />
+                            </MudToolBar>
+                            <MudDivider Class="mb-4" />
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_orc.Nome" Label="Nome" Required="true" Variant="Variant.Outlined" MaxLength="80" /></MudItem>
+                                <MudItem xs="12" sm="6"><MudNumericField T="int" @bind-Value="_orc.Ordem" Label="Ordem" Variant="Variant.Outlined" /></MudItem>
+                                <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_orc.Padrao" Label="Padrão" Color="Color.Primary" /></MudItem>
+                                <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_orc.Fechado" Label="Encerra" Color="Color.Primary" /></MudItem>
+                                <MudItem xs="6" sm="4"><MudSwitch T="bool" @bind-Value="_orc.Ativo" Label="Ativa" Color="Color.Primary" /></MudItem>
+                                <MudItem xs="12">
+                                    <MudColorPicker @bind-Text="_orc.Cor" Label="Cor da situação" Variant="Variant.Outlined"
+                                                    PickerVariant="PickerVariant.Inline" ColorPickerView="ColorPickerView.Grid"
+                                                    ColorPickerMode="ColorPickerMode.HEX" ShowAlpha="false" ShowModeSwitch="false"
+                                                    Clearable="true" />
+                                </MudItem>
+                            </MudGrid>
+                            <MudDivider Class="mt-5 mb-4" />
+                            <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                                <MudButton OnClick="@(() => _editOrc = false)">Cancelar</MudButton>
+                                <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving" OnClick="SaveOrcAsync">Salvar</MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Histórico" Icon="@Icons.Material.Filled.History">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">Quem criou, alterou ou excluiu situações dos cadastros.</MudText>
+            <MudTable Items="_historico" Dense="true" Hover="true" Outlined="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Quando</MudTh><MudTh>Responsável</MudTh><MudTh>Cadastro</MudTh>
+                    <MudTh>Situação</MudTh><MudTh>Ação</MudTh><MudTh>Alterações</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Em.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+                    <MudTd>@(context.ResponsavelNome ?? "—")</MudTd>
+                    <MudTd>@(ConfiguracaoContexto.Label(context.Contexto))@(string.IsNullOrWhiteSpace(context.Escopo) ? "" : $" • {EscopoLabel(context.Contexto, context.Escopo)}")</MudTd>
+                    <MudTd>@context.RegistroNome</MudTd>
+                    <MudTd><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                                    Color="@(context.Acao == "Criada" ? Color.Success : context.Acao == "Excluída" ? Color.Error : Color.Info)">@context.Acao</MudChip></MudTd>
+                    <MudTd><MudText Typo="Typo.caption">@(context.Detalhes ?? "—")</MudText></MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">Nenhuma alteração registrada ainda.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+</GlobalSkeleton>
+
+@code {
+    private List<SituacaoConfigDto> _situations = [];
+    private IReadOnlyList<OrcamentoSituacaoDto> _orcSituacoes = [];
+    private IReadOnlyList<ConfiguracaoHistoricoDto> _historico = [];
+    private IReadOnlyList<ServicoTipoConfigDto> _tipos = [];
+    private bool _initialLoading = true;
+    private bool _saving;
+    private bool _editAcomp;
+    private bool _editOrc;
+    private string? _pendingLabels;
+    private AcompModel _acomp = new();
+    private OrcModel _orc = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _tipos = await TipoConfigService.ListAsync();
+            _situations = (await AcompanhamentoService.ListSituationsAsync()).ToList();
+            _orcSituacoes = await OrcamentoSituacaoService.ListAsync();
+            _historico = await HistoricoService.ListAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _initialLoading = false; }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _situations = (await AcompanhamentoService.ListSituationsAsync()).ToList();
+            _orcSituacoes = await OrcamentoSituacaoService.ListAsync();
+            _historico = await HistoricoService.ListAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private string TipoLabel(AcompanhamentoServicoTipo t) =>
+        _tipos.FirstOrDefault(x => x.TipoServico == t)?.Label ?? ServicoTipoDefaults.Label(t);
+
+    private int TipoOrdem(AcompanhamentoServicoTipo t) =>
+        _tipos.FirstOrDefault(x => x.TipoServico == t)?.Ordem ?? 99;
+
+    private string EscopoLabel(string contexto, string escopo) =>
+        contexto == ConfiguracaoContexto.SituacaoAcompanhamento && Enum.TryParse<AcompanhamentoServicoTipo>(escopo, out var tipo)
+            ? TipoLabel(tipo)
+            : escopo;
+
+    private void NewAcomp()
+    {
+        _acomp = new() { Tipo = _tipos.FirstOrDefault(x => x.Ativo)?.TipoServico ?? AcompanhamentoServicoTipo.AVCB, Cor = "#BFDBFE" };
+        _pendingLabels = "";
+        _editAcomp = true;
+    }
+
+    private void EditAcomp(SituacaoConfigDto item)
+    {
+        _acomp = new() { Id = item.Id, Tipo = item.Tipo, Nome = item.Nome, Cor = item.Cor, Ordem = item.Ordem, Inicial = item.Inicial, Ativo = item.Ativo };
+        _pendingLabels = string.Join(Environment.NewLine, item.Pendencias);
+        _editAcomp = true;
+    }
+
+    private async Task SaveAcompAsync()
+    {
+        _saving = true;
+        try
+        {
+            var dto = new SituacaoConfigDto(_acomp.Id, _acomp.Tipo, _acomp.Nome, _acomp.Ordem, _acomp.Inicial, _acomp.Ativo,
+                (_pendingLabels ?? "").Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).ToList(), _acomp.Cor);
+            await AcompanhamentoService.SaveSituationAsync(dto);
+            Snackbar.Add("Situação salva com sucesso.", Severity.Success);
+            _editAcomp = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAcompAsync(SituacaoConfigDto item)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir situação",
+            $"Deseja excluir “{item.Nome}” ({TipoLabel(item.Tipo)})? Serviços que já usam essa situação mantêm o nome registrado. Se preferir, desative a situação para removê-la apenas das novas seleções.",
+            "Excluir", cancelText: "Cancelar");
+        if (confirm != true || item.Id is null) return;
+        try { await AcompanhamentoService.DeleteSituationAsync(item.Id.Value); Snackbar.Add("Situação excluída.", Severity.Success); await ReloadAsync(); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void NewOrc() { _orc = new() { Cor = "#BFDBFE" }; _editOrc = true; }
+
+    private void EditOrc(OrcamentoSituacaoDto item)
+    {
+        _orc = new() { Id = item.Id, Nome = item.Nome, Cor = item.Cor, Ordem = item.Ordem, Padrao = item.Padrao, Ativo = item.Ativo, Fechado = item.Fechado };
+        _editOrc = true;
+    }
+
+    private async Task SaveOrcAsync()
+    {
+        _saving = true;
+        try
+        {
+            await OrcamentoSituacaoService.SaveAsync(new OrcamentoSituacaoDto(_orc.Id, _orc.Nome, _orc.Ordem, _orc.Padrao, _orc.Ativo, _orc.Fechado, _orc.Cor));
+            Snackbar.Add("Situação salva com sucesso.", Severity.Success);
+            _editOrc = false;
+            await ReloadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteOrcAsync(OrcamentoSituacaoDto item)
+    {
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Excluir situação",
+            $"Deseja excluir “{item.Nome}”? Orçamentos que já usam essa situação mantêm o nome registrado. Se preferir, desative a situação para removê-la apenas das novas seleções.",
+            "Excluir", cancelText: "Cancelar");
+        if (confirm != true || item.Id is null) return;
+        try { await OrcamentoSituacaoService.DeleteAsync(item.Id.Value); Snackbar.Add("Situação excluída.", Severity.Success); await ReloadAsync(); }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private sealed class AcompModel
+    {
+        public long? Id { get; set; }
+        public AcompanhamentoServicoTipo Tipo { get; set; }
+        public string Nome { get; set; } = "";
+        public string? Cor { get; set; }
+        public int Ordem { get; set; }
+        public bool Inicial { get; set; }
+        public bool Ativo { get; set; } = true;
+    }
+
+    private sealed class OrcModel
+    {
+        public long? Id { get; set; }
+        public string Nome { get; set; } = "";
+        public string? Cor { get; set; }
+        public int Ordem { get; set; }
+        public bool Padrao { get; set; }
+        public bool Ativo { get; set; } = true;
+        public bool Fechado { get; set; }
+    }
+}

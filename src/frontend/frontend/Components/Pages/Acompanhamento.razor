@@ -417,6 +417,7 @@
         <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">Configurar situações</MudText>
             <MudSpacer />
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="NewSituation">Nova</MudButton>
             <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_settingsOpen=false)" />
         </MudToolBar>
         <MudDivider Class="mb-4" />
@@ -435,7 +436,7 @@
             <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
         </MudGrid>
         <MudDivider Class="my-5" />
-        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1"><span class="atlas-color-dot" style="background:@SituationColor(item.Tipo,item.Nome,item.Cor)"></span><MudText Typo="Typo.body2">@TypeLabel(item.Tipo) • @item.Nome</MudText></MudStack><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip></MudStack></MudListItem>}</MudList>
+        <MudList T="string">@foreach(var item in _situations){<MudListItem OnClick="@(()=>EditSituation(item))"><MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1"><span class="atlas-color-dot" style="background:@SituationColor(item.Tipo,item.Nome,item.Cor)"></span><MudText Typo="Typo.body2">@TypeLabel(item.Tipo) • @item.Nome</MudText>@if(!item.Ativo){<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Inativa</MudChip>}</MudStack><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1"><MudChip T="string" Size="Size.Small">@(item.Pendencias.Count) pendência(s)</MudChip><span @onclick:stopPropagation="true"><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(()=>DeleteSituationAsync(item))" /></span></MudStack></MudStack></MudListItem>}</MudList>
     </div>
 </MudDrawer>
 
@@ -953,7 +954,9 @@
     private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
     private void OpenSettings(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";_settingsOpen=true;}
     private void EditSituation(SituacaoConfigDto item){_config=SituationModel.From(item);_pendingLabels=string.Join(Environment.NewLine,item.Pendencias);}
-    private async Task SaveSituationAsync(){var dto=_config.ToDto((_pendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}
+    private void NewSituation(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";}
+    private async Task SaveSituationAsync(){try{var dto=_config.ToDto((_pendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
+    private async Task DeleteSituationAsync(SituacaoConfigDto item){if(item.Id is null||await DialogService.ShowMessageBoxAsync("Excluir situação",$"Deseja excluir “{item.Nome}” ({TypeLabel(item.Tipo)})? Serviços que já usam essa situação mantêm o nome registrado.",yesText:"Excluir",cancelText:"Cancelar")!=true)return;try{await Service.DeleteSituationAsync(item.Id.Value);Snackbar.Add("Situação excluída.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
     private async Task ParseImportAsync(IBrowserFile? file)
     {
         if (file is null) return;

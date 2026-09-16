@@ -6,6 +6,7 @@ using CrmAtlas.ApplicationCore.Identidade;
 using CrmAtlas.ApplicationCore.Integracoes;
 using CrmAtlas.ApplicationCore.Notificacoes;
 using CrmAtlas.ApplicationCore.Servicos;
+using CrmAtlas.ApplicationCore.Sistema;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -101,6 +102,7 @@ internal sealed class ServicosConfiguration :
         builder.ToTable("orcamento_situacoes");
         builder.HasIndex(x => x.Label).IsUnique();
         builder.Property(x => x.Label).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.Cor).HasMaxLength(16);
     }
 
     public void Configure(EntityTypeBuilder<CadastroServico> builder)
@@ -502,5 +504,22 @@ internal sealed class IntegrationConfiguration :
         builder.Property(x => x.ResultStatus).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.Actor).HasMaxLength(120).IsRequired();
         builder.Property(x => x.Message).HasMaxLength(500);
+    }
+}
+
+internal sealed class ConfiguracaoHistoricoConfiguration : IEntityTypeConfiguration<ConfiguracaoHistorico>
+{
+    public void Configure(EntityTypeBuilder<ConfiguracaoHistorico> builder)
+    {
+        builder.ToTable("configuracao_historico");
+        builder.HasIndex(x => new { x.Contexto, x.CreatedAt })
+            .HasDatabaseName("idx_configuracao_historico_contexto_data");
+        builder.Property(x => x.Contexto).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Escopo).HasMaxLength(80);
+        builder.Property(x => x.RegistroNome).HasMaxLength(160).IsRequired();
+        builder.Property(x => x.Acao).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Detalhes).HasColumnType("text");
+        builder.Property(x => x.ResponsavelNome).HasMaxLength(160);
+        builder.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
     }
 }
