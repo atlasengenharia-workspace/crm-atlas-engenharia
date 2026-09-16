@@ -82,7 +82,8 @@ public interface IAcompanhamentoSpreadsheetReader
         CancellationToken ct = default);
 }
 
-public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico) : IAcompanhamentoService
+public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico,
+    IRegistroHistoricoService registroHistorico) : IAcompanhamentoService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -180,20 +181,29 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             if (string.IsNullOrWhiteSpace(status)) throw new ArgumentException("A nova situação é obrigatória.");
             var item = await Find(id, ct); var now = DateTime.UtcNow;
             var config = (await repository.ListSituationsAsync(ct)).FirstOrDefault(x => x.TipoServico == item.TipoServico && x.Ativo && x.Nome.Equals(status.Trim(), StringComparison.OrdinalIgnoreCase));
+            var situacaoAnterior = item.Situacao;
             item.Historicos.Add(new() { SituacaoAnterior = item.Situacao, NovaSituacao = status.Trim(), Descricao = description?.Trim(), ResponsavelNome = actor?.Trim(), CreatedAt = now });
             item.Situacao = status.Trim(); item.UltimaMudancaSituacaoEm = now; item.UpdatedAt = now;
             if (config is not null) foreach (var template in config.Pendencias.Where(x => x.Ativo && item.Pendencias.All(y => y.PendenciaConfigId != x.Id)))
                 item.Pendencias.Add(new() { SituacaoConfigId = config.Id, PendenciaConfigId = template.Id, Label = template.Label, CreatedAt = now, UpdatedAt = now });
             repository.Update(item); await repository.SaveChangesAsync(ct);
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
+            [
+                ("Situação", situacaoAnterior, item.Situacao),
+                ("Descrição da mudança", null, description?.Trim())
+            ], ct);
         }, ct);
 
     public Task UpdateDescricaoAsync(long id, string? descricao, CancellationToken ct = default)
         => ExecuteAsync(async () =>
         {
             var item = await Find(id, ct);
+            var anterior = item.Descricao;
             item.Descricao = descricao?.Trim();
             item.UpdatedAt = DateTime.UtcNow;
             repository.Update(item); await repository.SaveChangesAsync(ct);
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
+                [("Observação", anterior, item.Descricao)], ct);
         }, ct);
 
     public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default)
@@ -203,8 +213,11 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             var items = (await repository.ListDetailedAsync(ct)).Where(x => ids.Contains(x.Id)).ToList();
             var allSituations = await repository.ListSituationsAsync(ct);
             var now = DateTime.UtcNow;
+            var alterados = new List<(AcompanhamentoServico Item, string? SituacaoAntes, string? ObservacaoAntes)>();
             foreach (var item in items)
             {
+                var situacaoAntes = item.Situacao;
+                var observacaoAntes = item.Descricao;
                 if (!string.IsNullOrWhiteSpace(situacao) && !string.Equals(item.Situacao, situacao.Trim(), StringComparison.OrdinalIgnoreCase))
                 {
                     var config = allSituations.FirstOrDefault(x => x.TipoServico == item.TipoServico && x.Ativo && x.Nome.Equals(situacao.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -216,8 +229,15 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
                 if (descricao is not null) item.Descricao = descricao.Trim();
                 item.UpdatedAt = now;
                 repository.Update(item);
+                alterados.Add((item, situacaoAntes, observacaoAntes));
             }
             await repository.SaveChangesAsync(ct);
+            foreach (var (item, situacaoAntes, observacaoAntes) in alterados)
+                await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
+                [
+                    ("Situação", situacaoAntes, item.Situacao),
+                    ("Observação", observacaoAntes, item.Descricao)
+                ], ct);
         }, ct);
 
     public Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default)

@@ -1,0 +1,97 @@
+@page "/historico"
+@attribute [Authorize]
+@inject IRegistroHistoricoService HistoricoService
+
+<PageTitle>Histórico de alterações | CRM Atlas</PageTitle>
+<PageHeader Title="Histórico de alterações"
+            Subtitle="O que era antes, o que virou, quem mudou e quando — em serviços, orçamentos, lançamentos, acompanhamento e prestadores." />
+
+<GlobalSkeleton IsLoading="_loading" Layout="GlobalSkeleton.SkeletonLayoutType.Table" MetricCount="0" ColumnCount="6">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-3" Style="flex-wrap: wrap;">
+        <MudSelect T="string" @bind-Value="_entidade" Label="Cadastro" Variant="Variant.Outlined" Dense="true"
+                   Style="max-width: 240px;" AnchorOrigin="Origin.BottomCenter">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.Servico">Serviço</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.Orcamento">Orçamento</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.Acompanhamento">Acompanhamento</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.Lancamento">Lançamento</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.CustoIndireto">Custo indireto</MudSelectItem>
+            <MudSelectItem Value="@RegistroEntidade.Prestador">Prestador</MudSelectItem>
+        </MudSelect>
+        <MudTextField T="string" @bind-Value="_search" Label="Buscar por registro ou responsável" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Style="max-width: 360px;" Immediate="true" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadAsync">Atualizar</MudButton>
+    </MudStack>
+
+    <MudTable Items="Filtrados" Dense="true" Hover="true" Outlined="true" Elevation="0">
+        <HeaderContent>
+            <MudTh>Quando</MudTh>
+            <MudTh>Cadastro</MudTh>
+            <MudTh>Registro</MudTh>
+            <MudTh>Campo</MudTh>
+            <MudTh>Antes</MudTh>
+            <MudTh>Depois</MudTh>
+            <MudTh>Responsável</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Quando" Style="white-space:nowrap">@context.Em.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd DataLabel="Cadastro">@RegistroEntidade.Label(context.Entidade)</MudTd>
+            <MudTd DataLabel="Registro"><strong>@(context.EntidadeCodigo ?? $"#{context.EntidadeId}")</strong></MudTd>
+            <MudTd DataLabel="Campo">@context.Campo</MudTd>
+            <MudTd DataLabel="Antes" Style="max-width: 260px;">
+                @if (context.ValorAnterior is not null)
+                {<MudText Typo="Typo.body2" Color="Color.Secondary" Style="word-break: break-word;">@context.ValorAnterior</MudText>}
+                else
+                {<MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>}
+            </MudTd>
+            <MudTd DataLabel="Depois" Style="max-width: 260px;">
+                @if (context.ValorNovo is not null)
+                {<MudText Typo="Typo.body2" Style="word-break: break-word;"><strong>@context.ValorNovo</strong></MudText>}
+                else
+                {<MudText Typo="Typo.body2" Color="Color.Secondary">—</MudText>}
+            </MudTd>
+            <MudTd DataLabel="Responsável" Style="white-space:nowrap">@(context.ResponsavelNome ?? "Sistema")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">Nenhuma alteração registrada.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</GlobalSkeleton>
+
+@code {
+    private IReadOnlyList<RegistroHistoricoDto> _items = [];
+    private string _entidade = "";
+    private string _search = "";
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _items = await HistoricoService.ListAsync(
+                string.IsNullOrWhiteSpace(_entidade) ? null : _entidade, take: 500);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private IEnumerable<RegistroHistoricoDto> Filtrados
+    {
+        get
+        {
+            var term = _search.Trim();
+            if (string.IsNullOrWhiteSpace(term)) return _items;
+            return _items.Where(x =>
+                (x.EntidadeCodigo?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (x.ResponsavelNome?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
+                || x.Campo.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+}

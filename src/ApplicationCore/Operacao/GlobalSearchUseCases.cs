@@ -1,9 +1,10 @@
 using CrmAtlas.ApplicationCore.Clientes;
+using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
 
-public enum GlobalSearchResultType { CLIENTE, SERVICO, ORCAMENTO, PRESTADOR, ACOMPANHAMENTO }
+public enum GlobalSearchResultType { CLIENTE, SERVICO, ORCAMENTO, PRESTADOR, ACOMPANHAMENTO, LANCAMENTO }
 public sealed record GlobalSearchResult(GlobalSearchResultType Tipo, long Id, string Titulo, string? Subtitulo, string? Codigo);
 
 public interface IGlobalSearchService
@@ -12,7 +13,8 @@ public interface IGlobalSearchService
 }
 
 public sealed class GlobalSearchService(IClienteService clients, ICadastroServicoService services,
-    IOrcamentoService budgets, IPrestadorService providers, IAcompanhamentoService tracking) : IGlobalSearchService
+    IOrcamentoService budgets, IPrestadorService providers, IAcompanhamentoService tracking,
+    ILancamentoService lancamentos) : IGlobalSearchService
 {
     public async Task<IReadOnlyList<GlobalSearchResult>> SearchAsync(string query, int limitPerType = 8, CancellationToken ct = default)
     {
@@ -24,19 +26,30 @@ public sealed class GlobalSearchService(IClienteService clients, ICadastroServic
         var budgetsResult = await budgets.ListAsync(new OrcamentoFilter(null, 1, 100), ct);
         var providersResult = await providers.ListAsync(new PrestadorFilter(null, 1, 100), ct);
         var trackingResult = await tracking.ListAsync(new AcompanhamentoFilter(null, null, false, 1, 100), ct);
+        var lancamentosResult = await lancamentos.ListAsync(new(null, null, null, null, null, null, 1, 100), ct);
         var result = new List<GlobalSearchResult>();
         result.AddRange(clientsResult.Items.Where(x => Matches($"{x.RazaoSocial} {x.CnpjCpf} {x.NomeContato} {x.Email} {x.Telefone} {x.Cidade} {x.Estado}", query))
             .Take(limitPerType).Where(x => x.Id is not null)
             .Select(x => new GlobalSearchResult(GlobalSearchResultType.CLIENTE, x.Id!.Value, x.RazaoSocial, x.CnpjCpf, x.Cidade)));
-        result.AddRange(servicesResult.Items.Where(x => Matches($"{x.Codigo} {x.RazaoSocialEmpresa} {x.DocumentoEmpresa} {x.Subtipo}", query))
+        result.AddRange(servicesResult.Items.Where(x => Matches($"{x.Codigo} {x.RazaoSocialEmpresa} {x.DocumentoEmpresa} {x.Subtipo} {x.Telefone} {x.Email} {x.SituacaoInicial} {x.Observacao} {x.OrcamentoCodigo}", query))
             .Take(limitPerType).Where(x => x.Id is not null).Select(x => new GlobalSearchResult(GlobalSearchResultType.SERVICO, x.Id!.Value, x.RazaoSocialEmpresa, x.Subtipo, x.Codigo)));
-        result.AddRange(budgetsResult.Items.Where(x => Matches($"{x.Codigo} {x.Nome} {x.Descricao} {x.Situacao}", query))
+        result.AddRange(budgetsResult.Items.Where(x => Matches($"{x.Codigo} {x.Nome} {x.Descricao} {x.Situacao} {x.Telefone} {x.Email} {x.Subtipo}", query))
             .Take(limitPerType).Where(x => x.Id is not null).Select(x => new GlobalSearchResult(GlobalSearchResultType.ORCAMENTO, x.Id!.Value, x.Nome ?? x.Codigo, x.Situacao, x.Codigo)));
-        result.AddRange(providersResult.Items.Where(x => Matches($"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone}", query))
+        result.AddRange(providersResult.Items.Where(x => Matches($"{x.Nome} {x.CnpjCpf} {x.Email} {x.Telefone} {x.ChavePix}", query))
             .Take(limitPerType).Where(x => x.Id is not null).Select(x => new GlobalSearchResult(GlobalSearchResultType.PRESTADOR, x.Id!.Value, x.Nome, x.Email, x.CnpjCpf)));
-        result.AddRange(trackingResult.Items.Where(x => Matches($"{x.Codigo} {x.Cliente} {x.Situacao} {x.Descricao}", query))
+        result.AddRange(trackingResult.Items.Where(x => Matches($"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.NotaFiscal} {x.Endereco}", query))
             .Take(limitPerType).Select(x => new GlobalSearchResult(GlobalSearchResultType.ACOMPANHAMENTO, x.Id, x.Cliente ?? x.Codigo, x.Situacao, x.Codigo)));
+        result.AddRange(lancamentosResult.Items.Where(x => Matches($"{x.Codigo} {x.Descricao} {x.CodigoServico} {x.NomeCliente} {x.NomePrestador} {x.Observacao} {x.Empresa} {x.FormaPagamento} {x.MetodoPagamento} {x.Plataforma}", query))
+            .Take(limitPerType).Where(x => x.Id is not null)
+            .Select(x => new GlobalSearchResult(GlobalSearchResultType.LANCAMENTO, x.Id!.Value, x.Descricao,
+                $"{x.Tipo.ToString().ToLowerInvariant()} • {x.NomeCliente ?? x.NomePrestador}", x.Codigo)));
         return result;
     }
-    private static bool Matches(string value, string query) => value.Contains(query, StringComparison.OrdinalIgnoreCase);
+    private static bool Matches(string value, string query)
+    {
+        if (value.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
+        var queryDigits = Digits(query);
+        return queryDigits.Length >= 3 && Digits(value).Contains(queryDigits, StringComparison.Ordinal);
+    }
+    private static string Digits(string value) => new(value.Where(char.IsDigit).ToArray());
 }

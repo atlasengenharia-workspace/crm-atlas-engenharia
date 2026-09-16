@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
+using CrmAtlas.ApplicationCore.Sistema;
 
 namespace CrmAtlas.ApplicationCore.Financeiro;
 
@@ -89,7 +90,9 @@ public interface IReceiptStorage
     Task<(Stream Content, string ContentType, string FileName)?> OpenReadAsync(string key, CancellationToken cancellationToken = default);
 }
 
-public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) : ICustoIndiretoService
+public sealed class CustoIndiretoService(
+    IRepository<CustoIndireto> repository,
+    IRegistroHistoricoService registroHistorico) : ICustoIndiretoService
 {
     public async Task<PagedResult<CustoIndiretoDto>> ListAsync(
         CustoIndiretoFilter filter,
@@ -129,15 +132,20 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
         Apply(entity, dto);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.CustoIndireto, entity.Id, entity.Descricao, "Criado", cancellationToken);
         return ToDto(entity);
     }
 
     public async Task<CustoIndiretoDto> UpdateAsync(long id, CustoIndiretoDto dto, CancellationToken cancellationToken = default)
     {
         var entity = await FindAsync(id, cancellationToken);
+        var antes = CustoIndiretoSnapshot.From(entity);
         Apply(entity, dto);
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarAsync(
+            RegistroEntidade.CustoIndireto, entity.Id, entity.Descricao, antes.Diff(entity), cancellationToken);
         return ToDto(entity);
     }
 
@@ -159,8 +167,25 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
 
     public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
     {
-        repository.Remove(await FindAsync(id, cancellationToken));
+        var entity = await FindAsync(id, cancellationToken);
+        var descricao = entity.Descricao;
+        repository.Remove(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.CustoIndireto, id, descricao, "Excluído", cancellationToken);
+    }
+
+    private sealed record CustoIndiretoSnapshot(DateOnly Data, string? Descricao, decimal? Valor, string? Categoria)
+    {
+        public static CustoIndiretoSnapshot From(CustoIndireto x) => new(x.Data, x.Descricao, x.Valor, x.Categoria);
+
+        public List<(string Campo, string? Antes, string? Depois)> Diff(CustoIndireto depois) =>
+        [
+            ("Data", RegistroHistoricoFormat.Data(Data), RegistroHistoricoFormat.Data(depois.Data)),
+            ("Descrição", Descricao, depois.Descricao),
+            ("Valor", RegistroHistoricoFormat.Money(Valor), RegistroHistoricoFormat.Money(depois.Valor)),
+            ("Categoria", Categoria, depois.Categoria)
+        ];
     }
 
     private async Task<CustoIndireto> FindAsync(long id, CancellationToken cancellationToken) =>
@@ -205,7 +230,8 @@ public sealed class CustoIndiretoService(IRepository<CustoIndireto> repository) 
 public sealed class LancamentoService(
     IRepository<Lancamento> repository,
     IRepository<CrmAtlas.ApplicationCore.Servicos.CadastroServico> cadastros,
-    IRepository<CrmAtlas.ApplicationCore.Servicos.Prestador> prestadores) : ILancamentoService
+    IRepository<CrmAtlas.ApplicationCore.Servicos.Prestador> prestadores,
+    IRegistroHistoricoService registroHistorico) : ILancamentoService
 {
     public async Task<PagedResult<LancamentoDto>> ListAsync(
         LancamentoFilter filter,
@@ -269,22 +295,32 @@ public sealed class LancamentoService(
         await ApplyAsync(entity, dto, cancellationToken);
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.Lancamento, entity.Id, entity.Codigo, "Criado", cancellationToken);
         return ToDto(entity);
     }
 
     public async Task<LancamentoDto> UpdateAsync(long id, LancamentoDto dto, CancellationToken cancellationToken = default)
     {
         var entity = await FindAsync(id, cancellationToken);
+        var antes = LancamentoSnapshot.From(entity);
         await ApplyAsync(entity, dto, cancellationToken);
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarAsync(
+            RegistroEntidade.Lancamento, entity.Id, entity.Codigo,
+            antes.Diff(entity), cancellationToken);
         return ToDto(entity);
     }
 
     public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
     {
-        repository.Remove(await FindAsync(id, cancellationToken));
+        var entity = await FindAsync(id, cancellationToken);
+        var codigo = entity.Codigo;
+        repository.Remove(entity);
         await repository.SaveChangesAsync(cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.Lancamento, id, codigo, "Excluído", cancellationToken);
     }
 
     private async Task ApplyAsync(Lancamento entity, LancamentoDto dto, CancellationToken cancellationToken)
@@ -378,6 +414,42 @@ public sealed class LancamentoService(
 
         return Contains(lancamento.Descricao, descricao)
             && Contains(lancamento.CodigoServico, codigoServico);
+    }
+
+    private sealed record LancamentoSnapshot(
+        LancamentoTipo Tipo, LancamentoStatus Status, string? CodigoServico, string? NomeCliente,
+        string? NomePrestador, string? Descricao, decimal? Valor, DateOnly? Data,
+        int? NumeroParcela, DateOnly? DataPrevistaParcela, string? FormaPagamento,
+        string? MetodoPagamento, string? Plataforma, string? Empresa,
+        string? ComprovanteNomeArquivo, string? Observacao)
+    {
+        public static LancamentoSnapshot From(Lancamento x) => new(
+            x.Tipo, x.Status, x.CodigoServico, x.NomeCliente, x.NomePrestador, x.Descricao,
+            x.Valor, x.Data, x.NumeroParcela, x.DataPrevistaParcela, x.FormaPagamento,
+            x.MetodoPagamento, x.Plataforma, x.Empresa, x.ComprovanteNomeArquivo, x.Observacao);
+
+        public List<(string Campo, string? Antes, string? Depois)> Diff(Lancamento depois) =>
+        [
+            ("Tipo", Tipo.ToString(), depois.Tipo.ToString()),
+            ("Situação", Status.ToString(), depois.Status.ToString()),
+            ("Serviço", CodigoServico, depois.CodigoServico),
+            ("Cliente", NomeCliente, depois.NomeCliente),
+            ("Prestador", NomePrestador, depois.NomePrestador),
+            ("Descrição", Descricao, depois.Descricao),
+            ("Valor", Money(Valor), Money(depois.Valor)),
+            ("Data", Fmt(Data), Fmt(depois.Data)),
+            ("Nº da parcela", NumeroParcela?.ToString(), depois.NumeroParcela?.ToString()),
+            ("Data prevista da parcela", Fmt(DataPrevistaParcela), Fmt(depois.DataPrevistaParcela)),
+            ("Forma de pagamento", FormaPagamento, depois.FormaPagamento),
+            ("Método de pagamento", MetodoPagamento, depois.MetodoPagamento),
+            ("Plataforma", Plataforma, depois.Plataforma),
+            ("Empresa", Empresa, depois.Empresa),
+            ("Comprovante", ComprovanteNomeArquivo, depois.ComprovanteNomeArquivo),
+            ("Observação", Observacao, depois.Observacao)
+        ];
+
+        private static string? Money(decimal? value) => RegistroHistoricoFormat.Money(value);
+        private static string? Fmt(DateOnly? value) => RegistroHistoricoFormat.Data(value);
     }
 
     private static string? Clean(string? value) =>

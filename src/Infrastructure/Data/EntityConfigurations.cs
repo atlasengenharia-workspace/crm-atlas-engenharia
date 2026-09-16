@@ -507,6 +507,23 @@ internal sealed class IntegrationConfiguration :
     }
 }
 
+internal sealed class RegistroHistoricoConfiguration : IEntityTypeConfiguration<RegistroHistorico>
+{
+    public void Configure(EntityTypeBuilder<RegistroHistorico> builder)
+    {
+        builder.ToTable("registro_historico");
+        builder.HasIndex(x => new { x.Entidade, x.EntidadeId, x.CreatedAt })
+            .HasDatabaseName("idx_registro_historico_entidade");
+        builder.Property(x => x.Entidade).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.EntidadeCodigo).HasMaxLength(80);
+        builder.Property(x => x.Campo).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.ValorAnterior).HasColumnType("text");
+        builder.Property(x => x.ValorNovo).HasColumnType("text");
+        builder.Property(x => x.ResponsavelNome).HasMaxLength(160);
+        builder.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
+    }
+}
+
 internal sealed class ConfiguracaoHistoricoConfiguration : IEntityTypeConfiguration<ConfiguracaoHistorico>
 {
     public void Configure(EntityTypeBuilder<ConfiguracaoHistorico> builder)

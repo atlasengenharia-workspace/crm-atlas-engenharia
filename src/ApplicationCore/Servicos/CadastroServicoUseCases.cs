@@ -4,6 +4,7 @@ using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
 using CrmAtlas.ApplicationCore.Financeiro;
+using CrmAtlas.ApplicationCore.Sistema;
 
 namespace CrmAtlas.ApplicationCore.Servicos;
 
@@ -121,6 +122,7 @@ public sealed class CadastroServicoService(
     IRepository<Lancamento> lancamentos,
     IRepository<ServicoSubtipoConfig> subtipoConfigs,
     IUserAccessor userAccessor,
+    IRegistroHistoricoService registroHistorico,
     ICrmCache cache) : ICadastroServicoService
 {
     public async Task<PagedResult<CadastroServicoDto>> ListAsync(
@@ -275,6 +277,8 @@ public sealed class CadastroServicoService(
         await repository.AddAsync(entity, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
         await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.Servico, entity.Id, entity.Codigo, "Criado", cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
         return ToDto(entity, new Dictionary<(long, long), decimal>());
     }
@@ -286,6 +290,7 @@ public sealed class CadastroServicoService(
     {
         Validate(dto);
         var entity = await FindAsync(id, cancellationToken);
+        var antes = ServicoSnapshot.From(entity);
         await ApplyAsync(entity, dto, cancellationToken);
         var existing = await repository.ListAsync(cancellationToken);
         if (existing.Any(x => x.Codigo.Equals(entity.Codigo, StringComparison.OrdinalIgnoreCase) && x.Id != id))
@@ -293,6 +298,8 @@ public sealed class CadastroServicoService(
         repository.Update(entity);
         await repository.SaveChangesAsync(cancellationToken);
         await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
+        await registroHistorico.RegistrarAsync(
+            RegistroEntidade.Servico, entity.Id, entity.Codigo, antes.Diff(entity), cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
         var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
         return ToDto(entity, actualPayments);
@@ -300,9 +307,13 @@ public sealed class CadastroServicoService(
 
     public async Task DeleteAsync(long id, CancellationToken cancellationToken = default)
     {
-        repository.Remove(await FindAsync(id, cancellationToken));
+        var entity = await FindAsync(id, cancellationToken);
+        var codigo = entity.Codigo;
+        repository.Remove(entity);
         await repository.SaveChangesAsync(cancellationToken);
         await cache.RemoveAsync(SubtiposCacheKey, cancellationToken);
+        await registroHistorico.RegistrarEventoAsync(
+            RegistroEntidade.Servico, id, codigo, "Excluído", cancellationToken);
     }
 
     private async Task ApplyAsync(
@@ -666,5 +677,132 @@ public sealed class CadastroServicoService(
         var parts = new[] { street, Clean(dto.EnderecoServicoComplemento), locality, Clean(dto.EnderecoServicoCep) }
             .Where(x => !string.IsNullOrWhiteSpace(x));
         return string.Join(", ", parts);
+    }
+
+    private sealed record ServicoSnapshot(
+        string Codigo, string? Cliente, string? Condicao, AcompanhamentoServicoTipo Tipo,
+        string? Subtipo, DateOnly? DataEntrada, string? Situacao, string? Documento,
+        string? Razao, string? Contato, string? Telefone, string? Email,
+        string? EndEmpresa, string? EndServico,
+        decimal? ValorContrato, DateOnly? DataContrato, decimal? ValorNf,
+        bool NfDividido, int? NfParcela, string? Observacao,
+        List<(int? Numero, decimal? Valor, DateOnly? Vencimento, string? FormaPagamento)> Parcelas,
+        List<(long? PrestadorId, string? Nome, decimal? Provisionado, decimal? Efetivo, bool? Confirmado, DateOnly? DataPagamento, PrestadorPagamentoDataTipo TipoData)> Prestadores)
+    {
+        public static ServicoSnapshot From(CadastroServico x) => new(
+            x.Codigo, x.Cliente?.RazaoSocial, x.CondicaoPagamento?.Nome ?? x.NomeCondicaoPagamento,
+            x.TipoServico, x.Subtipo, x.DataEntrada, x.SituacaoInicial, x.DocumentoEmpresa,
+            x.RazaoSocialEmpresa, x.ContatoEmpresa, x.Telefone, x.Email,
+            x.EnderecoEmpresa, x.EnderecoServico,
+            x.ValorContrato, x.DataContrato, x.ValorNotaFiscal,
+            x.ValorNotaFiscalDividido, x.ValorNotaFiscalParcela, x.Observacao,
+            x.Parcelas.OrderBy(p => p.NumeroParcela ?? int.MaxValue)
+                .Select(p => (p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList(),
+            x.Prestadores.Select(p =>
+                (p.PrestadorId, p.NomePrestador, p.ValorProvisionado, p.ValorEfetivo, p.Confirmado, p.DataPagamento, p.DataPagamentoTipo)).ToList());
+
+        public List<(string Campo, string? Antes, string? Depois)> Diff(CadastroServico depois)
+        {
+            var campos = new List<(string, string?, string?)>
+            {
+                ("Código", Codigo, depois.Codigo),
+                ("Cliente", Cliente, depois.Cliente?.RazaoSocial),
+                ("Condição de pagamento", Condicao, depois.CondicaoPagamento?.Nome ?? depois.NomeCondicaoPagamento),
+                ("Tipo", Tipo.ToString(), depois.TipoServico.ToString()),
+                ("Subtipo", Subtipo, depois.Subtipo),
+                ("Data de entrada", Fmt(DataEntrada), Fmt(depois.DataEntrada)),
+                ("Situação", Situacao, depois.SituacaoInicial),
+                ("Documento da empresa", Documento, depois.DocumentoEmpresa),
+                ("Razão social", Razao, depois.RazaoSocialEmpresa),
+                ("Contato", Contato, depois.ContatoEmpresa),
+                ("Telefone", Telefone, depois.Telefone),
+                ("E-mail", Email, depois.Email),
+                ("Endereço da empresa", EndEmpresa, depois.EnderecoEmpresa),
+                ("Endereço do serviço", EndServico, depois.EnderecoServico),
+                ("Valor do contrato", Money(ValorContrato), Money(depois.ValorContrato)),
+                ("Data do contrato", Fmt(DataContrato), Fmt(depois.DataContrato)),
+                ("Valor da NF", Money(ValorNf), Money(depois.ValorNotaFiscal)),
+                ("NF dividida", NfDividido ? "Sim" : "Não", depois.ValorNotaFiscalDividido ? "Sim" : "Não"),
+                ("Parcela da NF", NfParcela?.ToString(), depois.ValorNotaFiscalParcela?.ToString()),
+                ("Observação", Observacao, depois.Observacao)
+            };
+
+            var depoisParcelas = depois.Parcelas.OrderBy(p => p.NumeroParcela ?? int.MaxValue)
+                .Select(p => (p.NumeroParcela, p.Valor, p.DataVencimento, p.FormaPagamento)).ToList();
+            var maxParcelas = Math.Max(Parcelas.Count, depoisParcelas.Count);
+            for (var i = 0; i < maxParcelas; i++)
+            {
+                var aExiste = i < Parcelas.Count;
+                var nExiste = i < depoisParcelas.Count;
+                var a = aExiste ? Parcelas[i] : default;
+                var n = nExiste ? depoisParcelas[i] : default;
+                var numero = nExiste ? n.NumeroParcela : a.Numero;
+                var label = $"Parcela {numero ?? i + 1}";
+                if (!aExiste)
+                {
+                    campos.Add((label, null, DescribeParcela(n)));
+                }
+                else if (!nExiste)
+                {
+                    campos.Add((label, DescribeParcela(a), null));
+                }
+                else
+                {
+                    campos.Add(($"{label} — Valor", Money(a.Valor), Money(n.Valor)));
+                    campos.Add(($"{label} — Vencimento", Fmt(a.Vencimento), Fmt(n.DataVencimento)));
+                    campos.Add(($"{label} — Forma de pagamento", a.FormaPagamento, n.FormaPagamento));
+                }
+            }
+
+            var depoisPrestadores = depois.Prestadores
+                .Select(p => (p.PrestadorId, Nome: p.NomePrestador, Provisionado: p.ValorProvisionado, Efetivo: p.ValorEfetivo, p.Confirmado, p.DataPagamento, TipoData: p.DataPagamentoTipo))
+                .ToList();
+            var antesPorChave = Prestadores.GroupBy(PrestadorKey).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var depoisPorChave = depoisPrestadores.GroupBy(PrestadorKey).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            foreach (var chave in antesPorChave.Keys.Union(depoisPorChave.Keys, StringComparer.OrdinalIgnoreCase))
+            {
+                var aExiste = antesPorChave.TryGetValue(chave, out var a);
+                var nExiste = depoisPorChave.TryGetValue(chave, out var n);
+                var nome = n.Nome ?? a.Nome ?? "—";
+                var label = $"Prestador {nome}";
+                if (!aExiste)
+                {
+                    campos.Add((label, null, DescribePrestador(n)));
+                }
+                else if (!nExiste)
+                {
+                    campos.Add((label, DescribePrestador(a), null));
+                }
+                else
+                {
+                    campos.Add(($"{label} — Valor provisionado", Money(a.Provisionado), Money(n.Provisionado)));
+                    campos.Add(($"{label} — Valor efetivo", Money(a.Efetivo), Money(n.Efetivo)));
+                    campos.Add(($"{label} — Confirmado", a.Confirmado == true ? "Sim" : "Não", n.Confirmado == true ? "Sim" : "Não"));
+                    campos.Add(($"{label} — Data de pagamento", Fmt(a.DataPagamento), Fmt(n.DataPagamento)));
+                    campos.Add(($"{label} — Tipo de data", TipoDataLabel(a.TipoData), TipoDataLabel(n.TipoData)));
+                }
+            }
+
+            return campos;
+        }
+
+        private static string PrestadorKey((long? PrestadorId, string? Nome, decimal? Provisionado, decimal? Efetivo, bool? Confirmado, DateOnly? DataPagamento, PrestadorPagamentoDataTipo TipoData) p) =>
+            p.PrestadorId?.ToString() ?? $"nome:{p.Nome?.Trim().ToLowerInvariant()}";
+
+        private static string DescribeParcela((int? Numero, decimal? Valor, DateOnly? Vencimento, string? FormaPagamento) p) =>
+            $"{Money(p.Valor) ?? "—"} • {Fmt(p.Vencimento) ?? "—"} • {p.FormaPagamento ?? "—"}";
+
+        private static string DescribePrestador((long? PrestadorId, string? Nome, decimal? Provisionado, decimal? Efetivo, bool? Confirmado, DateOnly? DataPagamento, PrestadorPagamentoDataTipo TipoData) p) =>
+            $"{Money(p.Provisionado) ?? "—"} prov. • {Money(p.Efetivo) ?? "—"} efet. • {(p.Confirmado == true ? "confirmado" : "não confirmado")}";
+
+        private static string TipoDataLabel(PrestadorPagamentoDataTipo tipo) => tipo switch
+        {
+            PrestadorPagamentoDataTipo.DATA => "Data específica",
+            PrestadorPagamentoDataTipo.TERMINO_SERVICO => "Término do serviço",
+            _ => "A definir"
+        };
+
+        private static string? Money(decimal? value) => RegistroHistoricoFormat.Money(value);
+        private static string? Fmt(DateOnly? value) => RegistroHistoricoFormat.Data(value);
     }
 }

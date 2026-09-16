@@ -31,3 +31,14 @@ public sealed class ConfiguracaoHistoricoController(IConfiguracaoHistoricoServic
         [FromQuery] int take,
         CancellationToken ct) => service.ListAsync(contexto, take is 0 ? 200 : take, ct);
 }
+
+[ApiController, Authorize, Route("api/registro-historico")]
+public sealed class RegistroHistoricoController(IRegistroHistoricoService service) : ControllerBase
+{
+    [HttpGet]
+    public Task<IReadOnlyList<RegistroHistoricoDto>> List(
+        [FromQuery] string? entidade,
+        [FromQuery] long? entidadeId,
+        [FromQuery] int take,
+        CancellationToken ct) => service.ListAsync(entidade, entidadeId, take is 0 ? 500 : take, ct);
+}

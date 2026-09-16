@@ -56,7 +56,7 @@ public sealed class ApplicationUseCaseTests
                 Valor = 200
             }
         ]);
-        var service = new CustoIndiretoService(repository);
+        var service = new CustoIndiretoService(repository, new MemoryRegistroHistoricoService());
 
         var result = await service.ListAsync(new(
             null, null, null, "administrativo", Page: 1, PageSize: 10));
@@ -97,7 +97,8 @@ public sealed class ApplicationUseCaseTests
         var service = new LancamentoService(
             repository,
             new MemoryRepository<CadastroServico>(),
-            new MemoryRepository<Prestador>());
+            new MemoryRepository<Prestador>(),
+            new MemoryRegistroHistoricoService());
 
         var result = await service.ListAsync(new(
             null, null, null, null, search, search, Page: 1, PageSize: 20));
@@ -291,7 +292,7 @@ public sealed class ApplicationUseCaseTests
     {
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService());
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), new MemoryRegistroHistoricoService());
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(
             () => service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, " em análise", 1, false, true, [], null)));
@@ -308,7 +309,7 @@ public sealed class ApplicationUseCaseTests
             new AcompanhamentoServicoSituacaoConfig { Id = 2, TipoServico = AcompanhamentoServicoTipo.CLCB, Nome = "Em análise", SituacaoInicial = true }
         ]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico);
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, "Triagem", 0, true, true, [], "#123456"));
 
@@ -326,7 +327,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise", Ativo = true }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico);
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(1, AcompanhamentoServicoTipo.AVCB, "Em análise", 0, false, false, [], null));
 
@@ -341,7 +342,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico);
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService());
 
         await service.DeleteSituationAsync(1);
 
@@ -349,6 +350,201 @@ public sealed class ApplicationUseCaseTests
         var entry = Assert.Single(historico.Entries);
         Assert.Equal("Excluída", entry.Acao);
         Assert.Equal("Em análise", entry.RegistroNome);
+    }
+
+    [Fact]
+    public async Task RegistroHistoricoService_RegistraAntesDepoisEResponsavel()
+    {
+        var repository = new MemoryRepository<RegistroHistorico>();
+        var service = new RegistroHistoricoService(repository, new StubUserAccessor("Vinicius"));
+
+        await service.RegistrarAsync(RegistroEntidade.Lancamento, 7, "L-000007",
+            [("Valor", "R$ 100,00", "R$ 250,00"), ("Situação", "PREVISTO", "PAGO")]);
+
+        var result = await service.ListAsync(RegistroEntidade.Lancamento, 7);
+        Assert.Equal(2, result.Count);
+        var valor = result.Single(x => x.Campo == "Valor");
+        Assert.Equal("R$ 100,00", valor.ValorAnterior);
+        Assert.Equal("R$ 250,00", valor.ValorNovo);
+        Assert.Equal("Vinicius", valor.ResponsavelNome);
+        Assert.Equal("L-000007", valor.EntidadeCodigo);
+    }
+
+    [Fact]
+    public async Task RegistroHistoricoService_IgnoraCamposSemMudanca()
+    {
+        var repository = new MemoryRepository<RegistroHistorico>();
+        var service = new RegistroHistoricoService(repository, new StubUserAccessor("Vinicius"));
+
+        await service.RegistrarAsync(RegistroEntidade.Prestador, 3, "João",
+            [("Nome", "João", "João"), ("Telefone", null, "  "), ("E-mail", null, "a@b.com")]);
+
+        var result = await service.ListAsync(RegistroEntidade.Prestador, 3);
+        var entry = Assert.Single(result);
+        Assert.Equal("E-mail", entry.Campo);
+    }
+
+    [Fact]
+    public async Task LancamentoService_UpdateAsync_AuditaValorESituacao()
+    {
+        var repository = new MemoryRepository<Lancamento>(
+        [
+            new Lancamento
+            {
+                Id = 1, Codigo = "L-000001", Descricao = "Honorários",
+                Tipo = LancamentoTipo.ENTRADA, Status = LancamentoStatus.PREVISTO,
+                Data = new DateOnly(2026, 7, 2), Valor = 200
+            }
+        ]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new LancamentoService(
+            repository,
+            new MemoryRepository<CadastroServico>(),
+            new MemoryRepository<Prestador>(),
+            historico);
+
+        await service.UpdateAsync(1, new LancamentoDto(
+            1, "L-000001", LancamentoTipo.ENTRADA, LancamentoStatus.PAGO, LancamentoOrigem.MANUAL,
+            null, "SRV-001", null, null, null, "Honorários", new DateOnly(2026, 7, 2), 250,
+            null, null, "PIX", null, null, null, null, null, "pago em dia",
+            0, 0, 0, null, null));
+
+        var valor = historico.Entries.Single(x => x.Campo == "Valor");
+        Assert.Equal(RegistroHistoricoFormat.Money(200), valor.Antes);
+        Assert.Equal(RegistroHistoricoFormat.Money(250), valor.Depois);
+        Assert.Contains(historico.Entries, x => x.Campo == "Situação" && x.Antes == "PREVISTO" && x.Depois == "PAGO");
+        Assert.Contains(historico.Entries, x => x.Campo == "Observação" && x.Depois == "pago em dia");
+        Assert.All(historico.Entries, x => Assert.Equal("L-000001", x.Codigo));
+    }
+
+    [Fact]
+    public async Task PrestadorService_SaveAsync_AuditaCamposAlterados()
+    {
+        var repository = new MemoryRepository<Prestador>(
+            [new Prestador { Id = 1, Nome = "João", MetodoPagamento = "Boleto" }]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new PrestadorService(
+            repository,
+            new MemoryRepository<CadastroServico>(),
+            new MemoryRepository<Lancamento>(),
+            historico,
+            new MemoryCrmCache());
+
+        await service.SaveAsync(new PrestadorDto(1, "João Silva", null, null, null, "PIX", "joao@pix.com", null, null, null));
+
+        Assert.Contains(historico.Entries, x => x.Campo == "Nome" && x.Antes == "João" && x.Depois == "João Silva");
+        Assert.Contains(historico.Entries, x => x.Campo == "Método de pagamento" && x.Antes == "Boleto" && x.Depois == "PIX");
+        Assert.Contains(historico.Entries, x => x.Campo == "Chave PIX" && x.Depois == "joao@pix.com");
+        Assert.DoesNotContain(historico.Entries, x => x.Campo == "Banco");
+    }
+
+    [Fact]
+    public async Task AcompanhamentoService_UpdateDescricaoAsync_AuditaObservacao()
+    {
+        var repository = new MemoryAcompanhamentoRepository(
+            itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento", Descricao = "nota antiga" }]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico);
+
+        await service.UpdateDescricaoAsync(5, "nota nova");
+
+        var entry = Assert.Single(historico.Entries);
+        Assert.Equal("Observação", entry.Campo);
+        Assert.Equal("nota antiga", entry.Antes);
+        Assert.Equal("nota nova", entry.Depois);
+        Assert.Equal("S-AVCB-0001", entry.Codigo);
+    }
+
+    [Fact]
+    public async Task GlobalSearchService_EncontraPorDocumentoSemPontuacaoEPorObservacao()
+    {
+        var prestadores = new MemoryRepository<Prestador>(
+            [new Prestador { Id = 1, Nome = "João", CnpjCpf = "12.345.678/0001-90" }]);
+        var lancamentos = new MemoryRepository<Lancamento>(
+        [
+            new Lancamento
+            {
+                Id = 2, Codigo = "L-000002", Descricao = "Honorários",
+                Tipo = LancamentoTipo.ENTRADA, Status = LancamentoStatus.PAGO,
+                Data = new DateOnly(2026, 7, 2), Valor = 300,
+                Observacao = "nota fiscal emitida pela prefeitura"
+            }
+        ]);
+        var historico = new MemoryRegistroHistoricoService();
+        var service = new GlobalSearchService(
+            new ClienteService(new MemoryRepository<Cliente>(), new MemoryCrmCache()),
+            new StubCadastroServicoService([]),
+            new OrcamentoService(
+                new MemoryRepository<Orcamento>(),
+                new MemoryRepository<OrcamentoSituacao>(),
+                new MemoryRepository<OrcamentoHistorico>(),
+                new StubUserAccessor(null),
+                historico),
+            new PrestadorService(prestadores, new MemoryRepository<CadastroServico>(), lancamentos, historico, new MemoryCrmCache()),
+            new StubAcompanhamentoService([]),
+            new LancamentoService(lancamentos, new MemoryRepository<CadastroServico>(), prestadores, historico));
+
+        var porDocumento = await service.SearchAsync("12345678000190");
+        Assert.Contains(porDocumento, x => x.Tipo == GlobalSearchResultType.PRESTADOR && x.Id == 1);
+
+        var porObservacao = await service.SearchAsync("prefeitura");
+        Assert.Contains(porObservacao, x => x.Tipo == GlobalSearchResultType.LANCAMENTO && x.Id == 2);
+    }
+
+    private sealed class StubCadastroServicoService(IReadOnlyList<CadastroServicoDto> items) : ICadastroServicoService
+    {
+        public Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PagedResult<CadastroServicoDto>.Create(items.ToList(), 1, items.Count, items.Count));
+        public Task<IReadOnlyList<CadastroServicoSubtipoConfigDto>> ListSubtiposAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ServicoSubtipoConfigItemDto>> ListSubtipoConfigsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SaveSubtiposAsync(AcompanhamentoServicoTipo tipo, IReadOnlyList<string> nomes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CadastroServicoDto> GetAsync(long id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CadastroServicoDto> CreateAsync(CadastroServicoDto dto, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CadastroServicoDto> UpdateAsync(long id, CadastroServicoDto dto, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(long id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class StubAcompanhamentoService(IReadOnlyList<AcompanhamentoDto> items) : IAcompanhamentoService
+    {
+        public Task<PagedResult<AcompanhamentoDto>> ListAsync(AcompanhamentoFilter? filter = null, CancellationToken ct = default) =>
+            Task.FromResult(PagedResult<AcompanhamentoDto>.Create(items.ToList(), 1, items.Count, items.Count));
+        public Task<AcompanhamentoDto> GetAsync(long id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task ChangeStatusAsync(long id, string novaSituacao, string? descricao, string? responsavel, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task UpdateDescricaoAsync(long id, string? descricao, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task DeleteSituationAsync(long id, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task DeleteAsync(long id, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class MemoryRegistroHistoricoService : IRegistroHistoricoService
+    {
+        public List<(string Entidade, long EntidadeId, string? Codigo, string Campo, string? Antes, string? Depois)> Entries { get; } = [];
+
+        public Task RegistrarAsync(string entidade, long entidadeId, string? entidadeCodigo,
+            IEnumerable<(string Campo, string? Antes, string? Depois)> campos, CancellationToken ct = default)
+        {
+            foreach (var (campo, antes, depois) in campos)
+            {
+                var a = string.IsNullOrWhiteSpace(antes) ? null : antes.Trim();
+                var d = string.IsNullOrWhiteSpace(depois) ? null : depois.Trim();
+                if (!string.Equals(a, d, StringComparison.Ordinal))
+                    Entries.Add((entidade, entidadeId, entidadeCodigo, campo, antes, depois));
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task RegistrarEventoAsync(string entidade, long entidadeId, string? entidadeCodigo, string evento, CancellationToken ct = default)
+        {
+            Entries.Add((entidade, entidadeId, entidadeCodigo, "Registro", null, evento));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<RegistroHistoricoDto>> ListAsync(string? entidade = null, long? entidadeId = null, int take = 200, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<RegistroHistoricoDto>>([]);
     }
 
     private sealed class StubUserAccessor(string? name) : IUserAccessor
@@ -371,10 +567,13 @@ public sealed class ApplicationUseCaseTests
             Task.FromResult<IReadOnlyList<ConfiguracaoHistoricoDto>>([]);
     }
 
-    private sealed class MemoryAcompanhamentoRepository(IEnumerable<AcompanhamentoServicoSituacaoConfig>? situacoes = null)
+    private sealed class MemoryAcompanhamentoRepository(
+        IEnumerable<AcompanhamentoServicoSituacaoConfig>? situacoes = null,
+        IEnumerable<AcompanhamentoServico>? itens = null)
         : IAcompanhamentoRepository
     {
         public List<AcompanhamentoServicoSituacaoConfig> Situacoes { get; } = situacoes?.ToList() ?? [];
+        public List<AcompanhamentoServico> Itens { get; } = itens?.ToList() ?? [];
 
         public Task<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>> ListSituationsAsync(CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<AcompanhamentoServicoSituacaoConfig>>(Situacoes.ToList());
@@ -394,17 +593,22 @@ public sealed class ApplicationUseCaseTests
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.FromResult(1);
 
         public Task<IReadOnlyList<AcompanhamentoServico>> ListDetailedAsync(CancellationToken ct = default) =>
-            throw new NotSupportedException();
-        public IQueryable<AcompanhamentoServico> AsQueryable() => throw new NotSupportedException();
+            Task.FromResult<IReadOnlyList<AcompanhamentoServico>>(Itens.ToList());
+        public IQueryable<AcompanhamentoServico> AsQueryable() => Itens.AsQueryable();
         public Task<IReadOnlyList<AcompanhamentoServico>> ToListAsync(IQueryable<AcompanhamentoServico> query, CancellationToken ct = default) =>
-            throw new NotSupportedException();
+            Task.FromResult<IReadOnlyList<AcompanhamentoServico>>(query.ToList());
         public Task<int> CountAsync(IQueryable<AcompanhamentoServico> query, CancellationToken ct = default) =>
-            throw new NotSupportedException();
+            Task.FromResult(query.Count());
         public Task<AcompanhamentoServico?> GetDetailedAsync(long id, CancellationToken ct = default) =>
-            throw new NotSupportedException();
-        public Task AddAsync(AcompanhamentoServico entity, CancellationToken ct = default) => throw new NotSupportedException();
-        public void Update(AcompanhamentoServico entity) => throw new NotSupportedException();
-        public void Remove(AcompanhamentoServico entity) => throw new NotSupportedException();
+            Task.FromResult(Itens.FirstOrDefault(x => x.Id == id));
+        public Task AddAsync(AcompanhamentoServico entity, CancellationToken ct = default)
+        {
+            entity.Id = Itens.Count == 0 ? 1 : Itens.Max(x => x.Id) + 1;
+            Itens.Add(entity);
+            return Task.CompletedTask;
+        }
+        public void Update(AcompanhamentoServico entity) { }
+        public void Remove(AcompanhamentoServico entity) => Itens.Remove(entity);
     }
 
     private sealed class MemoryCrmCache : ICrmCache

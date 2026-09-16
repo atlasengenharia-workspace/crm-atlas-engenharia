@@ -55,6 +55,7 @@ public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options) : D
     public DbSet<GoogleAdsLead> GoogleAdsLeads => Set<GoogleAdsLead>();
     public DbSet<GoogleAdsIntegrationAudit> GoogleAdsIntegrationAudits => Set<GoogleAdsIntegrationAudit>();
     public DbSet<ConfiguracaoHistorico> ConfiguracaoHistoricos => Set<ConfiguracaoHistorico>();
+    public DbSet<RegistroHistorico> RegistroHistoricos => Set<RegistroHistorico>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

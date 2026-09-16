@@ -35,6 +35,13 @@
             <MudSpacer />
 
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudHidden Breakpoint="Breakpoint.SmAndDown">
+                    <MudTextField T="string" @bind-Value="_search" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Placeholder="Buscar código, cliente, CPF/CNPJ, telefone, serviço, observação…"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Immediate="true" OnKeyDown="SearchOnEnter" Clearable="true"
+                                  Class="atlas-global-search mr-2" aria-label="Busca global" />
+                </MudHidden>
                 <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined"
                          Class="d-none d-sm-inline-flex mr-2 cursor-pointer"
                          OnClick="@(() => Navigation.NavigateTo("/atualizacoes"))">
@@ -162,6 +169,32 @@
                     </MudLayout>
 
                     <style>
+                        .atlas-global-search {
+                            width: min(360px, 32vw);
+                        }
+
+                        .atlas-global-search .mud-input-outlined-border {
+                            border-color: rgba(255, 255, 255, .28) !important;
+                        }
+
+                        .atlas-global-search:hover .mud-input-outlined-border {
+                            border-color: rgba(255, 255, 255, .55) !important;
+                        }
+
+                        .atlas-global-search input,
+                        .atlas-global-search .mud-icon-button {
+                            color: #fff;
+                        }
+
+                        .atlas-global-search .mud-input-adornment-start {
+                            color: rgba(255, 255, 255, .65);
+                        }
+
+                        .atlas-global-search input::placeholder {
+                            color: rgba(255, 255, 255, .55);
+                            opacity: 1;
+                        }
+
                         .atlas-notification-dropdown {
                             width: min(400px, calc(100vw - 24px));
                             overflow: hidden;
@@ -422,7 +455,10 @@ StringComparison.OrdinalIgnoreCase))
     private void SearchOnEnter(KeyboardEventArgs args)
     {
         if (args.Key == "Enter" && !string.IsNullOrWhiteSpace(_search) && _search.Trim().Length >= 2)
+        {
             Navigation.NavigateTo($"/busca?q={Uri.EscapeDataString(_search.Trim())}");
+            _search = string.Empty;
+        }
     }
 
     private readonly MudTheme _theme = new()

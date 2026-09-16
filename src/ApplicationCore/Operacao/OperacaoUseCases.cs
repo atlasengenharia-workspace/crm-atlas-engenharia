@@ -5,6 +5,7 @@ using CrmAtlas.ApplicationCore.Enums;
 using CrmAtlas.ApplicationCore.Notificacoes;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Financeiro;
+using CrmAtlas.ApplicationCore.Sistema;
 
 namespace CrmAtlas.ApplicationCore.Operacao;
 
@@ -40,7 +41,8 @@ public sealed class OrcamentoService(
     IRepository<Orcamento> repository,
     IRepository<OrcamentoSituacao> situacaoRepository,
     IRepository<OrcamentoHistorico> historico,
-    IUserAccessor userAccessor) : IOrcamentoService
+    IUserAccessor userAccessor,
+    IRegistroHistoricoService registroHistorico) : IOrcamentoService
 {
     public async Task<PagedResult<OrcamentoDto>> ListAsync(OrcamentoFilter? filter = null, CancellationToken ct = default)
     {
@@ -87,10 +89,12 @@ public sealed class OrcamentoService(
             x.Id != dto.Id && x.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase));
         if (duplicate)
             throw new ArgumentException($"Já existe um orçamento com o código {code}. Informe outro código.");
-        var entity = dto.Id is null ? new Orcamento { CreatedAt = DateTime.UtcNow } :
-            await repository.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
+        var criando = dto.Id is null;
+        var entity = criando ? new Orcamento { CreatedAt = DateTime.UtcNow } :
+            await repository.GetByIdAsync(dto.Id!.Value, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
+        var antes = OrcamentoSnapshot.From(entity);
         var responsavel = await userAccessor.GetUserNameAsync(ct);
-        if (dto.Id is not null)
+        if (!criando)
         {
             await TrackChangesAsync(entity, dto, responsavel, ct);
         }
@@ -109,14 +113,43 @@ public sealed class OrcamentoService(
         entity.Situacao = dto.Situacao.Trim(); entity.Telefone = dto.Telefone; entity.Email = dto.Email?.Trim();
         entity.Data = dto.Data ?? DateOnly.FromDateTime(DateTime.Today); entity.TipoServico = dto.TipoServico;
         entity.Subtipo = dto.Subtipo; entity.ValorTotal = dto.ValorTotal; entity.UpdatedAt = DateTime.UtcNow;
-        if (dto.Id is null) await repository.AddAsync(entity, ct); else repository.Update(entity);
-        await repository.SaveChangesAsync(ct); return Map(entity);
+        if (criando) await repository.AddAsync(entity, ct); else repository.Update(entity);
+        await repository.SaveChangesAsync(ct);
+        if (criando)
+            await registroHistorico.RegistrarEventoAsync(RegistroEntidade.Orcamento, entity.Id, entity.Codigo, "Criado", ct);
+        else
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Orcamento, entity.Id, entity.Codigo, antes.Diff(entity), ct);
+        return Map(entity);
     }
 
     public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Orçamento não encontrado.");
+        var codigo = entity.Codigo;
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
+        await registroHistorico.RegistrarEventoAsync(RegistroEntidade.Orcamento, id, codigo, "Excluído", ct);
+    }
+
+    private sealed record OrcamentoSnapshot(
+        string Codigo, string? Nome, string? Descricao, string Situacao, string? Telefone,
+        string? Email, DateOnly? Data, AcompanhamentoServicoTipo TipoServico, string? Subtipo, decimal? ValorTotal)
+    {
+        public static OrcamentoSnapshot From(Orcamento x) => new(
+            x.Codigo, x.Nome, x.Descricao, x.Situacao, x.Telefone, x.Email, x.Data, x.TipoServico, x.Subtipo, x.ValorTotal);
+
+        public List<(string Campo, string? Antes, string? Depois)> Diff(Orcamento depois) =>
+        [
+            ("Código", Codigo, depois.Codigo),
+            ("Nome", Nome, depois.Nome),
+            ("Descrição", Descricao, depois.Descricao),
+            ("Situação", Situacao, depois.Situacao),
+            ("Telefone", Telefone, depois.Telefone),
+            ("E-mail", Email, depois.Email),
+            ("Data", RegistroHistoricoFormat.Data(Data), RegistroHistoricoFormat.Data(depois.Data)),
+            ("Tipo", TipoServico.ToString(), depois.TipoServico.ToString()),
+            ("Subtipo", Subtipo, depois.Subtipo),
+            ("Valor total", RegistroHistoricoFormat.Money(ValorTotal), RegistroHistoricoFormat.Money(depois.ValorTotal))
+        ];
     }
 
     private async Task TrackChangesAsync(Orcamento entity, OrcamentoDto dto, string? responsavel, CancellationToken ct)
@@ -206,6 +239,7 @@ public sealed class PrestadorService(
     IRepository<Prestador> repository,
     IRepository<CadastroServico> servicos,
     IRepository<Lancamento> lancamentos,
+    IRegistroHistoricoService registroHistorico,
     ICrmCache cache) : IPrestadorService
 {
     private const string PrestadoresCacheKey = "prestadores:all";
@@ -297,21 +331,50 @@ public sealed class PrestadorService(
     public async Task<PrestadorDto> SaveAsync(PrestadorDto dto, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(dto.Nome)) throw new ArgumentException("Nome do prestador é obrigatório.");
-        var entity = dto.Id is null ? new Prestador { CreatedAt = DateTime.UtcNow } :
-            await repository.GetByIdAsync(dto.Id.Value, ct) ?? throw new NotFoundException("Prestador não encontrado.");
+        var criando = dto.Id is null;
+        var entity = criando ? new Prestador { CreatedAt = DateTime.UtcNow } :
+            await repository.GetByIdAsync(dto.Id!.Value, ct) ?? throw new NotFoundException("Prestador não encontrado.");
+        var antes = PrestadorSnapshot.From(entity);
         entity.Nome = dto.Nome.Trim(); entity.CnpjCpf = dto.CnpjCpf; entity.Telefone = dto.Telefone; entity.Email = dto.Email;
         entity.MetodoPagamento = dto.MetodoPagamento; entity.ChavePix = dto.ChavePix; entity.Banco = dto.Banco;
         entity.Agencia = dto.Agencia; entity.Conta = dto.Conta; entity.UpdatedAt = DateTime.UtcNow;
-        if (dto.Id is null) await repository.AddAsync(entity, ct); else repository.Update(entity);
+        if (criando) await repository.AddAsync(entity, ct); else repository.Update(entity);
         await repository.SaveChangesAsync(ct);
         await cache.RemoveAsync(PrestadoresCacheKey, ct);
+        if (criando)
+            await registroHistorico.RegistrarEventoAsync(RegistroEntidade.Prestador, entity.Id, entity.Nome, "Criado", ct);
+        else
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Prestador, entity.Id, entity.Nome, antes.Diff(entity), ct);
         return Map(entity);
     }
     public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
         var entity = await repository.GetByIdAsync(id, ct) ?? throw new NotFoundException("Prestador não encontrado.");
+        var nome = entity.Nome;
         repository.Remove(entity); await repository.SaveChangesAsync(ct);
         await cache.RemoveAsync(PrestadoresCacheKey, ct);
+        await registroHistorico.RegistrarEventoAsync(RegistroEntidade.Prestador, id, nome, "Excluído", ct);
+    }
+
+    private sealed record PrestadorSnapshot(
+        string? Nome, string? CnpjCpf, string? Telefone, string? Email, string? MetodoPagamento,
+        string? ChavePix, string? Banco, string? Agencia, string? Conta)
+    {
+        public static PrestadorSnapshot From(Prestador x) =>
+            new(x.Nome, x.CnpjCpf, x.Telefone, x.Email, x.MetodoPagamento, x.ChavePix, x.Banco, x.Agencia, x.Conta);
+
+        public List<(string Campo, string? Antes, string? Depois)> Diff(Prestador depois) =>
+        [
+            ("Nome", Nome, depois.Nome),
+            ("CNPJ/CPF", CnpjCpf, depois.CnpjCpf),
+            ("Telefone", Telefone, depois.Telefone),
+            ("E-mail", Email, depois.Email),
+            ("Método de pagamento", MetodoPagamento, depois.MetodoPagamento),
+            ("Chave PIX", ChavePix, depois.ChavePix),
+            ("Banco", Banco, depois.Banco),
+            ("Agência", Agencia, depois.Agencia),
+            ("Conta", Conta, depois.Conta)
+        ];
     }
 
     private static IQueryable<Prestador> ApplySort(IQueryable<Prestador> query, string? sortKey, bool descending)

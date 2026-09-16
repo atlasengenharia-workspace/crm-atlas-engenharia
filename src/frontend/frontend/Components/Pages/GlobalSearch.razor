@@ -17,7 +17,7 @@
 </MudPaper>
 
 @if(_loading){<MudProgressLinear Indeterminate="true" Color="Color.Primary" />}
-else if(_searched && _results.Count==0){<EmptyState Title="Nenhum resultado" Message="Tente outro nome, código, documento, e-mail ou situação." />}
+else if(_searched && _results.Count==0){<EmptyState Title="Nenhum resultado" Message="Tente outro código, cliente, CPF/CNPJ, telefone, serviço, prestador ou observação." />}
 else
 {
     @foreach(var group in _results.GroupBy(x=>x.Tipo))
@@ -49,7 +49,7 @@ else
     private async Task SearchOnEnter(KeyboardEventArgs e){if(e.Key=="Enter")await NavigateSearchAsync();}
     private Task NavigateSearchAsync(){if((_query?.Trim().Length??0)<2)return Task.CompletedTask;Navigation.NavigateTo($"/busca?q={Uri.EscapeDataString(_query!.Trim())}");return Task.CompletedTask;}
     private async Task SearchAsync(){if((_query?.Trim().Length??0)<2)return;_loading=true;try{_results=(await SearchService.SearchAsync(_query!)).ToList();_searched=true;}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
-    private static string TypeLabel(GlobalSearchResultType type)=>type switch{GlobalSearchResultType.CLIENTE=>"Clientes",GlobalSearchResultType.SERVICO=>"Serviços",GlobalSearchResultType.ORCAMENTO=>"Orçamentos",GlobalSearchResultType.PRESTADOR=>"Prestadores",_=>"Acompanhamentos"};
-    private static string Icon(GlobalSearchResultType type)=>type switch{GlobalSearchResultType.CLIENTE=>Icons.Material.Filled.Groups,GlobalSearchResultType.SERVICO=>Icons.Material.Filled.Assignment,GlobalSearchResultType.ORCAMENTO=>Icons.Material.Filled.RequestQuote,GlobalSearchResultType.PRESTADOR=>Icons.Material.Filled.Engineering,_=>Icons.Material.Filled.ViewKanban};
-    private static string Href(GlobalSearchResult item)=>item.Tipo switch{GlobalSearchResultType.CLIENTE=>"/clientes",GlobalSearchResultType.SERVICO=>"/acompanhamento",GlobalSearchResultType.ORCAMENTO=>"/orcamentos",GlobalSearchResultType.PRESTADOR=>"/prestadores",_=>"/acompanhamento"};
+    private static string TypeLabel(GlobalSearchResultType type)=>type switch{GlobalSearchResultType.CLIENTE=>"Clientes",GlobalSearchResultType.SERVICO=>"Serviços",GlobalSearchResultType.ORCAMENTO=>"Orçamentos",GlobalSearchResultType.PRESTADOR=>"Prestadores",GlobalSearchResultType.LANCAMENTO=>"Lançamentos",_=>"Acompanhamentos"};
+    private static string Icon(GlobalSearchResultType type)=>type switch{GlobalSearchResultType.CLIENTE=>Icons.Material.Filled.Groups,GlobalSearchResultType.SERVICO=>Icons.Material.Filled.Assignment,GlobalSearchResultType.ORCAMENTO=>Icons.Material.Filled.RequestQuote,GlobalSearchResultType.PRESTADOR=>Icons.Material.Filled.Engineering,GlobalSearchResultType.LANCAMENTO=>Icons.Material.Filled.ReceiptLong,_=>Icons.Material.Filled.ViewKanban};
+    private static string Href(GlobalSearchResult item)=>item.Tipo switch{GlobalSearchResultType.CLIENTE=>"/clientes",GlobalSearchResultType.SERVICO=>"/acompanhamento",GlobalSearchResultType.ORCAMENTO=>"/orcamentos",GlobalSearchResultType.PRESTADOR=>"/prestadores",GlobalSearchResultType.LANCAMENTO=>"/financeiro/lancamentos",_=>"/acompanhamento"};
 }
