@@ -483,8 +483,19 @@ public sealed class CadastroServicoService(
         var tracking = await acompanhamentos.FindAsync(x => x.Codigo == entity.Codigo, cancellationToken);
         if (tracking is null || tracking.FolderUrl == entity.FolderUrl) return;
         var antes = tracking.FolderUrl;
+        var now = DateTime.UtcNow;
         tracking.FolderUrl = entity.FolderUrl;
-        tracking.UpdatedAt = DateTime.UtcNow;
+        tracking.UpdatedAt = now;
+        tracking.Historicos.Add(new()
+        {
+            SituacaoAnterior = tracking.Situacao,
+            NovaSituacao = tracking.Situacao,
+            Descricao = entity.FolderUrl is null ? $"Pasta no Drive removida (era {antes})"
+                : antes is null ? $"Pasta no Drive vinculada: {entity.FolderUrl}"
+                : $"Pasta no Drive alterada para {entity.FolderUrl}",
+            ResponsavelNome = await userAccessor.GetUserNameAsync(cancellationToken),
+            CreatedAt = now
+        });
         acompanhamentos.Update(tracking);
         await acompanhamentos.SaveChangesAsync(cancellationToken);
         await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, tracking.Id, tracking.Codigo,

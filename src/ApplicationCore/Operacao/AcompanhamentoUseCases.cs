@@ -86,7 +86,7 @@ public interface IAcompanhamentoSpreadsheetReader
 }
 
 public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico,
-    IRegistroHistoricoService registroHistorico, IRepository<CadastroServico> cadastros) : IAcompanhamentoService
+    IRegistroHistoricoService registroHistorico, IRepository<CadastroServico> cadastros, IUserAccessor userAccessor) : IAcompanhamentoService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -214,13 +214,29 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
         {
             var item = await Find(id, ct);
             var anterior = item.FolderUrl;
-            item.FolderUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
-            item.UpdatedAt = DateTime.UtcNow;
+            var novo = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+            if (string.Equals(anterior, novo, StringComparison.Ordinal)) return;
+            var now = DateTime.UtcNow;
+            item.FolderUrl = novo;
+            item.UpdatedAt = now;
+            item.Historicos.Add(new()
+            {
+                SituacaoAnterior = item.Situacao,
+                NovaSituacao = item.Situacao,
+                Descricao = FolderUrlEventoDescricao(anterior, novo),
+                ResponsavelNome = await userAccessor.GetUserNameAsync(ct),
+                CreatedAt = now
+            });
             repository.Update(item); await repository.SaveChangesAsync(ct);
             await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
                 [("Pasta no Drive", anterior, item.FolderUrl)], ct);
             await SyncCadastroFolderUrlAsync(item, ct);
         }, ct);
+
+    private static string FolderUrlEventoDescricao(string? anterior, string? novo) =>
+        novo is null ? $"Pasta no Drive removida (era {anterior})"
+        : anterior is null ? $"Pasta no Drive vinculada: {novo}"
+        : $"Pasta no Drive alterada para {novo}";
 
     private async Task SyncCadastroFolderUrlAsync(AcompanhamentoServico item, CancellationToken ct)
     {
