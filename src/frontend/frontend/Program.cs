@@ -29,6 +29,9 @@ builder.Services.AddMudServices(config =>
 {
     config.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.TopCenter;
     config.SnackbarConfiguration.NewestOnTop = true;
+    config.SnackbarConfiguration.VisibleStateDuration = 3000;
+    config.SnackbarConfiguration.HideTransitionDuration = 200;
+    config.SnackbarConfiguration.ShowCloseIcon = true;
 });
 builder.Services.AddRadzenComponents();
 builder.Services.AddInfrastructure(builder.Configuration);
