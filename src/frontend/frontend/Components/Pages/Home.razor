@@ -253,6 +253,12 @@
                                 </MudStack>
                             </MudStack>
                             <MudDivider Class="mb-4" />
+                            @if (BarrasDemais)
+                            {
+                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3" ShowCloseIcon="true">
+                                    A seleção gerou @_data!.Periods.Count barras — refine o período ou agrupe por Mês, Trimestre ou Ano para facilitar a leitura.
+                                </MudAlert>
+                            }
                             <div style="height: 360px; position: relative; width: 100%;">
                                 <canvas id="operationalResultChartCanvas"></canvas>
                             </div>
@@ -817,6 +823,8 @@
     ];
 
     private DashboardSnapshot? _data;
+    private const int _maxBars = 36;
+    private bool BarrasDemais => (_data?.Periods.Count ?? 0) > _maxBars;
     private List<ChartSeries<double>> _financialSeries = [], _revenueSeries = [], _contractSeries = [], _costSeries = [];
     private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
     private DataGridSettingsBinder _topClientGridSettings = null!;
