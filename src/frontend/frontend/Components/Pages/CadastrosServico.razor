@@ -196,16 +196,20 @@
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap; text-align:right;">Ações</MudText>
                     </HeaderTemplate>
                     <Template Context="context">
-                        @if (IsWebUrl(context.FolderUrl))
-                        {
-                            <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Secondary" Size="Size.Small"
-                                           Href="@context.FolderUrl" Target="_blank"
-                                           aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
-                        }
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                       OnClick="@(() => Edit(context))" />
-                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small"
-                                       OnClick="@(() => DeleteAsync(context))" />
+                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 1px; white-space: nowrap;">
+                            @if (IsWebUrl(context.FolderUrl))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Color="Color.Secondary" Size="Size.Small" Class="pa-1"
+                                               Href="@context.FolderUrl" Target="_blank" title="Abrir pasta no Drive"
+                                               aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Class="pa-1"
+                                           OnClick="@(() => Edit(context))" title="Editar serviço"
+                                           aria-label="@($"Editar {context.Codigo}")" />
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" Class="pa-1"
+                                           OnClick="@(() => DeleteAsync(context))" title="Excluir serviço"
+                                           aria-label="@($"Excluir {context.Codigo}")" />
+                        </div>
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>

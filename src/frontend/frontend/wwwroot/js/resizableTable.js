@@ -52,6 +52,12 @@ window.resizableTable = (function () {
         document.addEventListener('mouseup', onMouseUp);
     }
 
+    function isActionsTh(th) {
+        if (!th) return false;
+        const text = th.textContent || '';
+        return text.includes('Ações') || th.classList.contains('atlas-actions-column');
+    }
+
     function restore(wrapperId, storageKey) {
         console.log('[resizableTable] restore', wrapperId, storageKey);
         const wrapper = document.getElementById(wrapperId);
@@ -68,12 +74,26 @@ window.resizableTable = (function () {
                 const widths = JSON.parse(saved);
                 table.style.tableLayout = 'fixed';
                 ths.forEach((th, i) => {
-                    if (widths[i]) {
+                    if (isActionsTh(th)) {
+                        const parsed = widths[i] ? parseInt(widths[i], 10) : 0;
+                        const w = Math.max(190, isNaN(parsed) ? 190 : parsed);
+                        th.style.width = w + 'px';
+                        th.style.minWidth = '190px';
+                    } else if (widths[i]) {
                         th.style.width = widths[i];
                         th.style.minWidth = '0px';
                     }
                 });
                 console.log('[resizableTable] larguras restauradas', widths);
+            } else {
+                ths.forEach(th => {
+                    if (isActionsTh(th)) {
+                        th.style.minWidth = '190px';
+                        if (!th.style.width || parseInt(th.style.width, 10) < 190) {
+                            th.style.width = '190px';
+                        }
+                    }
+                });
             }
         } catch (e) { console.warn('[resizableTable] erro ao restaurar', e); }
     }
@@ -90,19 +110,34 @@ window.resizableTable = (function () {
         // limpa larguras e deixa o navegador calcular pelo conteúdo
         table.style.tableLayout = 'auto';
         ths.forEach(th => {
-            th.style.width = '';
-            th.style.minWidth = '0px';
+            if (isActionsTh(th)) {
+                th.style.width = '190px';
+                th.style.minWidth = '190px';
+            } else {
+                th.style.width = '';
+                th.style.minWidth = '0px';
+            }
         });
 
         // força reflow para obter larguras calculadas
         void table.offsetWidth;
 
         // captura larguras e fixa
-        const widths = ths.map(th => th.offsetWidth + 'px');
+        const widths = ths.map(th => {
+            if (isActionsTh(th)) {
+                return Math.max(190, th.offsetWidth) + 'px';
+            }
+            return th.offsetWidth + 'px';
+        });
         table.style.tableLayout = 'fixed';
         ths.forEach((th, i) => {
-            th.style.width = widths[i];
-            th.style.minWidth = '0px';
+            if (isActionsTh(th)) {
+                th.style.width = widths[i];
+                th.style.minWidth = '190px';
+            } else {
+                th.style.width = widths[i];
+                th.style.minWidth = '0px';
+            }
         });
 
         // salva

@@ -319,16 +319,21 @@
                     <Template Context="context">@context.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="AcompanhamentoDto" Title="Ações" Resizable="false" Sortable="false" Visible="@(!_hiddenColumns.Contains("Ações"))">
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Title="Ações" Width="200px" MinWidth="190px" Resizable="false" Sortable="false" Filterable="false" TextAlign="Radzen.TextAlign.Center" Visible="@(!_hiddenColumns.Contains("Ações"))" CssClass="atlas-actions-column">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Ações</MudText>
+                    </HeaderTemplate>
                     <Template Context="context">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(()=>OpenDetailAsync(context))" aria-label="@($"Editar andamento de {context.Codigo}")" />
-                        <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
-                        @if (IsWebUrl(context.FolderUrl))
-                        {
-                            <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Href="@context.FolderUrl" Target="_blank" Color="Color.Secondary" aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
-                        }
-                        <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" aria-label="@($"Relatório de {context.Codigo}")" />
-                        <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" aria-label="@($"Excluir serviço {context.Codigo}")" />
+                        <div class="atlas-actions-cell">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Class="pa-1" OnClick="@(()=>OpenDetailAsync(context))" title="Editar andamento" aria-label="@($"Editar andamento de {context.Codigo}")" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" Class="pa-1" OnClick="@(async () => await _servicoForm.Open(context.Codigo))" Color="Color.Primary" title="Editar cadastro completo" aria-label="@($"Editar cadastro completo de {context.Codigo}")" />
+                            @if (IsWebUrl(context.FolderUrl))
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" Class="pa-1" Href="@context.FolderUrl" Target="_blank" Color="Color.Secondary" title="Abrir pasta no Drive" aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small" Class="pa-1" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" title="Relatório PDF" aria-label="@($"Relatório de {context.Codigo}")" />
+                            <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" Class="pa-1" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" title="Excluir serviço" aria-label="@($"Excluir serviço {context.Codigo}")" />
+                        </div>
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -356,6 +361,9 @@
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@_selected.Cliente</MudText>
                 </MudStack>
                 <MudSpacer />
+                <MudTooltip Text="Excluir serviço">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(()=>DeleteAsync(_selected))" aria-label="Excluir serviço" />
+                </MudTooltip>
                 <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" />
             </MudToolBar>
             <MudButton OnClick="@(async () => await _servicoForm.Open(_selected.Codigo))"
@@ -600,6 +608,25 @@
     .excel-grid .rz-grid-table td { border: 1px solid #e5e7eb; font-size: .8rem; padding: 3px 6px; vertical-align: middle; }
     .excel-grid .rz-grid-table tr:nth-child(even) td { background: #f3f4f6; }
     .excel-grid .rz-grid-table tr:hover td { background: #e0e7ff; }
+    .excel-grid .atlas-actions-column,
+    .excel-grid .atlas-actions-column .rz-cell-data {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+    }
+    .excel-grid td:has(.atlas-actions-cell) .rz-cell-data,
+    .excel-grid td:has(.atlas-actions-cell) {
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+    .atlas-actions-cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        white-space: nowrap;
+        min-width: 160px;
+    }
 </style>
 
 @code {
