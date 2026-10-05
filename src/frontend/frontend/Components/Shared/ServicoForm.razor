@@ -442,7 +442,7 @@
                 _model = ServiceModel.From(item);
                 StateHasChanged();
             }
-            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); _editorOpen = false; }
+            catch (Exception ex) { Snackbar.Add(ex.GetBaseException().Message, Severity.Error); _editorOpen = false; }
         }
         else if (!string.IsNullOrWhiteSpace(code))
         {
@@ -459,7 +459,7 @@
                 _model = ServiceModel.From(service);
                 StateHasChanged();
             }
-            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); _editorOpen = false; }
+            catch (Exception ex) { Snackbar.Add(ex.GetBaseException().Message, Severity.Error); _editorOpen = false; }
         }
         else
         {
@@ -487,7 +487,7 @@
             _formasPagamento = (await FormaPagamentoService.ListAsync(new FormaPagamentoFilter(null, 1, 0))).Items;
             _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(_model.TipoServico);
         }
-        catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
+        catch (Exception ex) { Snackbar.Add($"Erro ao carregar dados do formulário: {ex.GetBaseException().Message}", Severity.Error); }
     }
 
     private bool Visivel(ServicoCampo campo) => Config(campo)?.Visivel ?? true;
@@ -733,7 +733,7 @@
             Snackbar.Add("Serviço salvo com sucesso.", Severity.Success);
             if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { Snackbar.Add(ServiceSaveError(ex, _model.Codigo), Severity.Error); }
         finally { _saving = false; }
     }
 
@@ -776,11 +776,27 @@
     private static string Money(decimal value) => value.ToString("C2", PtBr);
     private static string ServiceSaveError(Exception exception, string? code)
     {
-        var detail = exception.GetBaseException().Message;
+        var baseEx = exception.GetBaseException();
+        var detail = baseEx.Message;
+
         if (detail.Contains("IX_cadastro_servicos_codigo", StringComparison.OrdinalIgnoreCase)
-            || detail.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
+            || detail.Contains("uk_acompanhamento_servico_codigo", StringComparison.OrdinalIgnoreCase)
+            || (detail.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) && detail.Contains("codigo", StringComparison.OrdinalIgnoreCase)))
+        {
             return $"Já existe um serviço com o código {code?.Trim()}. Informe outro código ou edite o cadastro existente.";
-        return exception.Message;
+        }
+
+        if (detail.Contains("23505", StringComparison.OrdinalIgnoreCase) || detail.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Conflito de registro duplicado ao salvar: {detail}";
+        }
+
+        if (detail.Contains("23503", StringComparison.OrdinalIgnoreCase) || detail.Contains("violates foreign key constraint", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Erro de referência: um dos registros vinculados (cliente, orçamento ou condição) não foi encontrado ou é inválido.";
+        }
+
+        return !string.IsNullOrWhiteSpace(detail) ? detail : exception.Message;
     }
     private static int WeeksSince(DateOnly start) => Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.DayNumber) / 7);
     private static bool ClosedBudget(string status) =>

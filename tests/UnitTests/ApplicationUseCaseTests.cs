@@ -576,6 +576,73 @@ public sealed class ApplicationUseCaseTests
         Assert.Contains(historico.Entries, x => x.Campo == "Pasta no Drive" && x.Entidade == RegistroEntidade.Acompanhamento);
     }
 
+    [Fact]
+    public async Task CadastroServicoService_CreateAsync_CriaESincronizaAcompanhamento()
+    {
+        var repository = new MemoryCadastroServicoRepository();
+        var clientes = new MemoryRepository<Cliente>([
+            new Cliente { Id = 802, RazaoSocial = "Cliente Teste CLCB" }
+        ]);
+        var orcamentos = new MemoryRepository<Orcamento>([
+            new Orcamento { Id = 168, Codigo = "ORC-0168" }
+        ]);
+        var historico = new MemoryRegistroHistoricoService();
+        var acompanhamentos = new MemoryRepository<AcompanhamentoServico>();
+        var service = new CadastroServicoService(
+            repository,
+            clientes,
+            orcamentos,
+            new MemoryRepository<CondicaoPagamento>(),
+            new MemoryRepository<Prestador>(),
+            new MemoryRepository<OrcamentoHistorico>(),
+            new MemoryRepository<Lancamento>(),
+            new MemoryRepository<ServicoSubtipoConfig>(),
+            new StubUserAccessor("Vinicius"),
+            historico,
+            new MemoryCrmCache(),
+            acompanhamentos);
+
+        var dto = new CadastroServicoDto(
+            Id: null, Codigo: "S-CLCB-9999", ClienteId: 802, OrcamentoId: 168, OrcamentoCodigo: "ORC-0168",
+            CondicaoPagamentoId: null, TipoServico: AcompanhamentoServicoTipo.CLCB, Subtipo: "Projeto",
+            DataEntrada: new DateOnly(2026, 3, 1), SituacaoInicial: "Em Elaboração", DocumentoEmpresa: "11.222.333/0001-81",
+            RazaoSocialEmpresa: "Cliente Teste CLCB", ContatoEmpresa: "Contato", Telefone: "11999999999", Email: "test@clarituz.com",
+            EnderecoEmpresa: "Rua A", EnderecoEmpresaRua: "Rua A", EnderecoEmpresaNumero: "100",
+            EnderecoEmpresaBairro: "Bairro", EnderecoEmpresaComplemento: null, EnderecoEmpresaCidade: "São Paulo",
+            EnderecoEmpresaEstado: "SP", EnderecoEmpresaCep: "01001-000", EnderecoServico: "Rua B",
+            EnderecoServicoRua: "Rua B", EnderecoServicoNumero: "200", EnderecoServicoBairro: "Bairro B",
+            EnderecoServicoComplemento: null, EnderecoServicoCidade: "São Paulo", EnderecoServicoEstado: "SP",
+            EnderecoServicoCep: "01002-000", MesmoEnderecoEmpresa: false,
+            ValorContrato: 2500, DataContrato: new DateOnly(2026, 3, 1), NomeCondicaoPagamento: null,
+            ValorNotaFiscal: null, ValorNotaFiscalDividido: false, ValorNotaFiscalParcela: null,
+            Observacao: "Serviço de teste",
+            Parcelas: [new CadastroServicoParcelaDto(null, 1, 2500, new DateOnly(2026, 4, 1), "Boleto")],
+            Prestadores: [], CreatedAt: null,
+            FolderUrl: "https://drive.google.com/test");
+
+        var created = await service.CreateAsync(dto);
+
+        Assert.NotNull(created);
+        Assert.Equal("S-CLCB-9999", created.Codigo);
+        Assert.Equal(802, created.ClienteId);
+        Assert.Equal(168, created.OrcamentoId);
+
+        // Verifica que o cadastro de serviço foi persistido
+        var savedService = Assert.Single(repository.Items);
+        Assert.Equal("S-CLCB-9999", savedService.Codigo);
+        Assert.Equal(802, savedService.ClienteId);
+
+        // Verifica que o AcompanhamentoServico correspondente foi criado automaticamente (SISTEMA-14)
+        var savedAcomp = Assert.Single(acompanhamentos.AsQueryable());
+        Assert.Equal("S-CLCB-9999", savedAcomp.Codigo);
+        Assert.Equal(AcompanhamentoServicoTipo.CLCB, savedAcomp.TipoServico);
+        Assert.Equal("Em Elaboração", savedAcomp.Situacao);
+        Assert.Equal(2500, savedAcomp.ValorContrato);
+        Assert.Equal("Cliente Teste CLCB", savedAcomp.NomeCliente);
+        Assert.Equal("https://drive.google.com/test", savedAcomp.FolderUrl);
+    }
+
+
     private sealed class StubCadastroServicoService(IReadOnlyList<CadastroServicoDto> items) : ICadastroServicoService
     {
         public Task<PagedResult<CadastroServicoDto>> ListAsync(CadastroServicoFilter filter, CancellationToken cancellationToken = default) =>

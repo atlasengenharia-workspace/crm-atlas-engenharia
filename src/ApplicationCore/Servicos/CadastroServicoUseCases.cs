@@ -283,7 +283,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarEventoAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, "Criado", cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        await SyncAcompanhamentoFolderUrlAsync(entity, cancellationToken);
+        await SyncAcompanhamentoAsync(entity, cancellationToken);
         return ToDto(entity, new Dictionary<(long, long), decimal>());
     }
 
@@ -305,7 +305,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, antes.Diff(entity), cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        await SyncAcompanhamentoFolderUrlAsync(entity, cancellationToken);
+        await SyncAcompanhamentoAsync(entity, cancellationToken);
         var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
         return ToDto(entity, actualPayments);
     }
@@ -326,10 +326,16 @@ public sealed class CadastroServicoService(
         CadastroServicoDto dto,
         CancellationToken cancellationToken)
     {
-        entity.Cliente = await ResolveNavigationAsync(entity.Cliente, clientes, dto.ClienteId, "Cliente", cancellationToken);
+        if (dto.ClienteId is not null)
+            await ResolveAsync(clientes, dto.ClienteId, "Cliente", cancellationToken);
+        entity.Cliente = null;
         entity.ClienteId = dto.ClienteId;
-        entity.Orcamento = await ResolveNavigationAsync(entity.Orcamento, orcamentos, dto.OrcamentoId, "Orçamento", cancellationToken);
+
+        if (dto.OrcamentoId is not null)
+            await ResolveAsync(orcamentos, dto.OrcamentoId, "Orçamento", cancellationToken);
+        entity.Orcamento = null;
         entity.OrcamentoId = dto.OrcamentoId;
+
         var novoCodigo = Clean(dto.Codigo);
         if (!string.IsNullOrWhiteSpace(novoCodigo) && !string.Equals(entity.Codigo, novoCodigo, StringComparison.OrdinalIgnoreCase))
         {
@@ -343,8 +349,10 @@ public sealed class CadastroServicoService(
             });
             entity.Codigo = novoCodigo;
         }
-        entity.CondicaoPagamento = await ResolveNavigationAsync(
-            entity.CondicaoPagamento, condicoes, dto.CondicaoPagamentoId, "Condição de pagamento", cancellationToken);
+
+        if (dto.CondicaoPagamentoId is not null)
+            await ResolveAsync(condicoes, dto.CondicaoPagamentoId, "Condição de pagamento", cancellationToken);
+        entity.CondicaoPagamento = null;
         entity.CondicaoPagamentoId = dto.CondicaoPagamentoId;
         entity.TipoServico = dto.TipoServico;
         entity.Subtipo = Required(dto.Subtipo, "O subtipo é obrigatório.");
@@ -400,11 +408,13 @@ public sealed class CadastroServicoService(
 
         entity.Prestadores.Clear();
         foreach (var item in dto.Prestadores)
+        {
+            if (item.PrestadorId is not null)
+                await ResolveAsync(prestadores, item.PrestadorId, "Prestador", cancellationToken);
+
             entity.Prestadores.Add(new CadastroServicoPrestador
             {
                 CadastroServico = entity,
-                Prestador = await ResolveAsync(
-                    prestadores, item.PrestadorId, "Prestador", cancellationToken),
                 PrestadorId = item.PrestadorId,
                 NomePrestador = Clean(item.NomePrestador),
                 ValorProvisionado = item.ValorProvisionado,
@@ -413,9 +423,7 @@ public sealed class CadastroServicoService(
                 DataPagamento = item.DataPagamento,
                 DataPagamentoTipo = item.DataPagamentoTipo
             });
-
-        if (entity.Orcamento is not null)
-            entity.Orcamento.Situacao = "Aprovado";
+        }
 
         await RecalcularValoresEfetivosAsync(entity, cancellationToken);
     }
@@ -466,40 +474,90 @@ public sealed class CadastroServicoService(
             ?? throw new NotFoundException($"{resource} não encontrado com id: {id}.");
     }
 
-    private static async Task<T?> ResolveNavigationAsync<T>(
-        T? current,
-        IRepository<T> source,
-        long? id,
-        string resource,
-        CancellationToken cancellationToken) where T : Entity
-    {
-        if (id is null) return null;
-        if (current?.Id == id.Value) return current;
-        return await ResolveAsync(source, id, resource, cancellationToken);
-    }
-
-    private async Task SyncAcompanhamentoFolderUrlAsync(CadastroServico entity, CancellationToken cancellationToken)
+    private async Task SyncAcompanhamentoAsync(CadastroServico entity, CancellationToken cancellationToken)
     {
         var tracking = await acompanhamentos.FindAsync(x => x.Codigo == entity.Codigo, cancellationToken);
-        if (tracking is null || tracking.FolderUrl == entity.FolderUrl) return;
-        var antes = tracking.FolderUrl;
         var now = DateTime.UtcNow;
-        tracking.FolderUrl = entity.FolderUrl;
-        tracking.UpdatedAt = now;
-        tracking.Historicos.Add(new()
+        var userName = await userAccessor.GetUserNameAsync(cancellationToken);
+        if (tracking is null)
         {
-            SituacaoAnterior = tracking.Situacao,
-            NovaSituacao = tracking.Situacao,
-            Descricao = entity.FolderUrl is null ? $"Pasta no Drive removida (era {antes})"
-                : antes is null ? $"Pasta no Drive vinculada: {entity.FolderUrl}"
-                : $"Pasta no Drive alterada para {entity.FolderUrl}",
-            ResponsavelNome = await userAccessor.GetUserNameAsync(cancellationToken),
-            CreatedAt = now
-        });
-        acompanhamentos.Update(tracking);
-        await acompanhamentos.SaveChangesAsync(cancellationToken);
-        await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, tracking.Id, tracking.Codigo,
-            [("Pasta no Drive", antes, tracking.FolderUrl)], cancellationToken);
+            var maxOrigem = (await acompanhamentos.ToListAsync(
+                acompanhamentos.AsQueryable()
+                    .Where(x => x.TipoServico == entity.TipoServico)
+                    .OrderByDescending(x => x.OrigemId)
+                    .Take(1), cancellationToken))
+                .Select(x => (long?)x.OrigemId)
+                .FirstOrDefault() ?? 0;
+            tracking = new AcompanhamentoServico
+            {
+                OrigemId = Math.Max(maxOrigem + 1, entity.Id),
+                Codigo = entity.Codigo,
+                TipoServico = entity.TipoServico,
+                NomeCliente = entity.RazaoSocialEmpresa,
+                CnpjCpf = entity.DocumentoEmpresa,
+                Endereco = entity.EnderecoServico,
+                Telefone = entity.Telefone,
+                Subtipo = entity.Subtipo,
+                Situacao = entity.SituacaoInicial ?? "PENDENTE",
+                Descricao = entity.Observacao,
+                ValorContrato = entity.ValorContrato,
+                DataContrato = entity.DataContrato,
+                CondicaoPagamento = entity.NomeCondicaoPagamento,
+                FolderUrl = entity.FolderUrl,
+                UltimaMudancaSituacaoEm = now,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            tracking.Historicos.Add(new()
+            {
+                NovaSituacao = tracking.Situacao,
+                Descricao = "Serviço cadastrado",
+                ResponsavelNome = userName ?? "Sistema",
+                CreatedAt = now
+            });
+            await acompanhamentos.AddAsync(tracking, cancellationToken);
+            await acompanhamentos.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        var folderAntes = tracking.FolderUrl;
+        var changed = false;
+        if (tracking.FolderUrl != entity.FolderUrl)
+        {
+            tracking.FolderUrl = entity.FolderUrl;
+            tracking.Historicos.Add(new()
+            {
+                SituacaoAnterior = tracking.Situacao,
+                NovaSituacao = tracking.Situacao,
+                Descricao = entity.FolderUrl is null ? $"Pasta no Drive removida (era {folderAntes})"
+                    : folderAntes is null ? $"Pasta no Drive vinculada: {entity.FolderUrl}"
+                    : $"Pasta no Drive alterada para {entity.FolderUrl}",
+                ResponsavelNome = userName,
+                CreatedAt = now
+            });
+            changed = true;
+        }
+
+        if (tracking.NomeCliente != entity.RazaoSocialEmpresa) { tracking.NomeCliente = entity.RazaoSocialEmpresa; changed = true; }
+        if (tracking.CnpjCpf != entity.DocumentoEmpresa) { tracking.CnpjCpf = entity.DocumentoEmpresa; changed = true; }
+        if (tracking.Endereco != entity.EnderecoServico) { tracking.Endereco = entity.EnderecoServico; changed = true; }
+        if (tracking.Telefone != entity.Telefone) { tracking.Telefone = entity.Telefone; changed = true; }
+        if (tracking.Subtipo != entity.Subtipo) { tracking.Subtipo = entity.Subtipo; changed = true; }
+        if (tracking.ValorContrato != entity.ValorContrato) { tracking.ValorContrato = entity.ValorContrato; changed = true; }
+        if (tracking.DataContrato != entity.DataContrato) { tracking.DataContrato = entity.DataContrato; changed = true; }
+        if (tracking.CondicaoPagamento != entity.NomeCondicaoPagamento) { tracking.CondicaoPagamento = entity.NomeCondicaoPagamento; changed = true; }
+
+        if (changed)
+        {
+            tracking.UpdatedAt = now;
+            acompanhamentos.Update(tracking);
+            await acompanhamentos.SaveChangesAsync(cancellationToken);
+            if (folderAntes != entity.FolderUrl)
+            {
+                await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, tracking.Id, tracking.Codigo,
+                    [("Pasta no Drive", folderAntes, tracking.FolderUrl)], cancellationToken);
+            }
+        }
     }
 
     private async Task LinkOrcamentoAsync(CadastroServico entity, CancellationToken cancellationToken)
@@ -510,12 +568,13 @@ public sealed class CadastroServicoService(
         orcamento.ServicoConvertidoId = entity.Id;
         orcamento.ServicoConvertidoCodigo = entity.Codigo;
         orcamento.ConvertidoEm = DateTime.UtcNow;
+        orcamento.Situacao = "Aprovado";
         orcamentos.Update(orcamento);
         await orcamentos.SaveChangesAsync(cancellationToken);
 
         await historico.AddAsync(new OrcamentoHistorico
         {
-            Orcamento = orcamento,
+            OrcamentoId = orcamento.Id,
             Tipo = "Conversao",
             ValorNovo = entity.Codigo,
             Responsavel = await userAccessor.GetUserNameAsync(cancellationToken),
