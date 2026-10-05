@@ -1,4 +1,5 @@
 using CrmAtlas.ApplicationCore.Clientes;
+using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.Infrastructure;
 using CrmAtlas.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -55,5 +56,23 @@ public sealed class DependencyInjectionTests
         Assert.NotNull(entity);
         Assert.Equal("clientes", entity.GetTableName());
         Assert.Equal("cnpj_cpf", entity.FindProperty(nameof(Cliente.CnpjCpf))?.GetColumnName());
+    }
+
+    [Fact]
+    public void DbContext_CadastroServico_ClienteForeignKey_HasSetNullDeleteBehavior()
+    {
+        var options = new DbContextOptionsBuilder<AtlasDbContext>()
+            .UseNpgsql("Host=localhost;Database=atlas_model;Username=atlas;Password=not-used")
+            .Options;
+
+        using var context = new AtlasDbContext(options);
+        var entity = context.Model.FindEntityType(typeof(CadastroServico));
+
+        Assert.NotNull(entity);
+        var foreignKey = entity.GetForeignKeys()
+            .FirstOrDefault(fk => fk.PrincipalEntityType.ClrType == typeof(Cliente));
+
+        Assert.NotNull(foreignKey);
+        Assert.Equal(DeleteBehavior.SetNull, foreignKey.DeleteBehavior);
     }
 }

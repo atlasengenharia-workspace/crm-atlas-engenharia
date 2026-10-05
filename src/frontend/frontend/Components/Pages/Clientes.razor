@@ -302,7 +302,7 @@
                 1, PageSize: 0, _sortKey, _sortDescending));
             _statistics = await ClienteService.GetStatisticsAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex) { Snackbar.Add(ex.GetBaseException().Message, Severity.Error); }
         finally { _loading = false; _initialLoading = false; }
     }
 
@@ -352,7 +352,19 @@
             _editorOpen = false;
             await LoadAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex)
+        {
+            var baseMsg = ex.GetBaseException().Message;
+            if (baseMsg.Contains("ix_clientes_cnpj_cpf", StringComparison.OrdinalIgnoreCase) ||
+                baseMsg.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("Já existe um cliente cadastrado com este CPF/CNPJ.", Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add($"Não foi possível salvar o cliente: {baseMsg}", Severity.Error);
+            }
+        }
         finally { _saving = false; }
     }
 
@@ -369,7 +381,11 @@
             Snackbar.Add("Cliente excluído.", Severity.Success);
             await LoadAsync();
         }
-        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        catch (Exception ex)
+        {
+            var baseMsg = ex.GetBaseException().Message;
+            Snackbar.Add($"Não foi possível excluir o cliente: {baseMsg}", Severity.Error);
+        }
     }
 
     private static string Location(ClienteDto item) =>
