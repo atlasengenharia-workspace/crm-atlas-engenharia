@@ -1440,10 +1440,7 @@
         "Comunicado"
     };
 
-    private static bool IsConcluded(string? status) =>
-        !string.IsNullOrEmpty(status) &&
-        (status!.StartsWith("Concluído", StringComparison.OrdinalIgnoreCase) ||
-         status!.StartsWith("Concluido", StringComparison.OrdinalIgnoreCase));
+    private static bool IsConcluded(string? status) => SituacaoFinalizada.Is(status);
 
     private static bool IsThirdPartyWait(string status) =>
         !string.IsNullOrEmpty(status) && (ThirdPartyWaitStatuses.Contains(status) || status.ToLower().Contains("terceiro"));
