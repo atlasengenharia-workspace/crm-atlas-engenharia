@@ -11,6 +11,8 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JS
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Lançamentos | CRM Atlas</PageTitle>
 
@@ -197,7 +199,7 @@ else
         <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo lançamento" : "Editar lançamento")</MudText>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseEditor" />
         </MudToolBar>
         <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid">
@@ -207,6 +209,15 @@ else
                                Required="true" Variant="Variant.Outlined">
                         <MudSelectItem Value="LancamentoTipo.ENTRADA">Entrada</MudSelectItem>
                         <MudSelectItem Value="LancamentoTipo.SAIDA">Saída</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="LancamentoStatus" @bind-Value="_model.Status" Label="Situação"
+                               Required="true" Variant="Variant.Outlined">
+                        @foreach (var status in Enum.GetValues<LancamentoStatus>())
+                        {
+                            <MudSelectItem Value="@status">@StatusLabel(status)</MudSelectItem>
+                        }
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
@@ -278,7 +289,7 @@ else
             </MudGrid>
         </MudForm>
         <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-6">
-            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton OnClick="CloseEditor">Cancelar</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled"
                        Disabled="_saving" OnClick="SaveAsync">
                 @if (_saving)
@@ -319,7 +330,8 @@ else
     private bool _loading;
     private bool _columnsRestored;
     private bool _saving;
-    private bool _editorOpen;
+    private bool _editorOpenField;
+    private bool _editorOpen { get => _editorOpenField; set { _editorOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private string? _search;
     private LancamentoTipo? _tipo;
@@ -380,7 +392,17 @@ else
         {
             _initialLoading = false;
         }
+        RestoreDraft();
     }
+
+    private const string DraftKey = "lancamentos:form";
+    private void RestoreDraft()
+    {
+        var draft = DraftStore.Get<EntryModel>(DraftKey);
+        if (draft is not null) { _model = draft; _editorOpen = true; DraftStore.Resume(DraftKey); }
+    }
+    private void CloseEditor() { _editorOpen = false; }
+    public void Dispose() { if (_editorOpen) DraftStore.Suspend(DraftKey); }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -439,7 +461,7 @@ else
         _endDate.HasValue ? DateOnly.FromDateTime(_endDate.Value) : null,
         _search, _search, page, pageSize, _sortKey, _sortDescending);
 
-    private void New() { _model = new(); _receipt = null; _editorOpen = true; }
+    private void New() { _model = new(); _receipt = null; DraftStore.BeginEdit(DraftKey, _model); _editorOpen = true; }
     private void Edit(LancamentoDto x)
     {
         _model = new()
@@ -455,6 +477,7 @@ else
             Observacao = x.Observacao
         };
         _receipt = null;
+        DraftStore.BeginEdit(DraftKey, _model);
         _editorOpen = true;
     }
 
@@ -494,7 +517,12 @@ else
         if (item is null) return;
         _model.Valor = item.Valor ?? _model.Valor;
         _model.DataPrevistaParcela = item.DataVencimento?.ToDateTime(TimeOnly.MinValue);
-        _model.FormaPagamento = item.FormaPagamento;
+        // Não sobrescrever a forma escolhida pelo usuário — e nunca copiar "3x"/"4x"
+        // (condição de parcelamento) para o campo de forma de pagamento.
+        if (string.IsNullOrWhiteSpace(_model.FormaPagamento)
+            && !string.IsNullOrWhiteSpace(item.FormaPagamento)
+            && !System.Text.RegularExpressions.Regex.IsMatch(item.FormaPagamento, @"^\d+\s*x", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            _model.FormaPagamento = item.FormaPagamento;
     }
     private void ProviderChanged(long? id)
     {
@@ -509,6 +537,7 @@ else
     {
         await (_form?.ValidateAsync() ?? Task.CompletedTask);
         if (!_valid || _model.Data is null) return;
+        if (!await ConfirmWarningsAsync()) return;
         _saving = true;
         try
         {
@@ -528,6 +557,31 @@ else
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _saving = false; }
+    }
+
+    private async Task<bool> ConfirmWarningsAsync()
+    {
+        var data = DateOnly.FromDateTime(_model.Data!.Value);
+        var duplicado = _result.Items.FirstOrDefault(x =>
+            x.Id != _model.Id && x.Tipo == _model.Tipo && x.Data == data && x.Valor == _model.Valor);
+        var parcela = _model.NumeroParcela is null
+            ? null
+            : SelectedService?.Parcelas.FirstOrDefault(x => x.NumeroParcela == _model.NumeroParcela);
+        var warnings = new List<string>();
+        if (duplicado is not null)
+            warnings.Add($"Já existe um lançamento de {Money(duplicado.Valor)} em {duplicado.Data:dd/MM/yyyy} (“{duplicado.Descricao}”).");
+        if (parcela?.Valor is not null && _model.Valor > parcela.Valor)
+            warnings.Add($"O valor informado ({Money(_model.Valor)}) é maior que o da parcela {_model.NumeroParcela} ({Money(parcela.Valor.Value)}).");
+        else if (_model.Tipo == LancamentoTipo.ENTRADA && SelectedService?.ValorContrato is not null
+            && _model.Valor > SelectedService.ValorContrato)
+            warnings.Add($"O valor informado ({Money(_model.Valor)}) é maior que o valor do contrato ({Money(SelectedService.ValorContrato.Value)}).");
+        if (warnings.Count == 0) return true;
+        var confirm = await DialogService.ShowMessageBoxAsync(
+            "Verifique antes de salvar",
+            (MarkupString)string.Join("<br/>", warnings.Select(System.Net.WebUtility.HtmlEncode)) + "<br/>Deseja salvar mesmo assim?",
+            yesText: "Salvar mesmo assim",
+            cancelText: "Voltar");
+        return confirm == true;
     }
 
     private async Task DeleteAsync(LancamentoDto x)
@@ -552,7 +606,7 @@ else
     {
         public long? Id { get; set; }
         public LancamentoTipo Tipo { get; set; } = LancamentoTipo.ENTRADA;
-        public LancamentoStatus Status { get; set; } = LancamentoStatus.PREVISTO;
+        public LancamentoStatus Status { get; set; } = LancamentoStatus.PAGO;
         public LancamentoOrigem Origem { get; set; } = LancamentoOrigem.MANUAL;
         public long? CadastroServicoId { get; set; }
         public long? PrestadorId { get; set; }

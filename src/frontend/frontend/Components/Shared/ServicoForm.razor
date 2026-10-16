@@ -9,6 +9,8 @@
 @inject IPrestadorService PrestadorService
 @inject IAcompanhamentoService AcompanhamentoService
 @inject ISnackbar Snackbar
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <MudDrawer @bind-Open="_editorOpen" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary"
            Width="min(820px, 100vw)" Elevation="8">
@@ -19,7 +21,7 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Preencha contrato e plano financeiro.</MudText>
             </MudStack>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="Close" />
         </MudToolBar>
         <MudDivider Class="mb-4" />
 
@@ -33,7 +35,7 @@
                                 <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
                                               Required="@Obrigatorio(ServicoCampo.Codigo)" RequiredError="Informe o código usado pela empresa."
                                               Variant="Variant.Outlined" OnBlur="OnCodigoBlurAsync"
-                                              HelperText="Ex.: 2.15, 3.209 ou 3141" />
+                                              HelperText="Deixe em branco para gerar no formato da empresa (ex.: 2.15, 3.209, 3141)." />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.Cliente))
@@ -173,14 +175,11 @@
                         @if (Visivel(ServicoCampo.Subtipo))
                         {
                             <MudItem xs="12" sm="6">
-                                <MudSelect T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
-                                           Required="@Obrigatorio(ServicoCampo.Subtipo)" RequiredError="Informe o subtipo."
-                                           Variant="Variant.Outlined">
-                                    @foreach (var subtype in CurrentSubtypes)
-                                    {
-                                        <MudSelectItem Value="@subtype">@subtype</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                <MudAutocomplete T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
+                                                 Required="@Obrigatorio(ServicoCampo.Subtipo)" RequiredError="Informe o subtipo."
+                                                 Variant="Variant.Outlined" SearchFunc="SearchSubtypesAsync"
+                                                 CoerceText="true" CoerceValue="true" Clearable="true"
+                                                 HelperText="Selecione um subtipo ou digite um novo." />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.DataEntrada))
@@ -389,7 +388,7 @@
         </MudForm>
         <MudDivider Class="my-5" />
         <MudStack Row="true" Justify="Justify.FlexEnd">
-            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton OnClick="Close">Cancelar</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving"
                        StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">Salvar serviço</MudButton>
         </MudStack>
@@ -412,10 +411,25 @@
     private MudForm? _form;
     private bool _valid;
     private bool _saving;
-    private bool _editorOpen;
+    private bool _editorOpenField;
+    private bool _editorOpen { get => _editorOpenField; set { _editorOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private string _documentoLabel = "CPF ou CNPJ";
     private string _documentoHelper = "Digite CPF (11 dígitos) ou CNPJ (14 dígitos).";
     private static readonly System.Globalization.CultureInfo PtBr = new("pt-BR");
+    private const string DraftKey = "servicoform:cadastro";
+    private IReadOnlyList<(AcompanhamentoServicoTipo Tipo, string Situacao)> _situacoesEmUso = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var draft = DraftStore.Get<ServiceModel>(DraftKey);
+        if (draft is not null)
+        {
+            _model = draft;
+            _editorOpen = true;
+            DraftStore.Resume(DraftKey);
+            await LoadReferencesAsync();
+        }
+    }
 
     public async Task Open(string? code = null, long? id = null)
     {
@@ -468,9 +482,12 @@
                 await TypeChanged(firstActive.TipoServico);
             StateHasChanged();
         }
+        DraftStore.BeginEdit(DraftKey, _model);
     }
 
-    public void Close() => _editorOpen = false;
+    public void Close() { _editorOpen = false; }
+
+    public void Dispose() { if (_editorOpen) DraftStore.Suspend(DraftKey); }
 
     private async Task LoadReferencesAsync()
     {
@@ -483,6 +500,8 @@
             _budgets = (await OrcamentoService.ListAsync(new(PageSize: 5000))).Items;
             _providers = (await PrestadorService.ListAsync(new(PageSize: 5000))).Items;
             _situations = await AcompanhamentoService.ListSituationsAsync();
+            _situacoesEmUso = (await AcompanhamentoService.ListAsync(new(PageSize: 0))).Items
+                .Select(x => (x.Tipo, x.Situacao)).ToList();
             _tipos = await TipoConfigService.ListAsync();
             _formasPagamento = (await FormaPagamentoService.ListAsync(new FormaPagamentoFilter(null, 1, 0))).Items;
             _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(_model.TipoServico);
@@ -524,18 +543,29 @@
             .OrderByDescending(x => x.Inicial)
             .ThenBy(x => x.Ordem)
             .Select(x => x.Nome)
-            .FirstOrDefault();
+            .FirstOrDefault()
+            ?? AcompanhamentoSituacaoDefaults.For(value).FirstOrDefault();
         try { _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(value); }
         catch { _campoConfigs = []; }
     }
 
+    private Task<IEnumerable<string>> SearchSubtypesAsync(string value, CancellationToken cancellationToken) =>
+        Task.FromResult(CurrentSubtypes
+            .Where(x => string.IsNullOrWhiteSpace(value)
+                || x.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .AsEnumerable());
+
     private Task<IEnumerable<string>> SearchSituationsAsync(string value, CancellationToken cancellationToken) =>
         Task.FromResult(_situations
             .Where(x => x.Tipo == _model.TipoServico && x.Ativo)
+            .OrderBy(x => x.Ordem)
             .Select(x => x.Nome)
+            .Concat(_situacoesEmUso.Where(x => x.Tipo == _model.TipoServico).Select(x => x.Situacao))
+            .Concat(AcompanhamentoSituacaoDefaults.For(_model.TipoServico))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(x => string.IsNullOrWhiteSpace(value)
                 || x.Contains(value, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .AsEnumerable());
     private async Task OnCodigoBlurAsync()
     {
@@ -798,7 +828,7 @@
 
         return !string.IsNullOrWhiteSpace(detail) ? detail : exception.Message;
     }
-    private static int WeeksSince(DateOnly start) => Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.DayNumber) / 7);
+    private static int WeeksSince(DateOnly start) => SemanasCivil.Decorridas(start);
     private static bool ClosedBudget(string status) =>
         status.Contains("fech", StringComparison.OrdinalIgnoreCase)
         || status.Contains("recus", StringComparison.OrdinalIgnoreCase)
@@ -842,8 +872,13 @@
         try
         {
             var result = await JS.InvokeAsync<BrasilApiCnpjResult?>("buscarCnpj", _model.DocumentoEmpresa);
-            if (result is null) return;
-            if (result.razao_social is not null && string.IsNullOrWhiteSpace(_model.RazaoSocialEmpresa))
+            if (result is null)
+            {
+                Snackbar.Add("CNPJ não encontrado na base pública.", Severity.Warning);
+                return;
+            }
+            // razão social oficial sempre prevalece sobre texto digitado/preenchido por orçamento
+            if (result.razao_social is not null)
                 _model.RazaoSocialEmpresa = result.razao_social;
             if (result.ddd_telefone_1 is not null && string.IsNullOrWhiteSpace(_model.Telefone))
                 _model.Telefone = $"({result.ddd_telefone_1[..2]}) {result.ddd_telefone_1[2..]}".Trim();

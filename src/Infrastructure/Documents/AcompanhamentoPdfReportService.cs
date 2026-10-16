@@ -21,6 +21,7 @@ public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportServic
             ("Código do Serviço", item.Codigo),
             ("Tipo de Serviço", item.Tipo.ToString()),
             ("Cliente", item.Cliente ?? "Não informado"),
+            ("Contato", item.Contato ?? "-"),
             ("CPF / CNPJ", item.CnpjCpf ?? "-"),
             ("Telefone", item.Telefone ?? "-"),
             ("Endereço", item.Endereco ?? "-"),
@@ -76,7 +77,7 @@ public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportServic
         var list = items.ToList();
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Acompanhamentos");
-        var headers = new[] { "Código", "Tipo", "Cliente", "CPF/CNPJ", "Endereço", "Telefone", "Serviço", "R$ Contrato", "Data Contrato", "NF", "Condição Pagamento", "Próxima Parcela", "Situação", "Observações", "A Receber", "Recebido", "Custos", "Atualização" };
+        var headers = new[] { "Código", "Tipo", "Cliente", "Contato", "CPF/CNPJ", "Endereço", "Telefone", "Serviço", "R$ Contrato", "Data Contrato", "NF", "Condição Pagamento", "Próxima Parcela", "Situação", "Observações", "A Receber", "Recebido", "Custos", "Atualização" };
         for (int i = 0; i < headers.Length; i++)
         {
             var cell = ws.Cell(1, i + 1);
@@ -92,25 +93,26 @@ public sealed class AcompanhamentoPdfReportService : IAcompanhamentoReportServic
             ws.Cell(row, 1).Value = x.Codigo;
             ws.Cell(row, 2).Value = x.Tipo.ToString();
             ws.Cell(row, 3).Value = x.Cliente;
-            ws.Cell(row, 4).Value = x.CnpjCpf;
-            ws.Cell(row, 5).Value = x.Endereco;
-            ws.Cell(row, 6).Value = x.Telefone;
-            ws.Cell(row, 7).Value = x.Servico;
-            ws.Cell(row, 8).Value = x.ValorContrato;
-            ws.Cell(row, 8).Style.NumberFormat.Format = "R$ #,##0.00";
-            ws.Cell(row, 9).Value = x.DataContrato?.ToString("dd/MM/yyyy");
-            ws.Cell(row, 10).Value = x.NotaFiscal;
-            ws.Cell(row, 11).Value = x.CondicaoPagamento;
-            ws.Cell(row, 12).Value = x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto;
-            ws.Cell(row, 13).Value = x.Situacao;
-            ws.Cell(row, 14).Value = x.Descricao;
-            ws.Cell(row, 15).Value = x.AReceber;
-            ws.Cell(row, 15).Style.NumberFormat.Format = "R$ #,##0.00";
-            ws.Cell(row, 16).Value = x.Recebido;
+            ws.Cell(row, 4).Value = x.Contato;
+            ws.Cell(row, 5).Value = x.CnpjCpf;
+            ws.Cell(row, 6).Value = x.Endereco;
+            ws.Cell(row, 7).Value = x.Telefone;
+            ws.Cell(row, 8).Value = x.Servico;
+            ws.Cell(row, 9).Value = x.ValorContrato;
+            ws.Cell(row, 9).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 10).Value = x.DataContrato?.ToString("dd/MM/yyyy");
+            ws.Cell(row, 11).Value = x.NotaFiscal;
+            ws.Cell(row, 12).Value = x.CondicaoPagamento;
+            ws.Cell(row, 13).Value = x.ProximaParcela?.ToString("dd/MM/yyyy") ?? x.ProximaParcelaTexto;
+            ws.Cell(row, 14).Value = x.Situacao;
+            ws.Cell(row, 15).Value = x.Descricao;
+            ws.Cell(row, 16).Value = x.AReceber;
             ws.Cell(row, 16).Style.NumberFormat.Format = "R$ #,##0.00";
-            ws.Cell(row, 17).Value = x.Custos;
+            ws.Cell(row, 17).Value = x.Recebido;
             ws.Cell(row, 17).Style.NumberFormat.Format = "R$ #,##0.00";
-            ws.Cell(row, 18).Value = x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+            ws.Cell(row, 18).Value = x.Custos;
+            ws.Cell(row, 18).Style.NumberFormat.Format = "R$ #,##0.00";
+            ws.Cell(row, 19).Value = x.AtualizadoEm?.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
         }
         ws.Columns().AdjustToContents();
         using var ms = new MemoryStream();

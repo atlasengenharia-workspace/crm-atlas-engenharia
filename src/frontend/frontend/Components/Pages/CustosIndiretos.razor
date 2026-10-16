@@ -6,13 +6,15 @@
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Custos Indiretos | CRM Atlas</PageTitle>
 
 <PageHeader Title="Custos indiretos" Subtitle="Acompanhamento e controle de despesas administrativas, operacionais e fixas do escritório.">
     <Actions>
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile"
-                   OnClick="@(() => _importOpen = true)" Class="mr-2">Importar CSV</MudButton>
+                   OnClick="OpenImportDrawer" Class="mr-2">Importar CSV</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
                    StartIcon="@Icons.Material.Filled.Add" OnClick="New">Novo custo</MudButton>
     </Actions>
@@ -346,8 +348,12 @@
     private bool _loading = true;
     private bool _initialLoading = true;
     private bool _saving;
-    private bool _editorOpen;
-    private bool _importOpen;
+    private bool _editorOpenField;
+    private bool _importOpenField;
+    private const string DraftKey = "custos:editor";
+    private const string ImportDraftKey = "custos:import";
+    private bool _editorOpen { get => _editorOpenField; set { _editorOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
+    private bool _importOpen { get => _importOpenField; set { _importOpenField = value; if (!value) DraftStore.Clear(ImportDraftKey); } }
     private bool _importing;
     private string? _search;
     private string? _selectedCategory;
@@ -368,7 +374,19 @@
     protected override async Task OnInitializedAsync()
     {
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "custos-indiretos");
+        var draft = DraftStore.Get<CostModel>(DraftKey);
+        if (draft is not null) { _model = draft; _editorOpen = true; DraftStore.Resume(DraftKey); }
+        var importDraft = DraftStore.Get<List<ImportPreviewRow>>(ImportDraftKey);
+        if (importDraft is not null) { _preview.AddRange(importDraft); _importOpen = true; DraftStore.Resume(ImportDraftKey); }
         await LoadAsync();
+    }
+
+    private void OpenImportDrawer() { _importOpen = true; DraftStore.BeginEdit(ImportDraftKey, _preview); }
+
+    public void Dispose()
+    {
+        if (_editorOpen) DraftStore.Suspend(DraftKey);
+        if (_importOpen) DraftStore.Suspend(ImportDraftKey);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -484,7 +502,7 @@
         }
     }
 
-    private void New() { _model = new(); _editorOpen = true; }
+    private void New() { _model = new(); DraftStore.BeginEdit(DraftKey, _model); _editorOpen = true; }
 
     private void Edit(CustoIndiretoDto x)
     {
@@ -496,6 +514,7 @@
             Categoria = x.Categoria,
             Valor = x.Valor
         };
+        DraftStore.BeginEdit(DraftKey, _model);
         _editorOpen = true;
     }
 

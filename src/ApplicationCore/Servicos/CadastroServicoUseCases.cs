@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Text.RegularExpressions;
 using CrmAtlas.ApplicationCore.Acompanhamentos;
 using CrmAtlas.ApplicationCore.Clientes;
 using CrmAtlas.ApplicationCore.Common;
@@ -69,7 +70,10 @@ public sealed record CadastroServicoDto(
     IReadOnlyList<CadastroServicoParcelaDto> Parcelas,
     IReadOnlyList<CadastroServicoPrestadorDto> Prestadores,
     DateTime? CreatedAt,
-    string? FolderUrl = null);
+    string? FolderUrl = null)
+{
+    public int Semanas => SemanasCivil.Decorridas(DataEntrada == default ? null : DataEntrada);
+}
 
 public sealed record CadastroServicoFilter(
     string? Codigo,
@@ -154,12 +158,10 @@ public sealed class CadastroServicoService(
 
         if (filter.OcultarConcluidos)
         {
+            var fechadas = SituacaoFinalizada.Nomes;
             query = query.Where(x =>
                 x.SituacaoInicial == null
-                || !x.SituacaoInicial.Contains("Concluído")
-                && !x.SituacaoInicial.Contains("Concluido")
-                && !x.SituacaoInicial.Contains("Finalizado")
-                && !x.SituacaoInicial.Contains("Encerrado"));
+                || !fechadas.Contains(x.SituacaoInicial.Trim().ToLower()));
         }
 
         query = ApplySort(query, filter.SortKey, filter.SortDescending);
@@ -267,12 +269,8 @@ public sealed class CadastroServicoService(
     {
         Validate(dto);
         var existing = await repository.ListAsync(cancellationToken);
-        var code = Clean(dto.Codigo);
-        if (code is null)
-        {
-            var count = existing.Count(x => x.TipoServico == dto.TipoServico);
-            code = $"S-{dto.TipoServico}-{count + 1:0000}";
-        }
+        var code = Clean(dto.Codigo)
+            ?? await GerarCodigoAsync(dto.TipoServico, existing, cancellationToken);
         if (existing.Any(x => x.Codigo.Equals(code, StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException($"Já existe um serviço com o código {code}.");
         var entity = new CadastroServico { Codigo = code };
@@ -283,7 +281,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarEventoAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, "Criado", cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        await SyncAcompanhamentoAsync(entity, cancellationToken);
+        await SyncAcompanhamentoAsync(entity, null, cancellationToken);
         return ToDto(entity, new Dictionary<(long, long), decimal>());
     }
 
@@ -295,6 +293,7 @@ public sealed class CadastroServicoService(
         Validate(dto);
         var entity = await FindAsync(id, cancellationToken);
         var antes = ServicoSnapshot.From(entity);
+        var codigoAnterior = entity.Codigo;
         await ApplyAsync(entity, dto, cancellationToken);
         var existing = await repository.ListAsync(cancellationToken);
         if (existing.Any(x => x.Codigo.Equals(entity.Codigo, StringComparison.OrdinalIgnoreCase) && x.Id != id))
@@ -305,7 +304,7 @@ public sealed class CadastroServicoService(
         await registroHistorico.RegistrarAsync(
             RegistroEntidade.Servico, entity.Id, entity.Codigo, antes.Diff(entity), cancellationToken);
         await LinkOrcamentoAsync(entity, cancellationToken);
-        await SyncAcompanhamentoAsync(entity, cancellationToken);
+        await SyncAcompanhamentoAsync(entity, codigoAnterior, cancellationToken);
         var actualPayments = await LoadActualProviderPaymentsAsync([entity.Id], cancellationToken);
         return ToDto(entity, actualPayments);
     }
@@ -474,9 +473,12 @@ public sealed class CadastroServicoService(
             ?? throw new NotFoundException($"{resource} não encontrado com id: {id}.");
     }
 
-    private async Task SyncAcompanhamentoAsync(CadastroServico entity, CancellationToken cancellationToken)
+    private async Task SyncAcompanhamentoAsync(CadastroServico entity, string? codigoAnterior, CancellationToken cancellationToken)
     {
-        var tracking = await acompanhamentos.FindAsync(x => x.Codigo == entity.Codigo, cancellationToken);
+        var tracking = await acompanhamentos.FindAsync(x => x.Codigo == entity.Codigo, cancellationToken)
+            ?? (codigoAnterior is null || string.Equals(codigoAnterior, entity.Codigo, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : await acompanhamentos.FindAsync(x => x.Codigo == codigoAnterior, cancellationToken));
         var now = DateTime.UtcNow;
         var userName = await userAccessor.GetUserNameAsync(cancellationToken);
         if (tracking is null)
@@ -522,6 +524,21 @@ public sealed class CadastroServicoService(
 
         var folderAntes = tracking.FolderUrl;
         var changed = false;
+        if (!string.Equals(tracking.Codigo, entity.Codigo, StringComparison.Ordinal))
+        {
+            var codigoAntes = tracking.Codigo;
+            tracking.Codigo = entity.Codigo;
+            tracking.Historicos.Add(new()
+            {
+                SituacaoAnterior = tracking.Situacao,
+                NovaSituacao = tracking.Situacao,
+                Descricao = $"Código alterado de {codigoAntes} para {entity.Codigo}",
+                ResponsavelNome = userName,
+                CreatedAt = now
+            });
+            await PropagarCodigoLancamentosAsync(codigoAntes, entity.Codigo, cancellationToken);
+            changed = true;
+        }
         if (tracking.FolderUrl != entity.FolderUrl)
         {
             tracking.FolderUrl = entity.FolderUrl;
@@ -560,6 +577,62 @@ public sealed class CadastroServicoService(
         }
     }
 
+    private async Task PropagarCodigoLancamentosAsync(string codigoAnterior, string codigoNovo, CancellationToken cancellationToken)
+    {
+        var vinculados = await lancamentos.ToListAsync(
+            lancamentos.AsQueryable().Where(x => x.CodigoServico == codigoAnterior), cancellationToken);
+        foreach (var lancamento in vinculados)
+        {
+            lancamento.CodigoServico = codigoNovo;
+            lancamentos.Update(lancamento);
+        }
+        if (vinculados.Count > 0)
+            await lancamentos.SaveChangesAsync(cancellationToken);
+    }
+
+    private static readonly Regex CodigoPontilhado = new(@"^(\d+)\.(\d+)$", RegexOptions.Compiled);
+
+    private async Task<string> GerarCodigoAsync(
+        AcompanhamentoServicoTipo tipo,
+        IReadOnlyList<CadastroServico> existentes,
+        CancellationToken cancellationToken)
+    {
+        var codigos = existentes
+            .Where(x => x.TipoServico == tipo)
+            .Select(x => x.Codigo)
+            .Concat((await acompanhamentos.ToListAsync(
+                    acompanhamentos.AsQueryable().Where(x => x.TipoServico == tipo), cancellationToken))
+                .Select(x => x.Codigo))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToList();
+
+        var pontilhados = codigos
+            .Select(x => CodigoPontilhado.Match(x))
+            .Where(x => x.Success)
+            .Select(x => (Prefixo: x.Groups[1].Value, Sequencia: int.Parse(x.Groups[2].Value)))
+            .ToList();
+        if (pontilhados.Count > 0)
+        {
+            var prefixo = pontilhados
+                .GroupBy(x => x.Prefixo)
+                .OrderByDescending(x => x.Count())
+                .ThenByDescending(x => x.Key)
+                .First().Key;
+            var proxima = pontilhados.Where(x => x.Prefixo == prefixo).Max(x => x.Sequencia) + 1;
+            return $"{prefixo}.{proxima:00}";
+        }
+
+        var numericos = codigos
+            .Where(x => x.All(char.IsDigit))
+            .Select(long.Parse)
+            .ToList();
+        if (numericos.Count > 0)
+            return (numericos.Max() + 1).ToString();
+
+        return $"S-{tipo}-{existentes.Count(x => x.TipoServico == tipo) + 1:0000}";
+    }
+
     private async Task LinkOrcamentoAsync(CadastroServico entity, CancellationToken cancellationToken)
     {
         if (entity.OrcamentoId is null) return;
@@ -596,7 +669,7 @@ public sealed class CadastroServicoService(
             "subtipo" => descending ? query.OrderByDescending(x => x.Subtipo) : query.OrderBy(x => x.Subtipo),
             "situacao" => descending ? query.OrderByDescending(x => x.SituacaoInicial) : query.OrderBy(x => x.SituacaoInicial),
             "contrato" => descending ? query.OrderByDescending(x => x.ValorContrato) : query.OrderBy(x => x.ValorContrato),
-            "semanas" => descending ? query.OrderByDescending(x => x.DataEntrada) : query.OrderBy(x => x.DataEntrada),
+            "semanas" => descending ? query.OrderBy(x => x.DataEntrada) : query.OrderByDescending(x => x.DataEntrada),
             "entrada" => descending ? query.OrderByDescending(x => x.DataEntrada) : query.OrderBy(x => x.DataEntrada),
             _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
         };

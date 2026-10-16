@@ -4,6 +4,8 @@
 @inject IIdentityService IdentityService
 @inject INotificationService Service
 @inject ISnackbar Snackbar
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Notificações | CRM Atlas</PageTitle>
 <PageHeader Title="Central de notificações" Subtitle="Prazos, pendências financeiras e eventos da operação.">
@@ -87,14 +89,17 @@
 
 @code {
     private CurrentUserDto? _user;private List<NotificationDto> _items=[];private List<NotificationRuleDto> _rules=[];private RuleModel _rule=new();
-    private bool _loading,_ruleOpen;private int _tab;
+    private bool _loading,_ruleOpenField;private int _tab;
+    private const string DraftKey = "notificacoes:rule";
+    private bool _ruleOpen { get => _ruleOpenField; set { _ruleOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private IEnumerable<NotificationDto> Filtered=>_tab switch{1=>_items.Where(x=>!x.Lida),2=>_items.Where(x=>x.ConfirmadaEm is not null),_=>_items};
-    protected override async Task OnInitializedAsync(){_loading=true;try{var auth=await AuthenticationStateProvider.GetAuthenticationStateAsync();var p=auth.User;var sub=p.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value??p.FindFirst("sub")?.Value??"";var email=p.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;_user=await IdentityService.ResolveAsync(sub,email,p.Identity?.Name);await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    protected override async Task OnInitializedAsync(){_loading=true;try{var auth=await AuthenticationStateProvider.GetAuthenticationStateAsync();var p=auth.User;var sub=p.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value??p.FindFirst("sub")?.Value??"";var email=p.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;_user=await IdentityService.ResolveAsync(sub,email,p.Identity?.Name);var draft=DraftStore.Get<RuleModel>(DraftKey);if(draft is not null){_rule=draft;_ruleOpen=true;DraftStore.Resume(DraftKey);}await LoadAsync();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}finally{_loading=false;}}
+    public void Dispose(){if(_ruleOpen)DraftStore.Suspend(DraftKey);}
     private async Task LoadAsync(){if(_user is null)return;_items=(await Service.ListAsync(new NotificationFilter(_user.Id))).Items.ToList();_rules=(await Service.ListRulesAsync()).ToList();}
     private async Task ReadAsync(NotificationDto x){if(_user is null||x.Lida)return;await Service.MarkReadAsync(_user.Id,x.Id);await LoadAsync();}
     private async Task ConfirmAsync(NotificationDto x){if(_user is null)return;await Service.ConfirmAsync(_user.Id,x.Id);Snackbar.Add("Notificação confirmada.",Severity.Success);await LoadAsync();}
     private async Task RunRulesAsync(){if(_user is null)return;var count=await Service.RunRulesAsync(_user.Id);Snackbar.Add(count==0?"Nenhum alerta novo.":$"{count} alerta(s) gerado(s).",count==0?Severity.Info:Severity.Success);await LoadAsync();}
-    private void NewRule(){_rule=new(){Days=3,Enabled=true};_ruleOpen=true;}private void EditRule(NotificationRuleDto x){_rule=RuleModel.From(x);_ruleOpen=true;}
+    private void NewRule(){_rule=new(){Days=3,Enabled=true};DraftStore.BeginEdit(DraftKey,_rule);_ruleOpen=true;}private void EditRule(NotificationRuleDto x){_rule=RuleModel.From(x);DraftStore.BeginEdit(DraftKey,_rule);_ruleOpen=true;}
     private async Task SaveRuleAsync(){await Service.SaveRuleAsync(_rule.ToDto());Snackbar.Add("Regra salva.",Severity.Success);_ruleOpen=false;await LoadAsync();}
     private static string RuleLabel(NotificationRuleType x)=>x==NotificationRuleType.PARCELA_A_VENCER?"Parcela a vencer":"Serviço parado";
     private sealed class RuleModel{public long? Id{get;set;}public string Name{get;set;}="";public NotificationRuleType Type{get;set;}public int Days{get;set;}public bool Enabled{get;set;}=true;public static RuleModel From(NotificationRuleDto x)=>new(){Id=x.Id,Name=x.Nome,Type=x.Tipo,Days=x.Dias,Enabled=x.Ativa};public NotificationRuleDto ToDto()=>new(Id,Name,Type,Type==NotificationRuleType.PARCELA_A_VENCER?NotificationCategory.FINANCEIRA:NotificationCategory.TECNICA,Days,Enabled);}

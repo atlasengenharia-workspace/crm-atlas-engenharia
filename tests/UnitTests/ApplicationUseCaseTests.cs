@@ -292,7 +292,7 @@ public sealed class ApplicationUseCaseTests
     {
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(
             () => service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, " em análise", 1, false, true, [], null)));
@@ -309,7 +309,7 @@ public sealed class ApplicationUseCaseTests
             new AcompanhamentoServicoSituacaoConfig { Id = 2, TipoServico = AcompanhamentoServicoTipo.CLCB, Nome = "Em análise", SituacaoInicial = true }
         ]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(null, AcompanhamentoServicoTipo.AVCB, "Triagem", 0, true, true, [], "#123456"));
 
@@ -327,7 +327,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise", Ativo = true }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         await service.SaveSituationAsync(new SituacaoConfigDto(1, AcompanhamentoServicoTipo.AVCB, "Em análise", 0, false, false, [], null));
 
@@ -342,7 +342,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             [new AcompanhamentoServicoSituacaoConfig { Id = 1, TipoServico = AcompanhamentoServicoTipo.AVCB, Nome = "Em análise" }]);
         var historico = new MemoryConfiguracaoHistoricoService();
-        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, historico, new MemoryRegistroHistoricoService(), new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         await service.DeleteSituationAsync(1);
 
@@ -444,7 +444,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento", Descricao = "nota antiga" }]);
         var historico = new MemoryRegistroHistoricoService();
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         await service.UpdateDescricaoAsync(5, "nota nova");
 
@@ -497,7 +497,7 @@ public sealed class ApplicationUseCaseTests
         var repository = new MemoryAcompanhamentoRepository(
             itens: [new AcompanhamentoServico { Id = 5, Codigo = "S-AVCB-0001", Situacao = "Em andamento" }]);
         var historico = new MemoryRegistroHistoricoService();
-        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>(), new StubUserAccessor(null));
+        var service = new AcompanhamentoService(repository, new MemoryConfiguracaoHistoricoService(), historico, new MemoryRepository<CadastroServico>(), new StubUserAccessor(null), new MemoryRepository<Lancamento>());
 
         await service.UpdateFolderUrlAsync(5, "  https://drive.google.com/pasta  ");
 
@@ -667,6 +667,7 @@ public sealed class ApplicationUseCaseTests
         public Task UpdateFolderUrlAsync(long id, string? url, CancellationToken ct = default) => throw new NotSupportedException();
         public Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default) => throw new NotSupportedException();
         public Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RemovePendingAsync(long serviceId, long pendingId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto, CancellationToken ct = default) => throw new NotSupportedException();
         public Task DeleteSituationAsync(long id, CancellationToken ct = default) => throw new NotSupportedException();

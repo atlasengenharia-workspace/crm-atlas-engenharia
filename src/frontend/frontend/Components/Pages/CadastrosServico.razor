@@ -15,6 +15,8 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Cadastros de serviço | CRM Atlas</PageTitle>
 
@@ -165,11 +167,11 @@
                     </Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="DataEntrada" Title="Semanas" Sortable="false" Filterable="false">
+                <RadzenDataGridColumn TItem="CadastroServicoDto" Property="Semanas" Title="Semanas">
                     <HeaderTemplate>
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Semanas</MudText>
                     </HeaderTemplate>
-                    <Template Context="context">@WeeksSince(context.DataEntrada)</Template>
+                    <Template Context="context">@context.Semanas</Template>
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="CadastroServicoDto" Property="DataEntrada" Title="Entrada">
@@ -234,7 +236,7 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Preencha contrato e plano financeiro.</MudText>
             </MudStack>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _editorOpen = false)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseEditor" />
         </MudToolBar>
         <MudDivider Class="mb-4" />
 
@@ -248,7 +250,7 @@
                                 <MudTextField @bind-Value="_model.Codigo" Label="Código do serviço"
                                               Required="@Obrigatorio(ServicoCampo.Codigo)" RequiredError="Informe o código usado pela empresa."
                                               Variant="Variant.Outlined" OnBlur="OnCodigoBlurAsync"
-                                              HelperText="Ex.: 2.15, 3.209 ou 3141" />
+                                              HelperText="Deixe em branco para gerar no formato da empresa (ex.: 2.15, 3.209, 3141)." />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.Cliente))
@@ -388,14 +390,11 @@
                         @if (Visivel(ServicoCampo.Subtipo))
                         {
                             <MudItem xs="12" sm="6">
-                                <MudSelect T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
-                                           Required="@Obrigatorio(ServicoCampo.Subtipo)" RequiredError="Informe o subtipo."
-                                           Variant="Variant.Outlined">
-                                    @foreach (var subtype in CurrentSubtypes)
-                                    {
-                                        <MudSelectItem Value="@subtype">@subtype</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                <MudAutocomplete T="string" @bind-Value="_model.Subtipo" Label="Subtipo"
+                                                 Required="@Obrigatorio(ServicoCampo.Subtipo)" RequiredError="Informe o subtipo."
+                                                 Variant="Variant.Outlined" SearchFunc="SearchSubtypesAsync"
+                                                 CoerceText="true" CoerceValue="true" Clearable="true"
+                                                 HelperText="Selecione um subtipo ou digite um novo." />
                             </MudItem>
                         }
                         @if (Visivel(ServicoCampo.DataEntrada))
@@ -604,7 +603,7 @@
         </MudForm>
         <MudDivider Class="my-5" />
         <MudStack Row="true" Justify="Justify.FlexEnd">
-            <MudButton OnClick="@(() => _editorOpen = false)">Cancelar</MudButton>
+            <MudButton OnClick="CloseEditor">Cancelar</MudButton>
             <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_saving"
                        StartIcon="@Icons.Material.Filled.Save" OnClick="SaveAsync">Salvar serviço</MudButton>
         </MudStack>
@@ -621,7 +620,7 @@
         new("documento","Documento",x=>x.DocumentoEmpresa,2),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),3),
         new("subtipo","Serviço",x=>x.Subtipo,3),new("situacao","Situação",x=>x.SituacaoInicial,4),
         new("contrato","Contrato",x=>x.ValorContrato,5,true),new("prestadores","Prestadores",x=>string.Join("; ",x.Prestadores.Select(p=>p.NomePrestador)),6,false),
-        new("semanas","Semanas",x=>WeeksSince(x.DataEntrada),7,false),
+        new("semanas","Semanas",x=>x.Semanas,7,false),
         new("entrada","Entrada",x=>x.DataEntrada,8),new("observacao","Observação",x=>x.Observacao,9)
     ];
     private IReadOnlyList<ClienteDto> _clientes = [];
@@ -639,7 +638,8 @@
     private bool _loading;
     private bool _initialLoading = true;
     private bool _saving;
-    private bool _editorOpen;
+    private bool _editorOpenField;
+    private bool _editorOpen { get => _editorOpenField; set { _editorOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private string _documentoLabel = "CPF ou CNPJ";
     private string _documentoHelper = "Digite CPF (11 dígitos) ou CNPJ (14 dígitos).";
     private string? _search;
@@ -653,6 +653,10 @@
         _situations.Where(x => x.Ativo && (_tipo is null || x.Tipo == _tipo))
             .Select(x => x.Nome)
             .Concat(_result.Items.Select(x => x.SituacaoInicial).OfType<string>())
+            .Concat(_tipo is null
+                ? Enum.GetValues<AcompanhamentoServicoTipo>().SelectMany(AcompanhamentoSituacaoDefaults.For)
+                : AcompanhamentoSituacaoDefaults.For(_tipo.Value))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x);
     private IEnumerable<string> CurrentSubtypes =>
@@ -676,6 +680,8 @@
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "cadastros-servico");
         await LoadReferencesAsync();
         await LoadAsync();
+        RestoreDraft();
+        if (_editorOpen) return;
         if (EditServiceId is not null)
         {
             try { Edit(await Service.GetAsync(EditServiceId.Value)); }
@@ -748,6 +754,16 @@
     }
 
     private async Task ApplyFilterAsync() { await LoadAsync(); }
+
+    private const string DraftKey = "cadastros-servico:form";
+    private void RestoreDraft()
+    {
+        var draft = DraftStore.Get<ServiceModel>(DraftKey);
+        if (draft is not null) { _model = draft; _editorOpen = true; DraftStore.Resume(DraftKey); }
+    }
+    private void CloseEditor() { _editorOpen = false; }
+    public void Dispose() { if (_editorOpen) DraftStore.Suspend(DraftKey); }
+
     private async Task New()
     {
         _model = new();
@@ -755,9 +771,15 @@
         var firstActive = _tipos.FirstOrDefault(x => x.Ativo);
         if (firstActive is not null && !_tipos.Any(x => x.TipoServico == _model.TipoServico && x.Ativo))
             await TypeChanged(firstActive.TipoServico);
+        DraftStore.BeginEdit(DraftKey, _model);
         _editorOpen = true;
     }
-    private void Edit(CadastroServicoDto x) { _model = ServiceModel.From(x); _editorOpen = true; }
+    private void Edit(CadastroServicoDto x)
+    {
+        _model = ServiceModel.From(x);
+        DraftStore.BeginEdit(DraftKey, _model);
+        _editorOpen = true;
+    }
     private void ClientChanged(long? id)
     {
         _model.ClienteId = id;
@@ -786,18 +808,31 @@
             .OrderByDescending(x => x.Inicial)
             .ThenBy(x => x.Ordem)
             .Select(x => x.Nome)
-            .FirstOrDefault();
+            .FirstOrDefault()
+            ?? AcompanhamentoSituacaoDefaults.For(value).FirstOrDefault();
         try { _campoConfigs = await TipoCampoConfigService.ListByTipoAsync(value); }
         catch { _campoConfigs = []; }
     }
 
+    private Task<IEnumerable<string>> SearchSubtypesAsync(string value, CancellationToken cancellationToken) =>
+        Task.FromResult(CurrentSubtypes
+            .Where(x => string.IsNullOrWhiteSpace(value)
+                || x.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .AsEnumerable());
+
     private Task<IEnumerable<string>> SearchSituationsAsync(string value, CancellationToken cancellationToken) =>
         Task.FromResult(_situations
             .Where(x => x.Tipo == _model.TipoServico && x.Ativo)
+            .OrderBy(x => x.Ordem)
             .Select(x => x.Nome)
+            .Concat(_result.Items
+                .Where(x => x.TipoServico == _model.TipoServico)
+                .Select(x => x.SituacaoInicial).OfType<string>())
+            .Concat(AcompanhamentoSituacaoDefaults.For(_model.TipoServico))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(x => string.IsNullOrWhiteSpace(value)
                 || x.Contains(value, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .AsEnumerable());
     private async Task OnCodigoBlurAsync()
     {
@@ -1112,8 +1147,13 @@
         try
         {
             var result = await JS.InvokeAsync<BrasilApiCnpjResult?>("buscarCnpj", _model.DocumentoEmpresa);
-            if (result is null) return;
-            if (result.razao_social is not null && string.IsNullOrWhiteSpace(_model.RazaoSocialEmpresa))
+            if (result is null)
+            {
+                Snackbar.Add("CNPJ não encontrado na base pública.", Severity.Warning);
+                return;
+            }
+            // razão social oficial sempre prevalece sobre texto digitado/preenchido por orçamento
+            if (result.razao_social is not null)
                 _model.RazaoSocialEmpresa = result.razao_social;
             if (result.ddd_telefone_1 is not null && string.IsNullOrWhiteSpace(_model.Telefone))
                 _model.Telefone = $"({result.ddd_telefone_1[..2]}) {result.ddd_telefone_1[2..]}".Trim();
@@ -1221,7 +1261,7 @@
 
         return !string.IsNullOrWhiteSpace(detail) ? detail : exception.Message;
     }
-    private static int WeeksSince(DateOnly start) => Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.DayNumber) / 7);
+    private static int WeeksSince(DateOnly start) => SemanasCivil.Decorridas(start);
     private static Color StatusColor(string? status) =>
         status?.Contains("conclu", StringComparison.OrdinalIgnoreCase) == true
         || status?.Contains("finaliz", StringComparison.OrdinalIgnoreCase) == true

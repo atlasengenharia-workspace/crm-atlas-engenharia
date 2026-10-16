@@ -13,6 +13,8 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject ISavedViewsService SavedViews
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Serviços | CRM Atlas</PageTitle>
 <PageHeader Title="Serviços" Subtitle="Acompanhe, filtre e gerencie todos os serviços em uma única tela.">
@@ -22,7 +24,7 @@
         </MudButton>
         <MudTooltip Text="Mostrar opções para importação em lote" Placement="Placement.Bottom">
             <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.UploadFile"
-                       OnClick="@(() => _importOpen = true)"
+                       OnClick="OpenImportDrawer"
                        Style="background-color: #F59E0B; color: #FFFFFF; box-shadow: 0 3px 8px rgba(245, 158, 11, 0.28);" Class="ml-2">
                 Importar planilha
             </MudButton>
@@ -144,6 +146,13 @@
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Cliente</MudText>
                     </HeaderTemplate>
                     <Template Context="context"><span style="display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@context.Cliente</span></Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Contato" Title="Nome do contato" Visible="@(!_hiddenColumns.Contains("Nome do contato"))">
+                    <HeaderTemplate>
+                        <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Nome do contato</MudText>
+                    </HeaderTemplate>
+                    <Template Context="context"><span style="display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@(string.IsNullOrWhiteSpace(context.Contato) ? "—" : context.Contato)</span></Template>
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Endereco" Title="Endereço" Visible="@(!_hiddenColumns.Contains("Endereço"))">
@@ -331,6 +340,10 @@
                             {
                                 <MudIconButton Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" Class="pa-1" Href="@context.FolderUrl" Target="_blank" Color="Color.Secondary" title="Abrir pasta no Drive" aria-label="@($"Abrir pasta no Drive de {context.Codigo}")" />
                             }
+                            else
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.FolderCopy" Size="Size.Small" Class="pa-1" OnClick="@(() => CopyLocalPathAsync(context))" Color="Color.Secondary" title="Copiar caminho local da pasta" aria-label="@($"Copiar caminho local da pasta de {context.Codigo}")" />
+                            }
                             <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Size="Size.Small" Class="pa-1" Href="@($"/api/acompanhamentos/{context.Id}/relatorio")" Target="_blank" title="Relatório PDF" aria-label="@($"Relatório de {context.Codigo}")" />
                             <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Size="Size.Small" Class="pa-1" OnClick="@(()=>DeleteAsync(context))" Color="Color.Error" title="Excluir serviço" aria-label="@($"Excluir serviço {context.Codigo}")" />
                         </div>
@@ -364,7 +377,7 @@
                 <MudTooltip Text="Excluir serviço">
                     <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" OnClick="@(()=>DeleteAsync(_selected))" aria-label="Excluir serviço" />
                 </MudTooltip>
-                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(()=>_detailOpen=false)" aria-label="Fechar" />
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _detailOpen = false)" aria-label="Fechar" />
             </MudToolBar>
             <MudButton OnClick="@(async () => await _servicoForm.Open(_selected.Codigo))"
                        Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
@@ -389,7 +402,7 @@
                 </MudGrid>
             </MudPaper>
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-4">
-                <MudTextField @bind-Value="_folderUrl" Label="Pasta no Google Drive" Variant="Variant.Outlined"
+                <MudTextField @bind-Value="_detail.FolderUrl" Label="Pasta no Google Drive" Variant="Variant.Outlined"
                               Margin="Margin.Dense" Placeholder="https://drive.google.com/…" Class="flex-grow-1"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
                 @if (IsWebUrl(_selected.FolderUrl))
@@ -406,19 +419,19 @@
                                    aria-label="Configurar pasta base local" />
                 </MudTooltip>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveFolderUrlAsync"
-                           Disabled="@(_folderUrl == _selected.FolderUrl)">Salvar</MudButton>
+                           Disabled="@(_detail.FolderUrl == _selected.FolderUrl)">Salvar</MudButton>
             </MudStack>
             <MudGrid Class="mt-4">
                 <MudItem xs="12" sm="6">
-                    <MudAutocomplete T="string" @bind-Value="_newStatus"
+                    <MudAutocomplete T="string" @bind-Value="_detail.NewStatus"
                                      Label="Nova situação" Variant="Variant.Outlined"
                                      SearchFunc="SearchStatusesAsync"
                                      CoerceText="true" CoerceValue="true"
                                      Clearable="true"
                                      HelperText="Selecione uma opção ou digite uma nova situação." />
                 </MudItem>
-                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_actor" Label="Responsável" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12"><MudTextField @bind-Value="_statusNote" Label="Observação da mudança" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_detail.Actor" Label="Responsável" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_detail.StatusNote" Label="Observação da mudança" Variant="Variant.Outlined" Lines="2" /></MudItem>
                 <MudItem xs="12"><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ChangeStatusAsync">Atualizar situação</MudButton></MudItem>
             </MudGrid>
             <MudDivider Class="my-5" />
@@ -426,7 +439,7 @@
             @if (_selected.Itens.Count==0){<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-3">Nenhuma pendência para a situação atual.</MudAlert>}
             else
             {
-                <MudList T="string">@foreach(var item in _selected.Itens){<MudListItem><MudCheckBox T="bool" Value="@item.Concluida" ValueChanged="@((bool value)=>TogglePendingAsync(item.Id,value))" Label="@item.Label" Color="Color.Success" /></MudListItem>}</MudList>
+                <MudList T="string">@foreach(var item in _selected.Itens){<MudListItem><MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="w-100"><MudCheckBox T="bool" Value="@item.Concluida" ValueChanged="@((bool value)=>TogglePendingAsync(item.Id,value))" Label="@item.Label" Color="Color.Success" /><MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Size="Size.Small" OnClick="@(()=>RemovePendingAsync(item.Id))" title="@($"Remover pendência “{item.Label}”")" aria-label="@($"Remover pendência {item.Label}")" /></MudStack></MudListItem>}</MudList>
             }
             <MudDivider Class="my-5" />
             <MudText Typo="Typo.h6">Histórico</MudText>
@@ -469,7 +482,7 @@
                     <MudText Typo="Typo.caption" Color="Color.Secondary">prévia da situação nas listas</MudText>
                 </MudStack>
             </MudItem>
-            <MudItem xs="12"><MudTextField @bind-Value="_pendingLabels" Label="Pendências automáticas" HelperText="Uma por linha" Lines="5" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_config.PendingLabels" Label="Pendências automáticas" HelperText="Uma por linha" Lines="5" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSituationAsync">Salvar situação</MudButton></MudItem>
         </MudGrid>
         <MudDivider Class="my-5" />
@@ -530,7 +543,7 @@
                     <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-3" />
                 </MudPaper>
             }
-            else if (!string.IsNullOrWhiteSpace(_uploadedFileName))
+            else if (!string.IsNullOrWhiteSpace(_import.FileName))
             {
                 <MudPaper Outlined="true" Class="pa-3 mt-4">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
@@ -538,8 +551,8 @@
                             <MudIcon Icon="@Icons.Material.Filled.Description" />
                         </MudAvatar>
                         <MudStack Spacing="0" Class="atlas-file-info">
-                            <MudText Typo="Typo.subtitle2">@_uploadedFileName</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatFileSize(_uploadedFileSize) • @_preview.Count linha(s) localizada(s)</MudText>
+                            <MudText Typo="Typo.subtitle2">@_import.FileName</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatFileSize(_import.FileSize) • @_preview.Count linha(s) localizada(s)</MudText>
                         </MudStack>
                         <MudSpacer />
                         <MudTooltip Text="Remover arquivo">
@@ -640,24 +653,66 @@
     private readonly IReadOnlyList<SmartFilterColumn<AcompanhamentoDto>> _filterColumns =
     [
         new("codigo","Código",x=>x.Codigo,2), new("cliente","Cliente",x=>x.Cliente,3),
-        new("endereco","Endereço",x=>x.Endereco,4), new("telefone","Telefone",x=>x.Telefone,5),
-        new("servico","Serviço",x=>x.Servico,6), new("valorContrato","R$ Contrato",x=>x.ValorContrato,7),
-        new("dataContrato","Data Contrato",x=>x.DataContrato,8), new("nf","NF",x=>x.NotaFiscal,9),
-        new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,10),
-        new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,11),
-        new("situacao","Situação",x=>x.Situacao,12),
-        new("pendencias","Pendências",x=>string.Join(" ", x.Itens.Where(i=>!i.Concluida).Select(i=>i.Label)),13),
-        new("observacoes","Observações",x=>x.Descricao,14),
-        new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,15),
-        new("areceber","A receber",x=>x.AReceber,16), new("recebido","Recebido",x=>x.Recebido,17),
-        new("custos","Custos",x=>x.Custos,18), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),19)
+        new("contato","Nome do contato",x=>x.Contato,4),
+        new("endereco","Endereço",x=>x.Endereco,5), new("telefone","Telefone",x=>x.Telefone,6),
+        new("servico","Serviço",x=>x.Servico,7), new("valorContrato","R$ Contrato",x=>x.ValorContrato,8),
+        new("dataContrato","Data Contrato",x=>x.DataContrato,9), new("nf","NF",x=>x.NotaFiscal,10),
+        new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,11),
+        new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,12),
+        new("situacao","Situação",x=>x.Situacao,13),
+        new("pendencias","Pendências",x=>string.Join(" ", x.Itens.Where(i=>!i.Concluida).Select(i=>i.Label)),14),
+        new("observacoes","Observações",x=>x.Descricao,15),
+        new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,16),
+        new("areceber","A receber",x=>x.AReceber,17), new("recebido","Recebido",x=>x.Recebido,18),
+        new("custos","Custos",x=>x.Custos,19), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),20)
     ];
-    private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_detailOpen,_settingsOpen,_importOpen,_importing,_parsingImport;
+    private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_importing,_parsingImport;
+    private bool _settingsOpenField,_importOpenField;
+    private ImportForm _import = new();
+    private const string SettingsDraftKey = "acompanhamento:settings";
+    private const string ImportDraftKey = "acompanhamento:import";
+
+    private sealed class ImportForm
+    {
+        public string? FileName { get; set; }
+        public byte[]? FileBytes { get; set; }
+        public long FileSize { get; set; }
+    }
+
+    private bool _settingsOpen
+    {
+        get => _settingsOpenField;
+        set { _settingsOpenField = value; if (!value) DraftStore.Clear(SettingsDraftKey); }
+    }
+
+    private bool _importOpen
+    {
+        get => _importOpenField;
+        set { _importOpenField = value; if (!value) DraftStore.Clear(ImportDraftKey); }
+    }
+    private bool _detailOpenField;
+    private DetailForm _detail = new();
+    private const string DetailDraftKey = "acompanhamento:detail";
+
+    private sealed class DetailForm
+    {
+        public long Id { get; set; }
+        public string? NewStatus { get; set; }
+        public string? FolderUrl { get; set; }
+        public string? Actor { get; set; }
+        public string? StatusNote { get; set; }
+    }
+
+    // Qualquer caminho de fechamento (botão, overlay, código) descarta o rascunho
+    // e libera o refresh em tempo real.
+    private bool _detailOpen
+    {
+        get => _detailOpenField;
+        set { _detailOpenField = value; if (!value) DraftStore.Clear(DetailDraftKey); }
+    }
     private bool _initialLoading = true, _columnsRestored;
     private bool _hideCompleted=true;
-    private string? _search,_newStatus,_statusNote,_actor,_pendingLabels,_uploadedFileName;
-    private byte[]? _uploadedFileBytes;
-    private long _uploadedFileSize;
+    private string? _search;
     private AcompanhamentoServicoTipo? _tipoFiltro;
     private ServicoForm _servicoForm = default!;
     private long? _editStatusId,_editDescId;
@@ -695,16 +750,13 @@
                 _filteredCache = _result.Items
                     .Where(x=>_tipoFiltro is null||x.Tipo==_tipoFiltro)
                     .Where(x=>!_hideCompleted||!IsCompleted(x.Situacao))
-                    .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase))
+                    .Where(x=>string.IsNullOrWhiteSpace(_search)||$"{x.Codigo} {x.Cliente} {x.Contato} {x.CnpjCpf} {x.Endereco} {x.Telefone} {x.Servico} {x.Situacao} {x.Descricao} {x.ObservacaoMudanca} {x.ValorContrato} {x.ProximaParcela} {x.ProximaParcelaTexto}".Contains(_search,StringComparison.OrdinalIgnoreCase))
                     .ToList();
             }
             return _filteredCache;
         }
     }
-    private static bool IsCompleted(string? status) =>
-        !string.IsNullOrEmpty(status) &&
-        (status!.StartsWith("Concluído", StringComparison.OrdinalIgnoreCase) ||
-         status!.StartsWith("Concluido", StringComparison.OrdinalIgnoreCase));
+    private static bool IsCompleted(string? status) => SituacaoFinalizada.Is(status);
     private static Color StatusColor(string? status)
     {
         var value=status??"";
@@ -728,7 +780,48 @@
         catch { _tipos = ServicoTipoDefaults.All(); }
         await RestorePageFiltersAsync();
         await LoadAsync();
+        await RestoreDetailDraftAsync();
         if (SituacoesParam is not null) OpenSettings();
+    }
+
+    private async Task RestoreDetailDraftAsync()
+    {
+        var draft = DraftStore.Get<DetailForm>(DetailDraftKey);
+        if (draft is not null)
+        {
+            try
+            {
+                _selected = await Service.GetAsync(draft.Id);
+                _detail = draft;
+                _detailOpen = true;
+                DraftStore.Resume(DetailDraftKey);
+            }
+            catch { DraftStore.Clear(DetailDraftKey); }
+        }
+
+        var settings = DraftStore.Get<SituationModel>(SettingsDraftKey);
+        if (settings is not null)
+        {
+            _config = settings;
+            _settingsOpen = true;
+            DraftStore.Resume(SettingsDraftKey);
+        }
+
+        var import = DraftStore.Get<ImportForm>(ImportDraftKey);
+        if (import is not null)
+        {
+            _import = import;
+            _importOpen = true;
+            DraftStore.Resume(ImportDraftKey);
+            await ParseStoredImportAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_detailOpen) DraftStore.Suspend(DetailDraftKey);
+        if (_settingsOpen) DraftStore.Suspend(SettingsDraftKey);
+        if (_importOpen) DraftStore.Suspend(ImportDraftKey);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -919,12 +1012,14 @@
 
     private async Task OpenDetailAsync(AcompanhamentoDto item)
     {
-        _selected=item;_newStatus=item.Situacao;_folderUrl=item.FolderUrl;_detailOpen=true;
-        try { _selected = await Service.GetAsync(item.Id); _folderUrl = _selected.FolderUrl; }
+        _selected=item;
+        _detail=new(){Id=item.Id,NewStatus=item.Situacao,FolderUrl=item.FolderUrl};
+        _detailOpen=true;
+        DraftStore.BeginEdit(DetailDraftKey,_detail);
+        try { _selected = await Service.GetAsync(item.Id); _detail.FolderUrl = _selected.FolderUrl; }
         catch (Exception e) { Snackbar.Add(e.Message, Severity.Error); }
     }
 
-    private string? _folderUrl;
     private const string LocalRootKey = "atlas:drive-root";
 
     private static bool IsWebUrl(string? value) =>
@@ -943,19 +1038,39 @@
         Snackbar.Add($"Pasta base configurada: {root}", Severity.Success);
     }
 
+    private static bool IsAbsoluteLocalPath(string value) =>
+        (value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/'))
+        || value.StartsWith(@"\\", StringComparison.Ordinal);
+
     private async Task CopyLocalPathAsync(AcompanhamentoDto item)
     {
-        var root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
-        if (string.IsNullOrWhiteSpace(root))
+        var folder = item.FolderUrl?.Trim();
+        string path;
+        if (!IsWebUrl(folder) && !string.IsNullOrWhiteSpace(folder) && IsAbsoluteLocalPath(folder))
         {
-            await ConfigureLocalRootAsync();
-            root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
-            if (string.IsNullOrWhiteSpace(root)) return;
+            // Caminho completo salvo no cadastro: copiar como está, sem anexar código.
+            path = folder;
         }
-        var relativo = IsWebUrl(item.FolderUrl) || string.IsNullOrWhiteSpace(item.FolderUrl)
-            ? item.Codigo
-            : item.FolderUrl.Trim().TrimStart('\\', '/').Replace('/', '\\');
-        var path = $"{root.Trim().TrimEnd('\\', '/')}\\{relativo}";
+        else
+        {
+            var root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                await ConfigureLocalRootAsync();
+                root = await JS.InvokeAsync<string?>("localStorage.getItem", LocalRootKey);
+                if (string.IsNullOrWhiteSpace(root)) return;
+            }
+            if (IsWebUrl(folder) || string.IsNullOrWhiteSpace(folder))
+            {
+                // Sem caminho local salvo: cai na pasta base, sem fabricar "{código}" no final.
+                path = root.Trim().TrimEnd('\\', '/');
+            }
+            else
+            {
+                var relativo = folder.TrimStart('\\', '/').Replace('/', '\\');
+                path = $"{root.Trim().TrimEnd('\\', '/')}\\{relativo}";
+            }
+        }
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", path);
         Snackbar.Add($"Caminho copiado: {path} — cole na barra de endereço do Explorer.", Severity.Success);
     }
@@ -965,7 +1080,7 @@
         if (_selected is null) return;
         try
         {
-            await Service.UpdateFolderUrlAsync(_selected.Id, _folderUrl);
+            await Service.UpdateFolderUrlAsync(_selected.Id, _detail.FolderUrl);
             Snackbar.Add("Link da pasta salvo.", Severity.Success);
             await RefreshSelected();
         }
@@ -1050,17 +1165,32 @@
             .AsEnumerable();
         return Task.FromResult(statuses);
     }
-    private static IEnumerable<string> DefaultStatuses(AcompanhamentoServicoTipo type) => type == AcompanhamentoServicoTipo.AVCB
-        ? ["Aguar. Contratante", "Aguar. Documentos", "Comunicado", "Concluído", "Concluído - Aguar. Pag.", "Em análise", "Executar"]
-        : ["Em análise", "Em andamento", "Aguardando cliente", "Aguardando documentos", "Aguardando vistoria", "Concluído", "Cancelado"];
-    private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);await LoadAsync();}
-    private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_newStatus))return;await Service.ChangeStatusAsync(_selected.Id,_newStatus,_statusNote,_actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
+    private static IEnumerable<string> DefaultStatuses(AcompanhamentoServicoTipo type) => AcompanhamentoSituacaoDefaults.For(type);
+    private async Task RefreshSelected(){if(_selected is null)return;_selected=await Service.GetAsync(_selected.Id);_detail.FolderUrl=_selected.FolderUrl;_detail.NewStatus=_selected.Situacao;await LoadAsync();}
+    private async Task ChangeStatusAsync(){if(_selected is null||string.IsNullOrWhiteSpace(_detail.NewStatus))return;await Service.ChangeStatusAsync(_selected.Id,_detail.NewStatus,_detail.StatusNote,_detail.Actor);Snackbar.Add("Situação atualizada.",Severity.Success);await RefreshSelected();}
     private async Task TogglePendingAsync(long id,bool value){if(_selected is null)return;await Service.TogglePendingAsync(_selected.Id,id,value);await RefreshSelected();}
-    private void OpenSettings(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";_settingsOpen=true;}
-    private void EditSituation(SituacaoConfigDto item){_config=SituationModel.From(item);_pendingLabels=string.Join(Environment.NewLine,item.Pendencias);}
-    private void NewSituation(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};_pendingLabels="";}
-    private async Task SaveSituationAsync(){try{var dto=_config.ToDto((_pendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
+    private async Task RemovePendingAsync(long id){if(_selected is null)return;try{await Service.RemovePendingAsync(_selected.Id,id);Snackbar.Add("Pendência removida.",Severity.Success);await RefreshSelected();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
+    private void OpenSettings(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};DraftStore.BeginEdit(SettingsDraftKey,_config);_settingsOpen=true;}
+    private void EditSituation(SituacaoConfigDto item){_config=SituationModel.From(item);_config.PendingLabels=string.Join(Environment.NewLine,item.Pendencias);DraftStore.BeginEdit(SettingsDraftKey,_config);}
+    private void NewSituation(){_config=new(){Tipo=_tipoFiltro??AcompanhamentoServicoTipo.AVCB,Ativo=true,Cor="#BFDBFE"};DraftStore.BeginEdit(SettingsDraftKey,_config);}
+    private async Task SaveSituationAsync(){try{var dto=_config.ToDto((_config.PendingLabels??"").Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries));await Service.SaveSituationAsync(dto);Snackbar.Add("Situação salva.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
     private async Task DeleteSituationAsync(SituacaoConfigDto item){if(item.Id is null||await DialogService.ShowMessageBoxAsync("Excluir situação",$"Deseja excluir “{item.Nome}” ({TypeLabel(item.Tipo)})? Serviços que já usam essa situação mantêm o nome registrado.",yesText:"Excluir",cancelText:"Cancelar")!=true)return;try{await Service.DeleteSituationAsync(item.Id.Value);Snackbar.Add("Situação excluída.",Severity.Success);_situations=(await Service.ListSituationsAsync()).ToList();}catch(Exception e){Snackbar.Add(e.Message,Severity.Error);}}
+    private void OpenImportDrawer(){_importOpen=true;DraftStore.BeginEdit(ImportDraftKey,_import);}
+
+    private async Task ParseStoredImportAsync()
+    {
+        if (_import.FileBytes is null || _import.FileName is null) return;
+        _parsingImport = true;
+        try
+        {
+            await using var readStream = new MemoryStream(_import.FileBytes, false);
+            var rows = await SpreadsheetReader.ReadAsync(readStream, _import.FileName, _tipoFiltro);
+            _preview = rows.Select(x => new ImportRow(x.Linha, x.Codigo, x.Tipo, x.Cliente ?? "", x.Valido, x.Erro, x.Item)).ToList();
+        }
+        catch { }
+        finally { _parsingImport = false; }
+    }
+
     private async Task ParseImportAsync(IBrowserFile? file)
     {
         if (file is null) return;
@@ -1077,10 +1207,9 @@
             await using var upload = file.OpenReadStream(100 * 1024 * 1024);
             await using var buffer = new MemoryStream();
             await upload.CopyToAsync(buffer);
-            _uploadedFileBytes = buffer.ToArray();
-            _uploadedFileName = file.Name;
-            _uploadedFileSize = file.Size;
-            await using var readStream = new MemoryStream(_uploadedFileBytes, false);
+            _import = new() { FileBytes = buffer.ToArray(), FileName = file.Name, FileSize = file.Size };
+            DraftStore.BeginEdit(ImportDraftKey, _import);
+            await using var readStream = new MemoryStream(_import.FileBytes, false);
             var rows = await SpreadsheetReader.ReadAsync(readStream, file.Name, _tipoFiltro);
             _preview = rows.Select(x => new ImportRow(x.Linha, x.Codigo, x.Tipo, x.Cliente ?? "", x.Valido, x.Erro, x.Item)).ToList();
             Snackbar.Add($"{_preview.Count} linha(s) carregada(s) para validação.", Severity.Info);
@@ -1092,8 +1221,8 @@
         }
         finally { _parsingImport = false; }
     }
-     private async Task ConfirmImportAsync(){_importing=true;try{var extension=Path.GetExtension(_uploadedFileName);if(_uploadedFileBytes is not null&&(string.Equals(extension,".xlsx",StringComparison.OrdinalIgnoreCase)||string.Equals(extension,".xlsb",StringComparison.OrdinalIgnoreCase))){await using var stream=new MemoryStream(_uploadedFileBytes,false);var result=await WorkbookImportService.ImportAsync(stream,_uploadedFileName!);Snackbar.Add($"Importação concluída: {result.ClientesCriados} clientes, {result.CondicoesPagamentoCriadas} condições, {result.ServicosCriados} serviços, {result.AcompanhamentosCriados} acompanhamentos, {result.LancamentosCriados} lançamentos e {result.CustosIndiretosCriados} custos.",Severity.Success);}else{await Service.ImportAsync(_preview.Select(x=>x.Dto!).ToList());Snackbar.Add($"{_preview.Count} serviço(s) importado(s).",Severity.Success);}_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_importOpen=false;await LoadAsync();}catch(Exception e){Snackbar.Add(ImportErrorMessage(e),Severity.Error);}finally{_importing=false;}}
-    private void ClearImportFile(){_preview.Clear();_uploadedFileBytes=null;_uploadedFileName=null;_uploadedFileSize=0;}
+     private async Task ConfirmImportAsync(){_importing=true;try{var extension=Path.GetExtension(_import.FileName);if(_import.FileBytes is not null&&(string.Equals(extension,".xlsx",StringComparison.OrdinalIgnoreCase)||string.Equals(extension,".xlsb",StringComparison.OrdinalIgnoreCase))){await using var stream=new MemoryStream(_import.FileBytes,false);var result=await WorkbookImportService.ImportAsync(stream,_import.FileName!);Snackbar.Add($"Importação concluída: {result.ClientesCriados} clientes, {result.CondicoesPagamentoCriadas} condições, {result.ServicosCriados} serviços, {result.AcompanhamentosCriados} acompanhamentos, {result.LancamentosCriados} lançamentos e {result.CustosIndiretosCriados} custos.",Severity.Success);}else{await Service.ImportAsync(_preview.Select(x=>x.Dto!).ToList());Snackbar.Add($"{_preview.Count} serviço(s) importado(s).",Severity.Success);}_preview.Clear();_importOpen=false;await LoadAsync();}catch(Exception e){Snackbar.Add(ImportErrorMessage(e),Severity.Error);}finally{_importing=false;}}
+    private void ClearImportFile(){_preview.Clear();_import=new();DraftStore.Clear(ImportDraftKey);}
     private void CloseImportDrawer(){if(_importing||_parsingImport)return;ClearImportFile();_importOpen=false;}
      private static string FormatFileSize(long bytes)=>bytes switch{>=1024L*1024L=>$"{bytes/(1024d*1024d):N1} MB",>=1024=>$"{bytes/1024d:N1} KB",_=>$"{bytes} bytes"};
      private static string Money(decimal? value)=>value?.ToString("C2",new System.Globalization.CultureInfo("pt-BR"))??"—";
@@ -1106,5 +1235,5 @@
     private static string DefaultSituationColor(string? status){var value=status??"";if(value.Contains("contrat",StringComparison.OrdinalIgnoreCase))return "#FDE68A";if(value.Contains("document",StringComparison.OrdinalIgnoreCase))return "#FDBA74";if(value.Contains("comunic",StringComparison.OrdinalIgnoreCase))return "#FCA5A5";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase)&&value.Contains("pag",StringComparison.OrdinalIgnoreCase))return "#93C5FD";if(value.Contains("conclu",StringComparison.OrdinalIgnoreCase))return "#86EFAC";if(value.Contains("análise",StringComparison.OrdinalIgnoreCase)||value.Contains("analise",StringComparison.OrdinalIgnoreCase))return "#D1D5DB";if(value.Contains("execut",StringComparison.OrdinalIgnoreCase))return "#C4B5FD";if(value.Contains("vistoria",StringComparison.OrdinalIgnoreCase))return "#67E8F9";if(value.Contains("agend",StringComparison.OrdinalIgnoreCase))return "#C7D2FE";return "#BFDBFE";}
     private static string ContrastColor(string color){if(color.Length!=7||!int.TryParse(color[1..3],System.Globalization.NumberStyles.HexNumber,null,out var r)||!int.TryParse(color[3..5],System.Globalization.NumberStyles.HexNumber,null,out var g)||!int.TryParse(color[5..7],System.Globalization.NumberStyles.HexNumber,null,out var b))return "#0F172A";return (r*299+g*587+b*114)/1000>=150?"#0F172A":"#FFFFFF";}
     private sealed record ImportRow(int Line,string Code,string Type,string Client,bool Valid,string? Error,AcompanhamentoImportDto? Dto);
-    private sealed class SituationModel{public long? Id{get;set;}public AcompanhamentoServicoTipo Tipo{get;set;}public string Nome{get;set;}="";public string? Cor{get;set;}="#BFDBFE";public int Ordem{get;set;}public bool Inicial{get;set;}public bool Ativo{get;set;}=true;public static SituationModel From(SituacaoConfigDto x)=>new(){Id=x.Id,Tipo=x.Tipo,Nome=x.Nome,Cor=x.Cor??DefaultSituationColor(x.Nome),Ordem=x.Ordem,Inicial=x.Inicial,Ativo=x.Ativo};public SituacaoConfigDto ToDto(IEnumerable<string> p)=>new(Id,Tipo,Nome,Ordem,Inicial,Ativo,p.ToList(),Cor);}
+    private sealed class SituationModel{public long? Id{get;set;}public AcompanhamentoServicoTipo Tipo{get;set;}public string Nome{get;set;}="";public string? Cor{get;set;}="#BFDBFE";public int Ordem{get;set;}public bool Inicial{get;set;}public bool Ativo{get;set;}=true;public string? PendingLabels{get;set;}public static SituationModel From(SituacaoConfigDto x)=>new(){Id=x.Id,Tipo=x.Tipo,Nome=x.Nome,Cor=x.Cor??DefaultSituationColor(x.Nome),Ordem=x.Ordem,Inicial=x.Inicial,Ativo=x.Ativo};public SituacaoConfigDto ToDto(IEnumerable<string> p)=>new(Id,Tipo,Nome,Ordem,Inicial,Ativo,p.ToList(),Cor);}
 }

@@ -2,6 +2,7 @@ using System.Threading;
 using CrmAtlas.ApplicationCore.Acompanhamentos;
 using CrmAtlas.ApplicationCore.Common;
 using CrmAtlas.ApplicationCore.Enums;
+using CrmAtlas.ApplicationCore.Financeiro;
 using CrmAtlas.ApplicationCore.Servicos;
 using CrmAtlas.ApplicationCore.Sistema;
 
@@ -23,7 +24,7 @@ public sealed record AcompanhamentoDto(long Id, long OrigemId, string Codigo, Ac
     string? NotaFiscal, string? CondicaoPagamento, int Pendencias, int Concluidas,
     DateTime? AtualizadoEm, IReadOnlyList<AcompanhamentoHistoricoDto> Historicos, IReadOnlyList<AcompanhamentoPendenciaDto> Itens, string? CnpjCpf = null,
     decimal? AReceber = null, decimal? Recebido = null, decimal? Custos = null, DateOnly? ProximaParcela = null, string? ProximaParcelaTexto = null,
-    string? FolderUrl = null);
+    string? FolderUrl = null, string? Contato = null);
 public sealed record AcompanhamentoImportDto(long OrigemId, string Codigo, AcompanhamentoServicoTipo Tipo, string? Cliente,
     string? Endereco, string? Telefone, string? Servico, string Situacao, string? Descricao, decimal? ValorContrato,
     DateOnly? DataContrato, string? NotaFiscal, string? CondicaoPagamento, string? CnpjCpf = null,
@@ -61,6 +62,7 @@ public interface IAcompanhamentoService
     Task UpdateFolderUrlAsync(long id, string? url, CancellationToken ct = default);
     Task BulkUpdateAsync(IReadOnlyList<long> ids, string? situacao, string? descricao, string? responsavel, CancellationToken ct = default);
     Task TogglePendingAsync(long serviceId, long pendingId, bool completed, CancellationToken ct = default);
+    Task RemovePendingAsync(long serviceId, long pendingId, CancellationToken ct = default);
     Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default);
     Task<SituacaoConfigDto> SaveSituationAsync(SituacaoConfigDto dto, CancellationToken ct = default);
     Task DeleteSituationAsync(long id, CancellationToken ct = default);
@@ -86,7 +88,8 @@ public interface IAcompanhamentoSpreadsheetReader
 }
 
 public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, IConfiguracaoHistoricoService configuracaoHistorico,
-    IRegistroHistoricoService registroHistorico, IRepository<CadastroServico> cadastros, IUserAccessor userAccessor) : IAcompanhamentoService
+    IRegistroHistoricoService registroHistorico, IRepository<CadastroServico> cadastros, IUserAccessor userAccessor,
+    IRepository<Lancamento> lancamentos) : IAcompanhamentoService
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -99,7 +102,10 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
                 query = query.Where(x => x.TipoServico == filter.Tipo);
 
             if (filter?.HideCompleted == true)
-                query = query.Where(x => !x.Situacao.StartsWith("Concluído") && !x.Situacao.StartsWith("Concluido"));
+            {
+                var fechadas = SituacaoFinalizada.Nomes;
+                query = query.Where(x => !fechadas.Contains(x.Situacao.Trim().ToLower()));
+            }
 
             if (!string.IsNullOrWhiteSpace(filter?.Search))
             {
@@ -126,13 +132,54 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             var items = all
                 ? await repository.ToListAsync(query, ct)
                 : await repository.ToListAsync(query.Skip((page - 1) * pageSize).Take(pageSize), ct);
-            var dtos = items.Select(Map).ToList();
+            var codigos = items.Select(x => x.Codigo).Distinct().ToList();
+            var contatos = await LoadContatosAsync(codigos, ct);
+            var financeiro = await LoadFinanceiroSiteAsync(codigos, ct);
+            var dtos = items.Select(x => Map(x,
+                contatos.GetValueOrDefault(x.Codigo),
+                financeiro.GetValueOrDefault(x.Codigo))).ToList();
 
             return PagedResult<AcompanhamentoDto>.Create(dtos, page, all ? total : pageSize, total);
         }, ct);
 
     public Task<AcompanhamentoDto> GetAsync(long id, CancellationToken ct = default)
-        => ExecuteAsync(async () => Map(await Find(id, ct)), ct);
+        => ExecuteAsync(async () =>
+        {
+            var item = await Find(id, ct);
+            var contatos = await LoadContatosAsync([item.Codigo], ct);
+            var financeiro = await LoadFinanceiroSiteAsync([item.Codigo], ct);
+            return Map(item, contatos.GetValueOrDefault(item.Codigo), financeiro.GetValueOrDefault(item.Codigo));
+        }, ct);
+
+    private async Task<IReadOnlyDictionary<string, string?>> LoadContatosAsync(
+        IReadOnlyCollection<string> codigos, CancellationToken ct)
+    {
+        if (codigos.Count == 0) return new Dictionary<string, string?>();
+        var cadastroList = await cadastros.ToListAsync(
+            cadastros.AsQueryable().Where(x => codigos.Contains(x.Codigo)), ct);
+        return cadastroList
+            .GroupBy(x => x.Codigo)
+            .ToDictionary(x => x.Key, x => x.First().ContatoEmpresa);
+    }
+
+    private async Task<IReadOnlyDictionary<string, (decimal Recebido, decimal Custos)>> LoadFinanceiroSiteAsync(
+        IReadOnlyCollection<string> codigos, CancellationToken ct)
+    {
+        if (codigos.Count == 0) return new Dictionary<string, (decimal, decimal)>();
+        var entries = await lancamentos.ToListAsync(
+            lancamentos.AsQueryable().Where(x =>
+                x.CodigoServico != null
+                && codigos.Contains(x.CodigoServico)
+                && x.Origem != LancamentoOrigem.IMPORT_ATLAS
+                && x.Status == LancamentoStatus.PAGO), ct);
+        return entries
+            .GroupBy(x => x.CodigoServico!)
+            .ToDictionary(
+                x => x.Key,
+                x => (
+                    Recebido: x.Where(y => y.Tipo == LancamentoTipo.ENTRADA).Sum(y => y.Valor ?? 0m),
+                    Custos: x.Where(y => y.Tipo == LancamentoTipo.SAIDA).Sum(y => y.Valor ?? 0m)));
+    }
 
     public Task<IReadOnlyList<AcompanhamentoDto>> ImportAsync(IReadOnlyList<AcompanhamentoImportDto> rows, CancellationToken ct = default)
         => ExecuteAsync(async () =>
@@ -175,7 +222,7 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
                 await repository.AddAsync(item, ct); result.Add(item);
             }
             await repository.SaveChangesAsync(ct);
-            return (IReadOnlyList<AcompanhamentoDto>)result.Select(Map).ToList();
+            return (IReadOnlyList<AcompanhamentoDto>)result.Select(x => Map(x, null, default)).ToList();
         }, ct);
 
     public Task ChangeStatusAsync(long id, string status, string? description, string? actor, CancellationToken ct = default)
@@ -290,6 +337,18 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
             var item = await Find(serviceId, ct); var pending = item.Pendencias.FirstOrDefault(x => x.Id == pendingId) ?? throw new NotFoundException("Pendência não encontrada.");
             pending.Concluida = completed; pending.ConcluidaEm = completed ? DateTime.UtcNow : null; pending.UpdatedAt = DateTime.UtcNow; item.UpdatedAt = DateTime.UtcNow;
             repository.Update(item); await repository.SaveChangesAsync(ct);
+        }, ct);
+
+    public Task RemovePendingAsync(long serviceId, long pendingId, CancellationToken ct = default)
+        => ExecuteAsync(async () =>
+        {
+            var item = await Find(serviceId, ct);
+            var pending = item.Pendencias.FirstOrDefault(x => x.Id == pendingId) ?? throw new NotFoundException("Pendência não encontrada.");
+            item.Pendencias.Remove(pending);
+            item.UpdatedAt = DateTime.UtcNow;
+            repository.Update(item); await repository.SaveChangesAsync(ct);
+            await registroHistorico.RegistrarAsync(RegistroEntidade.Acompanhamento, item.Id, item.Codigo,
+                [("Pendência removida", pending.Label, null)], ct);
         }, ct);
 
     public Task<IReadOnlyList<SituacaoConfigDto>> ListSituationsAsync(AcompanhamentoServicoTipo? tipo = null, CancellationToken ct = default)
@@ -413,15 +472,24 @@ public sealed class AcompanhamentoService(IAcompanhamentoRepository repository, 
         return ordered.ThenBy(x => x.Id);
     }
 
-    private static AcompanhamentoDto Map(AcompanhamentoServico x)
+    private static AcompanhamentoDto Map(AcompanhamentoServico x, string? contato, (decimal Recebido, decimal Custos) financeiroSite)
     {
         var historicos = x.Historicos.OrderByDescending(y => y.CreatedAt).ToList();
+        // Serviços criados pelo site não passam pela planilha: os valores armazenados
+        // ficam nulos. Somamos os lançamentos pagos criados depois da importação
+        // (origem != IMPORT_ATLAS) aos valores da planilha, ou os usamos como base.
+        decimal? recebido = x.Recebido is null && financeiroSite.Recebido == 0
+            ? null : (x.Recebido ?? 0m) + financeiroSite.Recebido;
+        decimal? custos = x.Custos is null && financeiroSite.Custos == 0
+            ? null : (x.Custos ?? 0m) + financeiroSite.Custos;
+        var aReceberBase = x.AReceber ?? (x.ValorContrato - x.Recebido);
+        decimal? aReceber = aReceberBase is null ? null : aReceberBase - financeiroSite.Recebido;
         return new(x.Id, x.OrigemId, x.Codigo, x.TipoServico, x.NomeCliente,
             x.Endereco, x.Telefone, x.Subtipo, x.Situacao, x.Descricao, historicos.FirstOrDefault()?.Descricao, x.ValorContrato, x.DataContrato, x.NotaFiscal, x.CondicaoPagamento,
             x.Pendencias.Count, x.Pendencias.Count(y => y.Concluida), x.UltimaMudancaSituacaoEm,
             historicos.Select(y => new AcompanhamentoHistoricoDto(y.Id, y.SituacaoAnterior, y.NovaSituacao, y.Descricao, y.ResponsavelNome, y.CreatedAt)).ToList(),
             x.Pendencias.OrderBy(y => y.Concluida).ThenBy(y => y.Label).Select(y => new AcompanhamentoPendenciaDto(y.Id, y.Label, y.Concluida, y.ConcluidaEm)).ToList(),
-            x.CnpjCpf, x.AReceber, x.Recebido, x.Custos, x.ProximaParcela, x.ProximaParcelaTexto, x.FolderUrl);
+            x.CnpjCpf, aReceber, recebido, custos, x.ProximaParcela, x.ProximaParcelaTexto, x.FolderUrl, contato);
     }
     private static SituacaoConfigDto MapSituation(AcompanhamentoServicoSituacaoConfig x) => new(x.Id, x.TipoServico, x.Nome, x.Ordem ?? 0, x.SituacaoInicial, x.Ativo,
         x.Pendencias.Where(y => y.Ativo).OrderBy(y => y.Ordem).Select(y => y.Label).ToList(), x.Cor);

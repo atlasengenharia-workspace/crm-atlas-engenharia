@@ -41,6 +41,7 @@ builder.Services.Replace(ServiceDescriptor.Singleton<IRealtimeNotifier>(sp => sp
 builder.Services.AddSingleton<IRealtimeChangeFeed>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>());
 builder.Services.AddScoped<IRadzenDataGridStateService, RadzenDataGridStateService>();
 builder.Services.AddScoped<ISavedViewsService, SavedViewsService>();
+builder.Services.AddScoped<IFormDraftStore, FormDraftStore>();
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = false;
@@ -165,6 +166,9 @@ using (var scope = app.Services.CreateScope())
                     obrigatorio boolean NOT NULL DEFAULT false,
                     CONSTRAINT uq_servico_tipo_campo UNIQUE (tipo_servico, campo)
                 );
+
+                UPDATE lancamentos SET status = 'PAGO'
+                    WHERE status = 'PREVISTO' AND origem = 'MANUAL';
 
                 UPDATE acompanhamento_servico_situacao_config SET cor = CASE
                     WHEN lower(nome) LIKE 'agendado%' THEN '#C7D2FE'

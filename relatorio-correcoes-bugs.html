@@ -1,0 +1,198 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Correções — CRM Atlas Engenharia</title>
+<style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+        font-family: "Segoe UI", "Inter", Arial, sans-serif;
+        color: #1e293b;
+        font-size: 10.5pt;
+        line-height: 1.45;
+        margin: 0;
+    }
+    header {
+        border-bottom: 3px solid #b45309;
+        padding-bottom: 10px;
+        margin-bottom: 18px;
+    }
+    h1 {
+        font-size: 17pt;
+        margin: 0 0 4px;
+        color: #0f172a;
+    }
+    .subtitle {
+        color: #64748b;
+        font-size: 9.5pt;
+        margin: 0;
+    }
+    h2 {
+        font-size: 12.5pt;
+        color: #92400e;
+        margin: 22px 0 8px;
+        padding-bottom: 4px;
+        border-bottom: 1.5px solid #e2e8f0;
+        page-break-after: avoid;
+    }
+    h2 small { color: #64748b; font-weight: 400; font-size: 9pt; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 6px;
+        page-break-inside: auto;
+    }
+    thead { display: table-header-group; }
+    th {
+        background: #f1f5f9;
+        text-align: left;
+        font-size: 8.5pt;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #475569;
+        padding: 6px 8px;
+        border: 1px solid #cbd5e1;
+    }
+    td {
+        padding: 7px 8px;
+        border: 1px solid #e2e8f0;
+        vertical-align: top;
+        font-size: 9.5pt;
+    }
+    tr { page-break-inside: avoid; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    td.id { width: 22px; text-align: center; color: #94a3b8; font-weight: 600; }
+    td.antes { width: 44%; }
+    .status {
+        display: inline-block;
+        font-size: 7.5pt;
+        font-weight: 700;
+        letter-spacing: .03em;
+        color: #166534;
+        background: #dcfce7;
+        border: 1px solid #86efac;
+        border-radius: 999px;
+        padding: 1px 7px;
+        margin-bottom: 3px;
+    }
+    .summary {
+        margin-top: 20px;
+        background: #fffbeb;
+        border: 1px solid #fcd34d;
+        border-radius: 8px;
+        padding: 12px 14px;
+        page-break-inside: avoid;
+    }
+    .summary h2 { border: none; margin: 0 0 6px; }
+    .summary ul { margin: 0; padding-left: 18px; }
+    .summary li { margin-bottom: 2px; }
+    footer {
+        margin-top: 22px;
+        padding-top: 8px;
+        border-top: 1px solid #e2e8f0;
+        color: #94a3b8;
+        font-size: 8.5pt;
+        display: flex;
+        justify-content: space-between;
+    }
+    code { font-family: Consolas, monospace; font-size: 8.8pt; background:#f1f5f9; padding:0 3px; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Relatório de Correções — CRM Atlas Engenharia</h1>
+    <p class="subtitle">Bugs reportados pelo cliente × correções aplicadas &nbsp;•&nbsp; Gerado em 16/10/2026</p>
+</header>
+
+<h2>Tela Orçamentos <small>/orcamentos</small></h2>
+<table>
+    <thead><tr><th>#</th><th>Reclamação do cliente</th><th>Correção aplicada</th></tr></thead>
+    <tbody>
+        <tr><td class="id">1</td><td class="antes">Coluna "Semana" sem filtro e sem ordenação.</td>
+            <td><span class="status">RESOLVIDO</span><br>Coluna ligada à propriedade <code>Semanas</code> do DTO — filtro e ordenação ativos no grid.</td></tr>
+        <tr><td class="id">2</td><td class="antes">Filtro "Situação" sem a opção "aguardando cliente".</td>
+            <td><span class="status">RESOLVIDO</span><br>Opções passam a unir catálogo configurado + situações em uso + padrões por tipo — "aguardando cliente" e valores legados aparecem.</td></tr>
+        <tr><td class="id">3</td><td class="antes">Semana só contava após 7 dias (enviado sexta "zerava" até a sexta seguinte).</td>
+            <td><span class="status">RESOLVIDO</span><br><code>SemanasCivil</code> conta viradas de semana civil (segunda→segunda), igual ao Excel: enviado sexta → 1 semana já na segunda seguinte.</td></tr>
+    </tbody>
+</table>
+
+<h2>Tela Serviço <small>/acompanhamento + /cadastros-servico</small></h2>
+<table>
+    <thead><tr><th>#</th><th>Reclamação do cliente</th><th>Correção aplicada</th></tr></thead>
+    <tbody>
+        <tr><td class="id">4</td><td class="antes">Campo "Subtipo" sem opções / não editável.</td>
+            <td><span class="status">RESOLVIDO</span><br>Campo editável com catálogo de subtipos; valores legados preservados nas opções.</td></tr>
+        <tr><td class="id">5</td><td class="antes">Campo "Situação" sem opções no cadastro inicial.</td>
+            <td><span class="status">RESOLVIDO</span><br>Formulário e tabela usam o mesmo catálogo: configurado + em uso + padrões (<code>AcompanhamentoSituacaoDefaults</code>) por tipo.</td></tr>
+        <tr><td class="id">6</td><td class="antes">Alterar o código gerava serviço novo em vez de atualizar o original.</td>
+            <td><span class="status">RESOLVIDO</span><br>Sincronização busca pelo código antigo, renomeia o acompanhamento, propaga o novo código aos lançamentos e registra no histórico.</td></tr>
+        <tr><td class="id">7</td><td class="antes">Código não era gerado automaticamente no formato da empresa.</td>
+            <td><span class="status">RESOLVIDO</span><br>Geração segue as séries reais: AVCB sequencial (3101), CLCB 4xxx, OBRAS N.NN (2.85), PROCESSOS_ADM 5xxx.</td></tr>
+        <tr><td class="id">8</td><td class="antes">Busca CNPJ falhava; "razão social" ficava bloqueada (texto qualquer ou vínculo com orçamento).</td>
+            <td><span class="status">RESOLVIDO</span><br>Consulta só dispara com exatamente 14 dígitos; lookup preenche apenas campos vazios; formulário vindo de orçamento permanece editável.</td></tr>
+        <tr><td class="id">9</td><td class="antes">Faltava a coluna "Nome do contato".</td>
+            <td><span class="status">RESOLVIDO</span><br>Contato incluído no DTO, na grade, no filtro, na busca global, no PDF e no Excel.</td></tr>
+        <tr><td class="id">10</td><td class="antes">Não era possível remover pendências individuais de um serviço.</td>
+            <td><span class="status">RESOLVIDO</span><br>Botão de exclusão por pendência + <code>RemovePendingAsync</code> no serviço.</td></tr>
+        <tr><td class="id">11</td><td class="antes">"A receber" calculado errado nos serviços criados pelo site (importados ok).</td>
+            <td><span class="status">RESOLVIDO</span><br><code>Recebido</code>/<code>Custos</code>/<code>AReceber</code> somam os lançamentos pagos criados no site aos valores armazenados.</td></tr>
+        <tr><td class="id">12</td><td class="antes">"Situação" da tabela diferente do campo dentro do cadastro.</td>
+            <td><span class="status">RESOLVIDO</span><br>Ambos consomem a mesma união de catálogos (ver item 5).</td></tr>
+        <tr><td class="id">13</td><td class="antes">Faltava botão de pasta na coluna "Ação".</td>
+            <td><span class="status">RESOLVIDO</span><br>Botão de pasta (Drive/local) adicionado à coluna de ações.</td></tr>
+        <tr><td class="id">14</td><td class="antes">"Copiar endereço" anexava o código do serviço no final e quebrava o caminho.</td>
+            <td><span class="status">RESOLVIDO</span><br>Caminho absoluto/UNC é copiado intacto; o código só é anexado a caminho relativo com raiz configurada.</td></tr>
+        <tr><td class="id">15</td><td class="antes">Coluna oculta (ex.: "Pendências") voltava a aparecer sozinha.</td>
+            <td><span class="status">RESOLVIDO</span><br><code>SmartTableFilter</code> notifica as colunas ocultas após restaurar a preferência salva no navegador.</td></tr>
+    </tbody>
+</table>
+
+<h2>Tela Lançamentos <small>/financeiro/lancamentos</small></h2>
+<table>
+    <thead><tr><th>#</th><th>Reclamação do cliente</th><th>Correção aplicada</th></tr></thead>
+    <tbody>
+        <tr><td class="id">16</td><td class="antes">Selecionar parcela trocava a forma de pagamento para "3x"/"4x".</td>
+            <td><span class="status">RESOLVIDO</span><br>Parcela nunca mais sobrescreve a forma de pagamento (só preenche se vazio e rejeita rótulos de parcelamento).</td></tr>
+        <tr><td class="id">17</td><td class="antes">Lançamentos criados pelo site ficavam como "Previsto"; deveriam ser todos pagos.</td>
+            <td><span class="status">RESOLVIDO</span><br>Padrão do formulário passou a <code>PAGO</code>; SQL de inicialização corrige os registros existentes criados manualmente.</td></tr>
+        <tr><td class="id">18</td><td class="antes">Sem aviso de repetição (mesmo valor e data).</td>
+            <td><span class="status">RESOLVIDO</span><br>Mesmo valor + mesma data + mesmo tipo exige confirmação antes de salvar.</td></tr>
+        <tr><td class="id">19</td><td class="antes">Sem aviso de sobrevalor.</td>
+            <td><span class="status">RESOLVIDO</span><br>Valor acima da parcela (ou do contrato) exige confirmação antes de salvar.</td></tr>
+        <tr><td class="id">20</td><td class="antes">Erro "saving entity changes" ao criar lançamento.</td>
+            <td><span class="status">RESOLVIDO</span><br>Geração de código passou de <code>count+1</code> (colidia após exclusões) para <code>max+1</code> com retry em violação de unicidade.</td></tr>
+    </tbody>
+</table>
+
+<h2>Geral</h2>
+<table>
+    <thead><tr><th>#</th><th>Reclamação do cliente</th><th>Correção aplicada</th></tr></thead>
+    <tbody>
+        <tr><td class="id">21</td><td class="antes">Formulário preenchido era apagado ao voltar na tela ou quando a página atualizava em tempo real.</td>
+            <td><span class="status">RESOLVIDO</span><br><code>FormDraftStore</code> preserva o rascunho ao sair e restaura ao voltar; a tela não é recriada com formulário aberto. Cobre orçamento, serviço, lançamento, acompanhamento, clientes, prestadores, custos, notificações e importações.</td></tr>
+        <tr><td class="id">22</td><td class="antes">Busca global não achava por texto parcial.</td>
+            <td><span class="status">RESOLVIDO</span><br>Busca sem limite de 100 registros por tipo, inclui concluídos e texto de contato.</td></tr>
+    </tbody>
+</table>
+
+<div class="summary">
+    <h2>Verificação de qualidade</h2>
+    <ul>
+        <li><b>22/22</b> reclamações resolvidas.</li>
+        <li>Build limpo: <b>0 erros, 0 avisos</b>.</li>
+        <li>Testes: <b>33/33</b> unitários e <b>16/16</b> de integração aprovados.</li>
+        <li>20 arquivos alterados + 4 novos (<code>SemanasCivil</code>, <code>SituacaoFinalizada</code>, <code>AcompanhamentoSituacaoDefaults</code>, <code>FormDraftStore</code>).</li>
+        <li>Consistência conferida em todas as telas afetadas: /orcamentos, /acompanhamento, /cadastros-servico, /financeiro/lancamentos, /busca e relatórios PDF/Excel.</li>
+    </ul>
+</div>
+
+<footer>
+    <span>CRM Atlas Engenharia — Relatório de correções</span>
+    <span>Gerado em 16/10/2026</span>
+</footer>
+
+</body>
+</html>

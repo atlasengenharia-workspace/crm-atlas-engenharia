@@ -287,17 +287,33 @@ public sealed class LancamentoService(
 
     public async Task<LancamentoDto> CreateAsync(LancamentoDto dto, CancellationToken cancellationToken = default)
     {
-        var entity = new Lancamento
+        // O código precisa sobreviver a deleções: count+1 colide com o índice único
+        // quando lançamentos são removidos. max+1 reduz a janela, e o retry cobre
+        // a corrida entre duas criações simultâneas.
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            Codigo = await NextCodeAsync(cancellationToken),
-            Origem = dto.Origem
-        };
-        await ApplyAsync(entity, dto, cancellationToken);
-        await repository.AddAsync(entity, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
-        await registroHistorico.RegistrarEventoAsync(
-            RegistroEntidade.Lancamento, entity.Id, entity.Codigo, "Criado", cancellationToken);
-        return ToDto(entity);
+            var entity = new Lancamento
+            {
+                Codigo = await NextCodeAsync(cancellationToken),
+                Origem = dto.Origem
+            };
+            try
+            {
+                await ApplyAsync(entity, dto, cancellationToken);
+                await repository.AddAsync(entity, cancellationToken);
+                await repository.SaveChangesAsync(cancellationToken);
+                await registroHistorico.RegistrarEventoAsync(
+                    RegistroEntidade.Lancamento, entity.Id, entity.Codigo, "Criado", cancellationToken);
+                return ToDto(entity);
+            }
+            catch (Exception ex) when (attempt < 2 && IsCodigoDuplicado(ex))
+            {
+                repository.Remove(entity);
+                lastError = ex;
+            }
+        }
+        throw lastError!;
     }
 
     public async Task<LancamentoDto> UpdateAsync(long id, LancamentoDto dto, CancellationToken cancellationToken = default)
@@ -356,8 +372,20 @@ public sealed class LancamentoService(
         entity.Observacao = Clean(dto.Observacao);
     }
 
-    private async Task<string> NextCodeAsync(CancellationToken cancellationToken) =>
-        $"L-{(await repository.ListAsync(cancellationToken)).Count + 1:000000}";
+    private async Task<string> NextCodeAsync(CancellationToken cancellationToken)
+    {
+        var max = (await repository.ListAsync(cancellationToken))
+            .Select(x => x.Codigo)
+            .Select(x => x is not null && x.StartsWith("L-", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(x[2..], out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        return $"L-{max + 1:000000}";
+    }
+
+    private static bool IsCodigoDuplicado(Exception ex) =>
+        ex.ToString().Contains("23505", StringComparison.Ordinal)
+        || ex.ToString().Contains("duplicate", StringComparison.OrdinalIgnoreCase);
 
     private async Task<Lancamento> FindAsync(long id, CancellationToken cancellationToken) =>
         await repository.GetByIdAsync(id, cancellationToken)

@@ -9,6 +9,7 @@
 @inject INotificationService NotificationService
 @inject IRealtimeChangeFeed RealtimeChanges
 @inject ISnackbar Snackbar
+@inject IFormDraftStore DraftStore
 
 <MudThemeProvider Theme="_theme" @bind-IsDarkMode="_darkMode" />
 <MudPopoverProvider />
@@ -348,7 +349,10 @@
             config => { config.VisibleStateDuration = 2500; config.ShowCloseIcon = true; });
         StateHasChanged();
 
-        if (_currentUser is not null && change.Module != "notificacoes")
+        // Com um formulário aberto, Navigation.Refresh() recria a página e apaga
+        // o que o usuário está digitando. Adiamos o refresh para o próximo evento
+        // depois que o formulário for fechado.
+        if (_currentUser is not null && change.Module != "notificacoes" && !DraftStore.HasActive)
             await ScheduleRealtimeRefreshAsync();
     });
 

@@ -20,6 +20,8 @@ public sealed record OrcamentoDto(long? Id, [Required] string Codigo, string? No
         Situacao.Contains("recus", StringComparison.OrdinalIgnoreCase) ? "Recusado" : "Em análise";
 
     public bool AguardandoRetorno => Situacao.Contains("aguard", StringComparison.OrdinalIgnoreCase);
+
+    public int Semanas => SemanasCivil.Decorridas(Data);
 }
 
 public sealed record OrcamentoFilter(
@@ -195,6 +197,7 @@ public sealed class OrcamentoService(
             "tipo" => descending ? query.OrderByDescending(x => x.TipoServico) : query.OrderBy(x => x.TipoServico),
             "situacao" => descending ? query.OrderByDescending(x => x.Situacao) : query.OrderBy(x => x.Situacao),
             "valor" => descending ? query.OrderByDescending(x => x.ValorTotal) : query.OrderBy(x => x.ValorTotal),
+            "semanas" => descending ? query.OrderBy(x => x.Data) : query.OrderByDescending(x => x.Data),
             _ => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id)
         };
 

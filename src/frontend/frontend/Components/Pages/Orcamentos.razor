@@ -8,6 +8,8 @@
 @inject IRadzenDataGridStateService DataGridStateService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Orçamentos | CRM Atlas</PageTitle>
 <PageHeader Title="Orçamentos" Subtitle="Gerencie propostas e converta aprovações em serviços.">
@@ -64,8 +66,8 @@
                     <Template Context="context">@context.Data?.ToString("dd/MM/yyyy")</Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="OrcamentoDto" Title="Semanas" Sortable="false" Filterable="false">
-                    <Template Context="context">@WeeksSince(context.Data)</Template>
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Semanas" Title="Semanas">
+                    <Template Context="context">@context.Semanas</Template>
                 </RadzenDataGridColumn>
 
                 <RadzenDataGridColumn TItem="OrcamentoDto" Property="TipoServico" Title="Tipo">
@@ -76,7 +78,7 @@
                     <Template Context="context">@(context.Subtipo ?? "—")</Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="OrcamentoDto" Property="SituacaoGrupo" Title="Situação">
+                <RadzenDataGridColumn TItem="OrcamentoDto" Property="Situacao" Title="Situação">
                     <Template Context="context">
                         @{var situacaoCor=SituacaoCor(context.Situacao);}
                         <MudChip T="string" Size="Size.Small" Color="@(situacaoCor is null?StatusColor(context.Situacao):Color.Default)" Style="@(situacaoCor is null?null:$"background:{situacaoCor};color:#fff")">@context.Situacao</MudChip>
@@ -114,7 +116,7 @@
         <MudToolBar Class="pa-0 mb-3">
             <MudText Typo="Typo.h5">@(_model.Id is null ? "Novo orçamento" : "Editar orçamento")</MudText>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _open=false)" aria-label="Fechar" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="CloseForm" aria-label="Fechar" />
         </MudToolBar>
         <MudDivider Class="mb-5" />
         <MudForm @ref="_form" @bind-IsValid="_valid"><MudGrid>
@@ -130,7 +132,7 @@
             <MudItem xs="12"><MudTextField @bind-Value="_model.Descricao" Label="Descrição" Variant="Variant.Outlined" Lines="4" /></MudItem>
         </MudGrid></MudForm>
         <MudDivider Class="mt-6 mb-4" />
-        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="@(() => _open=false)">Cancelar</MudButton><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">Salvar</MudButton></MudStack>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2"><MudButton OnClick="CloseForm">Cancelar</MudButton><MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_saving">Salvar</MudButton></MudStack>
     </div>
 </MudDrawer>
 
@@ -153,9 +155,10 @@
     [
         new("codigo","Código",x=>x.Codigo,1),new("cliente","Cliente",x=>x.Nome,2),
         new("telefone","Telefone",x=>x.Telefone,3),new("email","E-mail",x=>x.Email,3),new("data","Data",x=>x.Data,4),
-        new("semanas","Semanas",x=>WeeksSince(x.Data),5,false),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
+        new("semanas","Semanas",x=>x.Semanas,5,false),new("tipo","Tipo",x=>TypeLabel(x.TipoServico),6),new("subtipo","Subtipo",x=>x.Subtipo,7),new("situacao","Situação",x=>x.Situacao,8),new("valor","Valor",x=>x.ValorTotal,9,true)
     ];
-    private bool _loading,_open,_saving,_valid,_ocultarConcluidos; private string? _search;
+    private bool _loading,_openField,_saving,_valid,_ocultarConcluidos; private string? _search;
+    private bool _open { get => _openField; set { _openField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private bool _initialLoading = true;
     private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
     private IReadOnlyList<OrcamentoSituacaoDto> _situacoes = FallbackSituacoes;
@@ -165,8 +168,15 @@
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "orcamentos");
         try { _tipos = await TipoConfigService.ListAsync(); }
         catch { _tipos = ServicoTipoDefaults.All(); }
-        try { _situacoes = await SituacaoService.ListAsync(); }
+        try
+        {
+            var loaded = await SituacaoService.ListAsync();
+            _situacoes = loaded
+                .Concat(FallbackSituacoes.Where(f => !loaded.Any(x => x.Nome.Equals(f.Nome, StringComparison.OrdinalIgnoreCase))))
+                .ToList();
+        }
         catch { _situacoes = FallbackSituacoes; }
+        RestoreDraft();
         await LoadAsync();
     }
 
@@ -203,9 +213,16 @@
         if (args.Key == "Enter") { await LoadAsync(); }
     }
 
-    private void New(){var tipo=_tipos.FirstOrDefault(x=>x.Ativo)?.TipoServico??AcompanhamentoServicoTipo.AVCB;var situacaoPadrao=_situacoes.FirstOrDefault(x=>x.Ativo&&x.Padrao)?.Nome??_situacoes.FirstOrDefault(x=>x.Ativo)?.Nome??"Em análise";_model=new(){TipoServico=tipo,Codigo=$"ORC-{BudgetTypeSigla(tipo)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao=situacaoPadrao,Data=DateTime.Today};_open=true;}
-    private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);_open=true;}
-    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);_open=false;await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
+    private const string DraftKey = "orcamentos:form";
+    private void RestoreDraft()
+    {
+        var draft = DraftStore.Get<BudgetModel>(DraftKey);
+        if (draft is not null) { _model = draft; _open = true; DraftStore.Resume(DraftKey); }
+    }
+    private void CloseForm(){_open=false;}
+    private void New(){var tipo=_tipos.FirstOrDefault(x=>x.Ativo)?.TipoServico??AcompanhamentoServicoTipo.AVCB;var situacaoPadrao=_situacoes.FirstOrDefault(x=>x.Ativo&&x.Padrao)?.Nome??_situacoes.FirstOrDefault(x=>x.Ativo)?.Nome??"Em análise";_model=new(){TipoServico=tipo,Codigo=$"ORC-{BudgetTypeSigla(tipo)}-{DateTime.Now:yyyyMMdd-HHmm}",Situacao=situacaoPadrao,Data=DateTime.Today};DraftStore.BeginEdit(DraftKey,_model);_open=true;}
+    private void Edit(OrcamentoDto x){_model=BudgetModel.From(x);DraftStore.BeginEdit(DraftKey,_model);_open=true;}
+    private async Task SaveAsync(){await(_form?.ValidateAsync()??Task.CompletedTask);if(!_valid)return;_saving=true;try{await Service.SaveAsync(_model.ToDto());Snackbar.Add("Orçamento salvo.",Severity.Success);CloseForm();await LoadAsync();}catch(Exception e){Snackbar.Add(SaveError(e),Severity.Error);}finally{_saving=false;}}
     private static string SaveError(Exception exception){var detail=exception.GetBaseException().Message;return detail.Contains("IX_orcamentos_codigo",StringComparison.OrdinalIgnoreCase)||detail.Contains("duplicate key",StringComparison.OrdinalIgnoreCase)?"Já existe um orçamento com esse código. Informe outro código ou edite o orçamento existente.":exception.Message;}
     private async Task DeleteAsync(OrcamentoDto x){if(x.Id is null||await DialogService.ShowMessageBoxAsync("Excluir orçamento",$"Excluir {x.Codigo}?",yesText:"Excluir",cancelText:"Cancelar")!=true)return;await Service.DeleteAsync(x.Id.Value);await LoadAsync();}
     private string? SituacaoCor(string s)=>_situacoes.FirstOrDefault(x=>x.Nome.Equals(s,StringComparison.OrdinalIgnoreCase))?.Cor;
@@ -220,7 +237,7 @@
     ];
     private static Color StatusColor(string s)=>s.Contains("aprov",StringComparison.OrdinalIgnoreCase)?Color.Success:s.Contains("recus",StringComparison.OrdinalIgnoreCase)?Color.Error:s.Contains("aguard",StringComparison.OrdinalIgnoreCase)?Color.Warning:Color.Info;
     private static string Money(decimal v)=>v.ToString("C2",new System.Globalization.CultureInfo("pt-BR"));
-    private static int WeeksSince(DateOnly? start) => start is null ? 0 : Math.Max(0, (DateOnly.FromDateTime(DateTime.Today).DayNumber - start.Value.DayNumber) / 7);
+    public void Dispose(){if(_open)DraftStore.Suspend(DraftKey);}
     private string TypeLabel(AcompanhamentoServicoTipo type) => _tipos.FirstOrDefault(x=>x.TipoServico==type)?.Label??ServicoTipoDefaults.Label(type);
     private static string BudgetTypeSigla(AcompanhamentoServicoTipo type) => type switch
     {

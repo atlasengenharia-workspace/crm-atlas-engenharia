@@ -212,9 +212,9 @@
             _state = new SmartTableState(saved.Search, saved.SortKey, saved.SortDescending, saved.Density, hidden, filters);
             _hiddenColumns.Clear(); foreach (var key in hidden) _hiddenColumns.Add(key);
 
-            // Notificar mudanças salvas ao componente pai seria útil, mas pode causar
-            // loop de recarga quando o componente é remontado pelo GlobalSkeleton. Por
-            // enquanto restaura apenas estado interno (colunas/densidade) sem forçar load.
+            // Sem notificar, o HashSet do pai fica vazio e o próximo OnParametersSet
+            // sobrescreve as colunas restauradas — era a causa de coluna oculta "voltar".
+            if (HiddenColumnsChanged.HasDelegate) await HiddenColumnsChanged.InvokeAsync(_hiddenColumns);
         }
         catch { }
     }

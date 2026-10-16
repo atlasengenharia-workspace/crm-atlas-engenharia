@@ -7,6 +7,8 @@
 @inject ICepLookupService CepLookupService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IFormDraftStore DraftStore
+@implements IDisposable
 
 <PageTitle>Clientes | CRM Atlas</PageTitle>
 
@@ -267,7 +269,9 @@
     private bool _loading;
     private bool _initialLoading = true;
     private bool _saving;
-    private bool _editorOpen;
+    private bool _editorOpenField;
+    private const string DraftKey = "clientes:editor";
+    private bool _editorOpen { get => _editorOpenField; set { _editorOpenField = value; if (!value) DraftStore.Clear(DraftKey); } }
     private bool _lookingUpCep;
     private string? _search;
     private string? _estado;
@@ -282,8 +286,12 @@
         if (_initialized) return;
         _initialized = true;
         _gridSettings = new DataGridSettingsBinder(DataGridStateService, "clientes");
+        var draft = DraftStore.Get<ClienteEditModel>(DraftKey);
+        if (draft is not null) { _model = draft; _editorOpen = true; DraftStore.Resume(DraftKey); }
         await LoadAsync();
     }
+
+    public void Dispose() { if (_editorOpen) DraftStore.Suspend(DraftKey); }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -319,8 +327,8 @@
     {
         if (args.Key == "Enter") { await LoadAsync(); }
     }
-    private void New() { _model = new(); _editorOpen = true; }
-    private void Edit(ClienteDto item) { _model = ClienteEditModel.From(item); _editorOpen = true; }
+    private void New() { _model = new(); DraftStore.BeginEdit(DraftKey, _model); _editorOpen = true; }
+    private void Edit(ClienteDto item) { _model = ClienteEditModel.From(item); DraftStore.BeginEdit(DraftKey, _model); _editorOpen = true; }
 
     private async Task SaveAsync()
     {
