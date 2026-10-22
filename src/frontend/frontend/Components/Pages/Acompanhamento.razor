@@ -123,9 +123,10 @@
                         FilterMode="Radzen.FilterMode.CheckBoxList" Culture="@_ptBr" UICulture="@_ptBr"
                         Density="Radzen.Density.Compact" EmptyText="Nenhum acompanhamento"
                         GroupPanelText="Arraste um cabeçalho de coluna aqui para agrupar"
-                        ColumnsShowingText="colunas visíveis">
+                        ColumnsShowingText="colunas visíveis"
+                        PickedColumnsChanged="OnPickedColumnsChangedAsync">
             <Columns>
-                <RadzenDataGridColumn TItem="AcompanhamentoDto" Width="40px" Sortable="false" Resizable="false" Title=" ">
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Width="40px" Sortable="false" Resizable="false" Title=" " Pickable="false">
                     <HeaderTemplate>
                         <MudCheckBox T="bool" Value="@(smartItems.All(x => _selectedIds.Contains(x.Id)))" ValueChanged="@(async (bool b) => ToggleSelectAll(smartItems, b))" Dense="true" />
                     </HeaderTemplate>
@@ -169,7 +170,7 @@
                     <Template Context="context">@(string.IsNullOrWhiteSpace(context.Telefone) ? "—" : context.Telefone)</Template>
                 </RadzenDataGridColumn>
 
-                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Servico" Title="Serviço" Visible="@(!_hiddenColumns.Contains("Tipo"))">
+                <RadzenDataGridColumn TItem="AcompanhamentoDto" Property="Servico" Title="Serviço" Visible="@(!_hiddenColumns.Contains("Serviço"))">
                     <HeaderTemplate>
                         <MudText Typo="Typo.body2" Class="font-weight-bold" Style="white-space:nowrap">Serviço</MudText>
                     </HeaderTemplate>
@@ -727,6 +728,17 @@
     {
         _hiddenColumns.Clear();
         foreach (var key in hidden) _hiddenColumns.Add(key);
+    }
+    private async Task OnPickedColumnsChangedAsync(Radzen.DataGridPickedColumnsChangedEventArgs<AcompanhamentoDto> args)
+    {
+        if (_grid is null) return;
+        var selected = new HashSet<string>((args.Columns ?? []).Select(c => c.Title), StringComparer.OrdinalIgnoreCase);
+        _hiddenColumns.Clear();
+        foreach (var column in _grid.ColumnsCollection.Where(c => c.Pickable))
+            if (!string.IsNullOrWhiteSpace(column.Title) && !selected.Contains(column.Title))
+                _hiddenColumns.Add(column.Title);
+        if (_smartFilter is not null)
+            await _smartFilter.SetHiddenColumnsAsync(_hiddenColumns);
     }
     private void ToggleHiddenColumn(string key)
     {
