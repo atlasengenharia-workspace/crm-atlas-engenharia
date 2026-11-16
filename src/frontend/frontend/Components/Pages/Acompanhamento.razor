@@ -656,7 +656,7 @@
         new("codigo","Código",x=>x.Codigo,2), new("cliente","Cliente",x=>x.Cliente,3),
         new("contato","Nome do contato",x=>x.Contato,4),
         new("endereco","Endereço",x=>x.Endereco,5), new("telefone","Telefone",x=>x.Telefone,6),
-        new("servico","Serviço",x=>x.Servico,7), new("valorContrato","R$ Contrato",x=>x.ValorContrato,8),
+        new("servico","Serviço",x=>x.Servico,7), new("valorContrato","R$ Contrato",x=>x.ValorContrato,8,true),
         new("dataContrato","Data Contrato",x=>x.DataContrato,9), new("nf","NF",x=>x.NotaFiscal,10),
         new("condicaoPagamento","Condição pag.",x=>x.CondicaoPagamento,11),
         new("proximaParcela","Prox. Parcela",x=>x.ProximaParcela,12),
@@ -664,8 +664,8 @@
         new("pendencias","Pendências",x=>string.Join(" ", x.Itens.Where(i=>!i.Concluida).Select(i=>i.Label)),14),
         new("observacoes","Observações",x=>x.Descricao,15),
         new("observacaoMudanca","Observação da mudança",x=>x.ObservacaoMudanca,16),
-        new("areceber","A receber",x=>x.AReceber,17), new("recebido","Recebido",x=>x.Recebido,18),
-        new("custos","Custos",x=>x.Custos,19), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),20)
+        new("areceber","A receber",x=>x.AReceber,17,true), new("recebido","Recebido",x=>x.Recebido,18,true),
+        new("custos","Custos",x=>x.Custos,19,true), new("atualizacao","Atualização",x=>x.AtualizadoEm?.ToLocalTime(),20)
     ];
     private AcompanhamentoDto? _selected; private SituationModel _config=new(); private bool _loading,_importing,_parsingImport;
     private bool _settingsOpenField,_importOpenField;

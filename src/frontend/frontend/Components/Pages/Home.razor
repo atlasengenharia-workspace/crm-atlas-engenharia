@@ -765,8 +765,8 @@
     private readonly IReadOnlyList<SmartFilterColumn<DashboardTopClientItem>> _topClientColumns =
     [
         new("rank", "#", x => x.Rank, 1), new("cliente", "Cliente", x => x.ClientName, 2),
-        new("linha", "Linha principal", x => x.PrimaryLine, 3), new("contratado", "Contratado", x => x.TotalContracted, 4),
-        new("contratos", "Contratos", x => x.ContractCount, 5), new("receber", "A receber", x => x.Receivable, 6)
+        new("linha", "Linha principal", x => x.PrimaryLine, 3), new("contratado", "Contratado", x => x.TotalContracted, 4, true),
+        new("contratos", "Contratos", x => x.ContractCount, 5, true), new("receber", "A receber", x => x.Receivable, 6, true)
     ];
 
     private DashboardSnapshot? _data;
