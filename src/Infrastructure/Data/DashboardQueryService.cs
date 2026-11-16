@@ -255,11 +255,9 @@ internal sealed class DashboardQueryService(AtlasDbContext db, ICrmCache cache) 
             return new { Label = PeriodLabel(period, filter.Granularity), Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras, Total = total };
         }).ToList();
 
-        var monthlyContractPoints = rawMonthlyContracts.Select((m, idx) =>
-        {
-            decimal? ma3 = idx < 2 ? null : (rawMonthlyContracts[idx].Total + rawMonthlyContracts[idx - 1].Total + rawMonthlyContracts[idx - 2].Total) / 3m;
-            return new DashboardMonthlyContractPoint(m.Label, m.Avcb, m.Clcb, m.ProcAdm, m.Obras, m.Total, ma3);
-        }).ToList();
+        var monthlyContractPoints = rawMonthlyContracts
+            .Select(m => new DashboardMonthlyContractPoint(m.Label, m.Avcb, m.Clcb, m.ProcAdm, m.Obras, m.Total))
+            .ToList();
 
         var quantityComparisons = LineSpecs
             .Where(l => types.Contains(l.Type))
@@ -307,11 +305,9 @@ internal sealed class DashboardQueryService(AtlasDbContext db, ICrmCache cache) 
             return new { Label = PeriodLabel(period, filter.Granularity), Revenue = rev, PrevRevenue = prevRev, Avcb = avcb, Clcb = clcb, ProcAdm = proc, Obras = obras };
         }).ToList();
 
-        var monthlyRevenues = rawMonthlyRevenues.Select((m, idx) =>
-        {
-            decimal? ma3 = idx < 2 ? null : (rawMonthlyRevenues[idx].Revenue + rawMonthlyRevenues[idx - 1].Revenue + rawMonthlyRevenues[idx - 2].Revenue) / 3m;
-            return new DashboardMonthlyRevenuePoint(m.Label, m.Revenue, m.PrevRevenue, ma3, m.Avcb, m.Clcb, m.ProcAdm, m.Obras);
-        }).ToList();
+        var monthlyRevenues = rawMonthlyRevenues
+            .Select(m => new DashboardMonthlyRevenuePoint(m.Label, m.Revenue, m.PrevRevenue, m.Avcb, m.Clcb, m.ProcAdm, m.Obras))
+            .ToList();
 
         var top5Categories = indirectCosts
             .GroupBy(x => x.Categoria)

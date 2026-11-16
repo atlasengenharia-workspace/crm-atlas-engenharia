@@ -43,14 +43,12 @@ public sealed record DashboardMonthlyContractPoint(
     decimal Clcb,
     decimal ProcAdm,
     decimal Obras,
-    decimal Total,
-    decimal? MovingAverage3);
+    decimal Total);
 
 public sealed record DashboardMonthlyRevenuePoint(
     string Label,
     decimal Revenue,
     decimal PreviousRevenue,
-    decimal? MovingAverage3,
     decimal Avcb,
     decimal Clcb,
     decimal ProcAdm,

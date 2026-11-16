@@ -188,7 +188,7 @@
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
                                 <MudStack Spacing="0">
                                     <MudText Typo="Typo.h6" Class="font-weight-bold">Contratos fechados por linha de serviço</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Valor contratado mensal pela data de assinatura, empilhado por linha · vermelho: média móvel 3 períodos</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Valor contratado mensal pela data de assinatura, empilhado por linha</MudText>
                                 </MudStack>
                                 <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenVendasFullscreenAsync" aria-label="Expandir gráfico" />
                             </MudStack>
@@ -223,53 +223,12 @@
                     <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">CAIXA — FATURAMENTO E CUSTOS</MudText>
                 </div>
                 <MudGrid Spacing="3">
-                    <MudItem xs="12">
-                        <MudPaper Outlined="true" Class="pa-5 h-100" Style="overflow: hidden;">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="mb-4 gap-3">
-                                <MudStack Spacing="0">
-                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                        <MudText Typo="Typo.h6" Class="font-weight-bold">Resultado operacional mensal</MudText>
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">Visão consolidada</MudChip>
-                                    </MudStack>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Receita e lucro em linhas · custos diretos e indiretos em barras empilhadas</MudText>
-                                </MudStack>
-                                <MudStack Row="true" Spacing="3" Wrap="Wrap.Wrap">
-                                    <div>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento</MudText>
-                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@FmtCompactMoney(_data.Kpis.Revenue)</MudText>
-                                    </div>
-                                    <MudDivider Vertical="true" FlexItem="true" />
-                                    <div>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Custos totais</MudText>
-                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@FmtCompactMoney(_data.Kpis.DirectCosts + _data.Kpis.IndirectCosts)</MudText>
-                                    </div>
-                                    <MudDivider Vertical="true" FlexItem="true" />
-                                    <div>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Lucro · margem</MudText>
-                                        <MudText Typo="Typo.subtitle2" Class="font-weight-bold" Style="@($"color: {(_data.Kpis.Result >= 0 ? "#15803D" : "#B91C1C")};")">
-                                            @FmtCompactMoney(_data.Kpis.Result) · @((_data.Kpis.Margin * 100).ToString("F1", PtBr))%
-                                        </MudText>
-                                    </div>
-                                </MudStack>
-                            </MudStack>
-                            <MudDivider Class="mb-4" />
-                            @if (BarrasDemais)
-                            {
-                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3" ShowCloseIcon="true">
-                                    A seleção gerou @_data!.Periods.Count barras — refine o período ou agrupe por Mês, Trimestre ou Ano para facilitar a leitura.
-                                </MudAlert>
-                            }
-                            <div style="height: 360px; position: relative; width: 100%;">
-                                <canvas id="operationalResultChartCanvas"></canvas>
-                            </div>
-                        </MudPaper>
-                    </MudItem>
                     <MudItem xs="12" md="6">
                         <MudPaper Outlined="true" Class="pa-5 h-100">
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
                                 <MudStack Spacing="0">
                                     <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução do faturamento</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento mensal · linha: média móvel 3 períodos · tracejado: período anterior</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento mensal · tracejado: período anterior</MudText>
                                 </MudStack>
                                 <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenEvoFullscreenAsync" aria-label="Expandir gráfico" />
                             </MudStack>
@@ -300,32 +259,17 @@
                     <MudText Typo="Typo.overline" Color="Color.Secondary" Class="font-weight-bold" Style="letter-spacing: 1px;">CUSTOS INDIRETOS</MudText>
                 </div>
                 <MudGrid Spacing="3">
-                    <MudItem xs="12" md="6">
+                    <MudItem xs="12">
                         <MudPaper Outlined="true" Class="pa-5 h-100">
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
                                 <MudStack Spacing="0">
                                     <MudText Typo="Typo.h6" Class="font-weight-bold">Evolução dos custos indiretos</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Empilhado por categoria — mostra o que está crescendo</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Empilhado por categoria, @(_includeProLabore ? "com" : "sem") pró-labore — mostra o que está crescendo</MudText>
                                 </MudStack>
                                 <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenCostEvoFullscreenAsync" aria-label="Expandir gráfico" />
                             </MudStack>
                             <div style="height: 320px; position: relative; width: 100%;">
                                 <canvas id="costEvoChartCanvas"></canvas>
-                            </div>
-                        </MudPaper>
-                    </MudItem>
-
-                    <MudItem xs="12" md="6">
-                        <MudPaper Outlined="true" Class="pa-5 h-100">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
-                                <MudStack Spacing="0">
-                                    <MudText Typo="Typo.h6" Class="font-weight-bold">Custos indiretos por categoria</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total do período — @(_includeProLabore ? "com" : "sem") pró-labore</MudText>
-                                </MudStack>
-                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenCostCatFullscreenAsync" aria-label="Expandir gráfico" />
-                            </MudStack>
-                            <div style="height: 320px; position: relative; width: 100%;">
-                                <canvas id="costCatChartCanvas"></canvas>
                             </div>
                         </MudPaper>
                     </MudItem>
@@ -376,9 +320,22 @@
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
                                 <MudStack Spacing="0">
                                     <MudText Typo="Typo.h6" Class="font-weight-bold">Participação por linha</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Faturamento do período filtrado</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @(string.IsNullOrEmpty(_donutPeriod) ? "Faturamento do período filtrado" : $"Faturamento de {_donutPeriod}")
+                                        · "Sem vínculo" = lançamentos sem serviço — <MudLink Href="/financeiro/lancamentos">ver em Lançamentos</MudLink>
+                                    </MudText>
                                 </MudStack>
-                                <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenDonutFullscreenAsync" aria-label="Expandir gráfico" />
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudSelect T="string" Value="_donutPeriod" ValueChanged="OnDonutPeriodChangedAsync" Label="Período"
+                                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Style="min-width: 130px;">
+                                        <MudSelectItem Value="@(string.Empty)">Todo o período</MudSelectItem>
+                                        @foreach (var label in DonutPeriodOptions)
+                                        {
+                                            <MudSelectItem Value="@label">@label</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    <MudIconButton Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" Color="Color.Default" OnClick="OpenDonutFullscreenAsync" aria-label="Expandir gráfico" />
+                                </MudStack>
                             </MudStack>
                             <div style="height: 320px; position: relative; width: 100%;">
                                 <canvas id="donutChartCanvas"></canvas>
@@ -735,17 +692,6 @@
     </DialogContent>
 </MudDialog>
 
-<MudDialog @bind-Visible="_isCostCatFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
-    <TitleContent>
-        <MudText Typo="Typo.h6" Class="font-weight-bold">Custos indiretos por categoria (Expandido)</MudText>
-    </TitleContent>
-    <DialogContent>
-        <div style="height: 550px; position: relative; width: 100%;">
-            <canvas id="costCatChartFullscreenCanvas"></canvas>
-        </div>
-    </DialogContent>
-</MudDialog>
-
 <MudDialog @bind-Visible="_isArecFullscreen" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true }">
     <TitleContent>
         <MudText Typo="Typo.h6" Class="font-weight-bold">A receber por linha (Expandido)</MudText>
@@ -798,6 +744,7 @@
     private bool _includeProLabore = true;
     private DashboardGranularity _granularity = DashboardGranularity.Mes;
     private bool _qtdByPeriod = true;
+    private string _donutPeriod = string.Empty;
 
     private readonly HashSet<AcompanhamentoServicoTipo> _activeLines = [
         AcompanhamentoServicoTipo.AVCB,
@@ -823,10 +770,6 @@
     ];
 
     private DashboardSnapshot? _data;
-    private const int _maxBars = 36;
-    private bool BarrasDemais => (_data?.Periods.Count ?? 0) > _maxBars;
-    private List<ChartSeries<double>> _financialSeries = [], _revenueSeries = [], _contractSeries = [], _costSeries = [];
-    private string[] _periodLabels = [], _revenueLabels = [], _contractLabels = [], _costLabels = [];
     private DataGridSettingsBinder _topClientGridSettings = null!;
     private DataGridSettingsBinder _priorityGridSettings = null!;
     private IReadOnlyList<ServicoTipoConfigDto> _tipos = ServicoTipoDefaults.All();
@@ -939,7 +882,11 @@
                 start, end, _activeLines.ToList(), _includeProLabore, _minContract, _maxContract, _granularity);
 
             _data = await Dashboard.GetAsync(filter);
-            BuildCharts(_data);
+            if (!string.IsNullOrEmpty(_donutPeriod)
+                && _data.MonthlyRevenues?.Any(x => x.Label == _donutPeriod) != true)
+            {
+                _donutPeriod = string.Empty;
+            }
             _chartsNeedRender = _activeTabIndex == 0;
         }
         catch (Exception exception)
@@ -970,7 +917,6 @@
     private bool _isEvoFullscreen = false;
     private bool _isStackFullscreen = false;
     private bool _isCostEvoFullscreen = false;
-    private bool _isCostCatFullscreen = false;
     private bool _isArecFullscreen = false;
     private bool _isContratoFullscreen = false;
     private bool _isDonutFullscreen = false;
@@ -1009,13 +955,11 @@
     private async Task RenderAllChartsAsync()
     {
         await RenderMasterChartAsync("masterChartCanvas");
-        await RenderOperationalResultChartAsync("operationalResultChartCanvas");
         await RenderVendasChartAsync("vendasChartCanvas");
         await RenderQtdChartAsync("qtdChartCanvas");
         await RenderEvoChartAsync("evoChartCanvas");
         await RenderStackChartAsync("stackChartCanvas");
         await RenderCostEvoChartAsync("costEvoChartCanvas");
-        await RenderCostCatChartAsync("costCatChartCanvas");
         await RenderContratoChartAsync("contratoChartCanvas");
         await RenderArecChartAsync("arecChartCanvas");
         await RenderDonutChartAsync("donutChartCanvas");
@@ -1064,29 +1008,6 @@
         }
     }
 
-    private async Task RenderOperationalResultChartAsync(string canvasId)
-    {
-        if (_data?.Periods == null || !_data.Periods.Any()) return;
-
-        var labels = _data.Periods.Select(x => x.Label).ToArray();
-        var revenue = _data.Periods.Select(x => (double)x.Revenue).ToArray();
-        var directCosts = _data.Periods.Select(x => (double)x.DirectCosts).ToArray();
-        var indirectCosts = _data.Periods.Select(x => (double)x.IndirectCosts).ToArray();
-        var result = _data.Periods.Select(x => (double)x.Result).ToArray();
-
-        for (int attempt = 0; attempt < 5; attempt++)
-        {
-            try
-            {
-                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderOperationalResultChart",
-                    canvasId, labels, revenue, directCosts, indirectCosts, result);
-                if (success) break;
-            }
-            catch { }
-            await Task.Delay(100);
-        }
-    }
-
     private async Task RenderVendasChartAsync(string canvasId)
     {
         if (_data?.MonthlyContracts == null || !_data.MonthlyContracts.Any()) return;
@@ -1096,13 +1017,12 @@
         var clcb = _data.MonthlyContracts.Select(x => (double)x.Clcb).ToArray();
         var proc = _data.MonthlyContracts.Select(x => (double)x.ProcAdm).ToArray();
         var obras = _data.MonthlyContracts.Select(x => (double)x.Obras).ToArray();
-        var ma3 = _data.MonthlyContracts.Select(x => x.MovingAverage3.HasValue ? (double?)x.MovingAverage3.Value : null).ToArray();
 
         for (int attempt = 0; attempt < 5; attempt++)
         {
             try
             {
-                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderVendasChart", canvasId, labels, avcb, clcb, proc, obras, ma3);
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderVendasChart", canvasId, labels, avcb, clcb, proc, obras);
                 if (success) break;
             }
             catch { }
@@ -1160,13 +1080,12 @@
         var labels = _data.MonthlyRevenues.Select(x => x.Label).ToArray();
         var fat = _data.MonthlyRevenues.Select(x => (double)x.Revenue).ToArray();
         var prev = _data.MonthlyRevenues.Select(x => (double)x.PreviousRevenue).ToArray();
-        var ma3 = _data.MonthlyRevenues.Select(x => x.MovingAverage3.HasValue ? (double?)x.MovingAverage3.Value : null).ToArray();
 
         for (int attempt = 0; attempt < 5; attempt++)
         {
             try
             {
-                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderEvoChart", canvasId, labels, fat, ma3, prev);
+                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderEvoChart", canvasId, labels, fat, prev);
                 if (success) break;
             }
             catch { }
@@ -1256,26 +1175,6 @@
         }
     }
 
-    private async Task RenderCostCatChartAsync(string canvasId)
-    {
-        if (_data?.IndirectCostsByCategory == null || !_data.IndirectCostsByCategory.Any()) return;
-
-        var sortedCats = _data.IndirectCostsByCategory.OrderByDescending(x => x.Value).ToList();
-        var categories = sortedCats.Select(x => x.Label).ToArray();
-        var values = sortedCats.Select(x => (double)x.Value).ToArray();
-
-        for (int attempt = 0; attempt < 5; attempt++)
-        {
-            try
-            {
-                var success = await JS.InvokeAsync<bool>("dashboardCharts.renderCostCatChart", canvasId, categories, values);
-                if (success) break;
-            }
-            catch { }
-            await Task.Delay(100);
-        }
-    }
-
     private async Task OpenStackFullscreenAsync()
     {
         _isStackFullscreen = true;
@@ -1311,12 +1210,46 @@
         }
     }
 
+    private IEnumerable<string> DonutPeriodOptions =>
+        _data?.MonthlyRevenues?.Select(x => x.Label) ?? Enumerable.Empty<string>();
+
+    private async Task OnDonutPeriodChangedAsync(string period)
+    {
+        _donutPeriod = period;
+        await RenderDonutChartAsync("donutChartCanvas");
+        if (_isDonutFullscreen)
+            await RenderDonutChartAsync("donutChartFullscreenCanvas");
+    }
+
     private async Task RenderDonutChartAsync(string canvasId)
     {
-        if (_data?.RevenueByService == null || !_data.RevenueByService.Any()) return;
+        string[] labels;
+        double[] values;
 
-        var labels = _data.RevenueByService.Select(x => x.Label).ToArray();
-        var values = _data.RevenueByService.Select(x => (double)x.Value).ToArray();
+        if (string.IsNullOrEmpty(_donutPeriod))
+        {
+            if (_data?.RevenueByService == null || !_data.RevenueByService.Any()) return;
+            labels = _data.RevenueByService.Select(x => x.Label).ToArray();
+            values = _data.RevenueByService.Select(x => (double)x.Value).ToArray();
+        }
+        else
+        {
+            var point = _data?.MonthlyRevenues?.FirstOrDefault(x => x.Label == _donutPeriod);
+            if (point is null) return;
+
+            var slices = new List<(string Label, decimal Value)>();
+            if (point.Avcb > 0) slices.Add(("AVCB", point.Avcb));
+            if (point.Clcb > 0) slices.Add(("CLCB", point.Clcb));
+            if (point.ProcAdm > 0) slices.Add(("Proc. Adm", point.ProcAdm));
+            if (point.Obras > 0) slices.Add(("Obras", point.Obras));
+
+            var unlinked = point.Revenue - slices.Sum(x => x.Value);
+            if (unlinked > 0) slices.Add(("Sem vínculo", unlinked));
+            if (slices.Count == 0) return;
+
+            labels = slices.Select(x => x.Label).ToArray();
+            values = slices.Select(x => (double)x.Value).ToArray();
+        }
 
         for (int attempt = 0; attempt < 5; attempt++)
         {
@@ -1328,14 +1261,6 @@
             catch { }
             await Task.Delay(100);
         }
-    }
-
-    private async Task OpenCostCatFullscreenAsync()
-    {
-        _isCostCatFullscreen = true;
-        StateHasChanged();
-        await Task.Delay(150);
-        await RenderCostCatChartAsync("costCatChartFullscreenCanvas");
     }
 
     private async Task OpenArecFullscreenAsync()
@@ -1361,40 +1286,6 @@
         await Task.Delay(150);
         await RenderDonutChartAsync("donutChartFullscreenCanvas");
     }
-
-    private void BuildCharts(DashboardSnapshot data)
-    {
-        _periodLabels = data.Periods.Select(x => x.Label).ToArray();
-        _financialSeries =
-        [
-            new() { Name = "Faturamento", Data = data.Periods.Select(x => (double)x.Revenue).ToArray() },
-            new() { Name = "Custos diretos", Data = data.Periods.Select(x => (double)x.DirectCosts).ToArray() },
-            new() { Name = "Custos indiretos", Data = data.Periods.Select(x => (double)x.IndirectCosts).ToArray() },
-            new() { Name = "Resultado", Data = data.Periods.Select(x => (double)x.Result).ToArray() }
-        ];
-
-        (_revenueLabels, _revenueSeries) = Donut(data.RevenueByService);
-        (_contractLabels, _contractSeries) = Bars("Contratos", data.ContractsByService);
-        (_costLabels, _costSeries) = Donut(data.IndirectCostsByCategory);
-    }
-
-    private static (string[], List<ChartSeries<double>>) Donut(IReadOnlyList<DashboardBreakdownPoint> data) =>
-        (data.Select(x => x.Label).ToArray(),
-         data.Count == 0 ? [] : [new() { Name = "Valor", Data = data.Select(x => (double)x.Value).ToArray() }]);
-
-    private static (string[], List<ChartSeries<double>>) Bars(string name, IReadOnlyList<DashboardBreakdownPoint> data) =>
-        (data.Select(x => x.Label).ToArray(),
-         data.Count == 0 ? [] : [new() { Name = name, Data = data.Select(x => (double)x.Value).ToArray() }]);
-
-    private static Color AgeColor(int days) => days switch
-    {
-        <= 30 => Color.Success,
-        <= 90 => Color.Warning,
-        <= 180 => Color.Error,
-        _ => Color.Dark
-    };
-
-    private string Money(decimal value) => _hideValues ? "R$ ••••••" : value.ToString("C0", PtBr);
 
     private string FmtCompactMoney(decimal val)
     {

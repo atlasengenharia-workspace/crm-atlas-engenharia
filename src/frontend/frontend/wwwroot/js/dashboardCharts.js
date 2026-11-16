@@ -1,12 +1,10 @@
 window.dashboardCharts = {
     masterChart: null,
-    operationalResultChart: null,
     vendasChart: null,
     qtdChart: null,
     evoChart: null,
     stackChart: null,
     costEvoChart: null,
-    costCatChart: null,
     arecChart: null,
     donutChart: null,
 
@@ -146,103 +144,7 @@ window.dashboardCharts = {
         return true;
     },
 
-    renderOperationalResultChart: function (canvasId, labels, revenue, directCosts, indirectCosts, result) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return false;
-
-        if (this.operationalResultChart) {
-            this.operationalResultChart.destroy();
-            this.operationalResultChart = null;
-        }
-
-        const compact = function (value) {
-            const abs = Math.abs(value || 0);
-            if (abs >= 1000000) return 'R$ ' + (value / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
-            if (abs >= 1000) return 'R$ ' + (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' mil';
-            return 'R$ ' + (value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-        };
-        const full = value => (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-        this.operationalResultChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        type: 'bar', label: 'Custo direto', data: directCosts,
-                        backgroundColor: 'rgba(239, 68, 68, 0.78)', borderColor: '#DC2626',
-                        borderWidth: 0, borderRadius: 5, stack: 'costs', order: 3,
-                        maxBarThickness: 34
-                    },
-                    {
-                        type: 'bar', label: 'Custo indireto', data: indirectCosts,
-                        backgroundColor: 'rgba(245, 158, 11, 0.78)', borderColor: '#D97706',
-                        borderWidth: 0, borderRadius: 5, stack: 'costs', order: 3,
-                        maxBarThickness: 34
-                    },
-                    {
-                        type: 'line', label: 'Faturamento', data: revenue,
-                        borderColor: '#2563EB', backgroundColor: 'rgba(37, 99, 235, 0.10)',
-                        borderWidth: 3, pointRadius: 3, pointHoverRadius: 6,
-                        pointStyle: 'circle', pointBackgroundColor: '#2563EB', pointBorderColor: '#2563EB', pointBorderWidth: 2,
-                        tension: 0.35, fill: true, stack: 'revenue', order: 1
-                    },
-                    {
-                        type: 'line', label: 'Lucro da empresa', data: result,
-                        borderColor: '#059669', backgroundColor: '#059669',
-                        borderWidth: 2, pointRadius: 3, pointHoverRadius: 6,
-                        pointStyle: 'circle', pointBackgroundColor: '#059669', tension: 0.35,
-                        borderDash: [7, 5], fill: false, stack: 'result', order: 0
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                animation: { duration: 450, easing: 'easeOutQuart' },
-                plugins: {
-                    legend: {
-                        position: 'bottom', align: 'start',
-                        labels: {
-                            usePointStyle: true,
-                            pointStyle: 'circle',
-                            pointStyleWidth: 10,
-                            boxWidth: 10,
-                            boxHeight: 10,
-                            padding: 20,
-                            font: { family: 'Inter', size: 12, weight: '500' }
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: '#0F172A', padding: 13, cornerRadius: 10,
-                        titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
-                        bodyFont: { family: 'Inter', size: 12 },
-                        callbacks: {
-                            label: context => ' ' + context.dataset.label + ': ' + full(context.parsed.y),
-                            footer: items => {
-                                if (!items || !items.length) return '';
-                                const i = items[0].dataIndex;
-                                return revenue[i] > 0 ? 'Margem: ' + ((result[i] / revenue[i]) * 100).toFixed(1).replace('.', ',') + '%' : '';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { stacked: true, grid: { display: false }, border: { display: false }, ticks: { color: '#64748B', font: { family: 'Inter', size: 11 } } },
-                    y: {
-                        stacked: true, beginAtZero: true, border: { display: false },
-                        grid: { color: 'rgba(148, 163, 184, 0.16)' },
-                        ticks: { color: '#64748B', padding: 10, callback: value => compact(value), font: { family: 'Inter', size: 11 } }
-                    }
-                }
-            }
-        });
-
-        return true;
-    },
-
-    renderVendasChart: function (canvasId, labels, avcb, clcb, procAdm, obras, mediaMovel) {
+    renderVendasChart: function (canvasId, labels, avcb, clcb, procAdm, obras) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return false;
 
@@ -275,8 +177,7 @@ window.dashboardCharts = {
                     { type: 'bar', label: 'AVCB', data: avcb, backgroundColor: '#C8432F', borderRadius: 2, stack: 'v' },
                     { type: 'bar', label: 'CLCB', data: clcb, backgroundColor: '#DE9427', borderRadius: 2, stack: 'v' },
                     { type: 'bar', label: 'Proc. Adm', data: procAdm, backgroundColor: '#6B46C1', borderRadius: 2, stack: 'v' },
-                    { type: 'bar', label: 'Obras', data: obras, backgroundColor: '#2B6CB0', borderRadius: 2, stack: 'v' },
-                    { type: 'line', label: 'Média móvel (3)', data: mediaMovel, borderColor: '#C8432F', borderWidth: 2.5, pointRadius: 0, tension: 0.35 }
+                    { type: 'bar', label: 'Obras', data: obras, backgroundColor: '#2B6CB0', borderRadius: 2, stack: 'v' }
                 ]
             },
             options: {
@@ -293,11 +194,18 @@ window.dashboardCharts = {
                         backgroundColor: 'rgba(23, 30, 50, 0.95)',
                         titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
                         bodyFont: { family: 'Inter', size: 12 },
+                        footerFont: { family: 'Inter', size: 12, weight: 'bold' },
                         padding: 12,
                         cornerRadius: 8,
                         callbacks: {
                             label: function (context) {
                                 return ' ' + context.dataset.label + ': ' + fmtFull(context.parsed.y || 0);
+                            },
+                            footer: function (tooltipItems) {
+                                if (!tooltipItems || tooltipItems.length === 0) return '';
+                                const idx = tooltipItems[0].dataIndex;
+                                const total = (avcb[idx] || 0) + (clcb[idx] || 0) + (procAdm[idx] || 0) + (obras[idx] || 0);
+                                return 'Total: ' + fmtFull(total);
                             }
                         }
                     }
@@ -412,7 +320,7 @@ window.dashboardCharts = {
         return true;
     },
 
-    renderEvoChart: function (canvasId, labels, faturamento, mediaMovel, periodAnterior) {
+    renderEvoChart: function (canvasId, labels, faturamento, periodAnterior) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return false;
 
@@ -443,7 +351,6 @@ window.dashboardCharts = {
                 labels: labels,
                 datasets: [
                     { type: 'bar', label: 'Faturamento', data: faturamento, backgroundColor: '#2563EB', borderRadius: 4 },
-                    { type: 'line', label: 'Média móvel (3)', data: mediaMovel, borderColor: '#C8432F', borderWidth: 2.5, pointRadius: 0, tension: 0.35 },
                     { type: 'line', label: 'Período anterior', data: periodAnterior, borderColor: '#94A3B8', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.3 }
                 ]
             },
@@ -553,12 +460,7 @@ window.dashboardCharts = {
                                 if (!tooltipItems || tooltipItems.length === 0) return '';
                                 const idx = tooltipItems[0].dataIndex;
                                 const totalMonth = (avcb[idx] || 0) + (clcb[idx] || 0) + (procAdm[idx] || 0) + (obras[idx] || 0);
-                                const val = tooltipItems[0].parsed.y || 0;
-                                if (totalMonth > 0) {
-                                    const pct = ((val / totalMonth) * 100).toFixed(1);
-                                    return 'Participação no mês: ' + pct + '%';
-                                }
-                                return '';
+                                return 'Total no mês: ' + fmtFull(totalMonth);
                             }
                         }
                     }
@@ -640,11 +542,18 @@ window.dashboardCharts = {
                         backgroundColor: 'rgba(23, 30, 50, 0.95)',
                         titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
                         bodyFont: { family: 'Inter', size: 12 },
+                        footerFont: { family: 'Inter', size: 12, weight: 'bold' },
                         padding: 12,
                         cornerRadius: 8,
                         callbacks: {
                             label: function (context) {
                                 return ' ' + context.dataset.label + ': ' + fmtFull(context.parsed.y || 0);
+                            },
+                            footer: function (tooltipItems) {
+                                if (!tooltipItems || tooltipItems.length === 0) return '';
+                                const idx = tooltipItems[0].dataIndex;
+                                const total = seriesData.reduce((sum, series) => sum + (series[idx] || 0), 0);
+                                return 'Total no mês: ' + fmtFull(total);
                             }
                         }
                     }
@@ -669,83 +578,6 @@ window.dashboardCharts = {
 
         if (canvasId === 'costEvoChartCanvas') {
             this.costEvoChart = newChart;
-        }
-        return true;
-    },
-
-    renderCostCatChart: function (canvasId, categories, values) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return false;
-
-        if (this.costCatChart && canvasId === 'costCatChartCanvas') {
-            this.costCatChart.destroy();
-            this.costCatChart = null;
-        }
-
-        const fmtCurrency = function (value) {
-            if (value === null || value === undefined) return 'R$ 0';
-            if (Math.abs(value) >= 1000000) {
-                return 'R$ ' + (value / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' Mi';
-            }
-            if (Math.abs(value) >= 1000) {
-                return 'R$ ' + Math.round(value / 1000).toLocaleString('pt-BR') + ' mil';
-            }
-            return 'R$ ' + Math.round(value).toLocaleString('pt-BR');
-        };
-
-        const fmtFull = function (value) {
-            if (value === null || value === undefined) return 'R$ 0,00';
-            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        };
-
-        const newChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: categories,
-                datasets: [{
-                    label: 'Total no período',
-                    data: values,
-                    backgroundColor: '#2563EB',
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(23, 30, 50, 0.95)',
-                        titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
-                        bodyFont: { family: 'Inter', size: 12 },
-                        padding: 12,
-                        cornerRadius: 8,
-                        callbacks: {
-                            label: function (context) {
-                                return ' Total: ' + fmtFull(context.parsed.x || 0);
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: '#EEF0F4' },
-                        ticks: {
-                            font: { family: 'Inter', size: 11 },
-                            callback: function (value) { return fmtCurrency(value); }
-                        }
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: { font: { family: 'Inter', size: 11 } }
-                    }
-                }
-            }
-        });
-
-        if (canvasId === 'costCatChartCanvas') {
-            this.costCatChart = newChart;
         }
         return true;
     },
@@ -848,7 +680,8 @@ window.dashboardCharts = {
             'AVCB': '#C8432F',
             'CLCB': '#DE9427',
             'Proc. Adm': '#6B46C1',
-            'Obras': '#2B6CB0'
+            'Obras': '#2B6CB0',
+            'Sem vínculo': '#94A3B8'
         };
 
         const backgroundColors = labels.map(l => lineColors[l] || '#2563EB');
@@ -1059,11 +892,18 @@ window.dashboardCharts = {
                         backgroundColor: 'rgba(23, 30, 50, 0.95)',
                         titleFont: { family: 'Archivo', size: 13, weight: 'bold' },
                         bodyFont: { family: 'Inter', size: 12 },
+                        footerFont: { family: 'Inter', size: 12, weight: 'bold' },
                         padding: 12,
                         cornerRadius: 8,
                         callbacks: {
                             label: function (context) {
                                 return ' ' + context.dataset.label + ': ' + context.parsed.y + ' contrato(s)';
+                            },
+                            footer: function (tooltipItems) {
+                                if (!tooltipItems || tooltipItems.length === 0) return '';
+                                const idx = tooltipItems[0].dataIndex;
+                                const total = (avcb[idx] || 0) + (clcb[idx] || 0) + (procAdm[idx] || 0) + (obras[idx] || 0);
+                                return 'Total: ' + total + ' contrato(s)';
                             }
                         }
                     }
